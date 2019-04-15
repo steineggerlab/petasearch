@@ -1,0 +1,6 @@
+#ifndef LOCALCOMMANDDECLARATIONS_H
+#define LOCALCOMMANDDECLARATIONS_H
+
+#include "Command.h"
+
+#endif
