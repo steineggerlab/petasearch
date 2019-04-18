@@ -16,25 +16,32 @@ public:
         return static_cast<LocalParameters&>(LocalParameters::getInstance());
     }
 
+    std::vector<MMseqsParameter*> createkmertable;
+    ///example
+
     std::vector<MMseqsParameter*> predictexonsworkflow;
 
     PARAMETER(PARAM_REVERSE_FRAGMENTS)
     int reverseFragments;
-
+    //example end
 private:
     LocalParameters() : 
         Parameters(),
-        PARAM_REVERSE_FRAGMENTS(PARAM_REVERSE_FRAGMENTS_ID,"--reverse-fragments", "Reverse AA Fragments", "reverse AA fragments to compute under null [0,1]", typeid(int), (void *) &reverseFragments, "^[0-1]{1}$")
+
+      PARAM_REVERSE_FRAGMENTS(PARAM_REVERSE_FRAGMENTS_ID,"--reverse-fragments", "Reverse AA Fragments", "reverse AA fragments to compute under null [0,1]", typeid(int), (void *) &reverseFragments, "^[0-1]{1}$")
     {
         predictexonsworkflow.push_back(&PARAM_REVERSE_FRAGMENTS);
-        
+        createkmertable.push_back(&PARAM_K);
+
         // default value 0 means no reverse of AA fragments
         reverseFragments = 0;
     }
     LocalParameters(LocalParameters const&);
     ~LocalParameters() {};
     void operator=(LocalParameters const&);
-};
 
+    
+
+};
 
 #endif

@@ -1,10 +1,12 @@
 include_directories(commons)
 add_subdirectory(commons)
+add_subdirectory(sra)
 add_subdirectory(version)
 add_subdirectory(workflow)
 
 add_executable(srasearch
         ${commons_source_files}
+        ${sra_source_files}
         ${workflow_source_files}
         LocalCommandDeclarations.h
         srasearch.cpp
