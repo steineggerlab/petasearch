@@ -4,13 +4,16 @@
 #include "IndexReader.h"
 #include "DBReader.h"
 #include "NucleotideMatrix.h"
+#include "fstream"
+#include "MathUtil.h"
 
 #define KMER_SIZE 5
 #define SPACED_KMER true
-#define KMERTABLEFILE "temp/kmertableDecoded"
+// #define KMERTABLEFILE "temp/kmertableDecoded"
 
 
 int createkmertable(int argc, const char **argv, const Command& command){
+    char *KMERTABLEFILE = "tmp/kmertableDecoded";    
     Parameters& par = Parameters::getInstance();
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
@@ -37,6 +40,8 @@ int createkmertable(int argc, const char **argv, const Command& command){
     size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, par.kmerSize);
     unsigned int * kmerCountTable=new unsigned int[idxSize];
     memset(kmerCountTable, 0, sizeof(unsigned int)*idxSize);
+    // char *bufferOut = new char[idxSize];
+
 #pragma omp parallel
     {
         Indexer idx(subMat->alphabetSize-1, par.kmerSize);
@@ -67,20 +72,36 @@ int createkmertable(int argc, const char **argv, const Command& command){
         }
     }
     Indexer idx(subMat->alphabetSize-1, par.kmerSize);
-    size_t count=0;
-    for(size_t i=0; i<idxSize;++i){
+    size_t count = 0;
+    char * filename = KMERTABLEFILE;
+
+    FILE* handle = fopen(filename, "ab+");
+    int fd=fileno(handle);
+    struct stat fileStat;
+    fstat(fd, &fileStat);
+    char *buffer = new char[KMER_SIZE];
+    for(size_t i = 0; i < idxSize; ++i){
         int kmerCount = kmerCountTable[i];
         if(kmerCount){
             ++count;
             idx.index2int(idx.workspace, i, par.kmerSize);
-            for(int k = 0; k < par.kmerSize; k++){
-                std::cout << subMat->int2aa[idx.workspace[k]];
+            // fwrite(&(subMat->int2aa[idx.workspace[0]]),sizeof(char),KMER_SIZE,handle);
+            for(int k = 0; k < par.kmerSize; ++k){
+                buffer[k] = subMat->int2aa[idx.workspace[k]];
+                // std::cout << subMat->int2aa[idx.workspace[k]];
             }
-            std::cout<<"\n"<<"";
+            fwrite(buffer, sizeof(char),KMER_SIZE,handle);
         }
 
     }
     std::cout<<count<<std::endl;
+    idx.index2int(idx.workspace, idxSize-1, par.kmerSize);
+size_t kmer = 0;
+    for(size_t i = 0; i < KMER_SIZE; ++i){
+        kmer+= idx.workspace[i] * MathUtil::ipow<long>(19,(int)i);
+        std::cout<<idx.workspace[i]<<std::endl;
+    }
+    std::cout<<kmer<<std::endl;
     delete [] kmerCountTable;
 
     return EXIT_SUCCESS;
