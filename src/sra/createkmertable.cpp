@@ -11,6 +11,7 @@
 #define SPACED_KMER true
 // #define KMERTABLEFILE "temp/kmertableDecoded"
 
+long index2long(size_t index[], size_t kmerSize, size_t alphabetSize);
 
 int createkmertable(int argc, const char **argv, const Command& command){
     char *KMERTABLEFILE = "tmp/kmertableDecoded";    
@@ -96,14 +97,23 @@ int createkmertable(int argc, const char **argv, const Command& command){
     }
     std::cout<<count<<std::endl;
     idx.index2int(idx.workspace, idxSize-1, par.kmerSize);
-size_t kmer = 0;
-    for(size_t i = 0; i < KMER_SIZE; ++i){
-        kmer+= idx.workspace[i] * MathUtil::ipow<long>(19,(int)i);
-        std::cout<<idx.workspace[i]<<std::endl;
-    }
-    std::cout<<kmer<<std::endl;
+    std::cout<<index2long(idx.workspace,KMER_SIZE,19)<<std::endl;
+// size_t kmer = 0;
+//     for(size_t i = 0; i < KMER_SIZE; ++i){
+//         kmer+= idx.workspace[i] * MathUtil::ipow<long>(19,(int)i);
+//         std::cout<<idx.workspace[i]<<std::endl;
+//     }
+//     std::cout<<kmer<<std::endl;
     delete [] kmerCountTable;
 
     return EXIT_SUCCESS;
+}
+
+long index2long(size_t index[], size_t kmerSize, size_t alphabetSize){
+    long kmerAsLong = 0;
+    for(size_t i = 0; i < kmerSize; ++i){
+        kmerAsLong += index[i]*MathUtil::ipow<long>(alphabetSize, i);
+    }
+    return kmerAsLong;
 }
 
