@@ -12,7 +12,7 @@
 // #define KMERTABLEFILE "temp/kmertableDecoded"
 
 long index2long(size_t index[], size_t kmerSize, size_t alphabetSize);
-void writeKmerTableOfStream(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat);
+void writeKmerTableUsingOfStream(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat);
 void writeKmerTableFWrite(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat );
 
 int createkmertable(int argc, const char **argv, const Command& command){
@@ -71,8 +71,8 @@ int createkmertable(int argc, const char **argv, const Command& command){
         }
     }
 
-    writeKmerTableFWrite(KMERTABLEFILE,kmerCountTable,subMat);
-    // writeKmerTableOfStream(KMERTABLEFILE,kmerCountTable,subMat);
+    // writeKmerTableFWrite(KMERTABLEFILE,kmerCountTable,subMat);
+    writeKmerTableUsingOfStream(KMERTABLEFILE,kmerCountTable,subMat);
 
 
 
@@ -136,6 +136,29 @@ void writeKmerTableFWrite(char * filename, unsigned int kmerCountTable[], BaseMa
         << index2long(idx.workspace,KMER_SIZE,subMat->alphabetSize-1) << "\n";
     fclose(handle);
 
+}
+
+void writeKmerTableUsingOfStream(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat ){
+    Indexer idx(subMat->alphabetSize-1, KMER_SIZE);
+    size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, KMER_SIZE);
+    std::ofstream tableFile (filename, std::ios::out | std::ios::binary);
+    long sum =0;
+    size_t count = 0;
+    for(size_t i = 0; i < idxSize; ++i){
+        int kmerCount = kmerCountTable[i];
+        if(kmerCount){
+            idx.index2int(idx.workspace, i, KMER_SIZE);
+            long kmerAslong = index2long(idx.workspace,KMER_SIZE,subMat->alphabetSize-1);
+            tableFile.write((char*) &kmerAslong,sizeof(kmerAslong));
+            // std::cout<< kmerAslong<<std::endl;
+            sum += kmerAslong;
+            ++count;
+        }
+    }
+    
+    Debug(Debug::INFO) << "sum: " << sum <<"\n" << "count: "<< count << "\n" << "last written: " 
+        << index2long(idx.workspace,KMER_SIZE,subMat->alphabetSize-1) << "\n";
+    tableFile.close();
 }
 
 
