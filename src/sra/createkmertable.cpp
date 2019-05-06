@@ -12,9 +12,11 @@
 // #define KMERTABLEFILE "temp/kmertableDecoded"
 
 long index2long(size_t index[], size_t kmerSize, size_t alphabetSize);
+void writeKmerTableOfStream(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat);
+void writeKmerTableFWrite(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat );
 
 int createkmertable(int argc, const char **argv, const Command& command){
-    char *KMERTABLEFILE = "tmp/kmertableDecoded";    
+    char *KMERTABLEFILE = "tmp/kmerTableDecodedAsLong";    
     Parameters& par = Parameters::getInstance();
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
@@ -41,7 +43,6 @@ int createkmertable(int argc, const char **argv, const Command& command){
     size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, par.kmerSize);
     unsigned int * kmerCountTable=new unsigned int[idxSize];
     memset(kmerCountTable, 0, sizeof(unsigned int)*idxSize);
-    // char *bufferOut = new char[idxSize];
 
 #pragma omp parallel
     {
@@ -63,47 +64,43 @@ int createkmertable(int argc, const char **argv, const Command& command){
                 if (xCount > 0) {
                     continue;
                 }
-                
-
                 size_t kmerIdx = (isNucl) ? Indexer::computeKmerIdx(kmer, par.kmerSize) : idx.int2index(kmer, 0, par.kmerSize);
-                //no need for syncronized, in all cases the index get increased at least by 1 which is enough
+                //no need for syncronized, in all cases the index get increased at least by 1 which is sufficent
                 kmerCountTable[kmerIdx]++;
-                // __sync_fetch_and_add(&(kmerCountTable[kmerIdx]), 1);
             }
         }
     }
-    Indexer idx(subMat->alphabetSize-1, par.kmerSize);
-    size_t count = 0;
-    char * filename = KMERTABLEFILE;
 
-    FILE* handle = fopen(filename, "ab+");
-    int fd=fileno(handle);
-    struct stat fileStat;
-    fstat(fd, &fileStat);
-    char *buffer = new char[KMER_SIZE];
-    for(size_t i = 0; i < idxSize; ++i){
-        int kmerCount = kmerCountTable[i];
-        if(kmerCount){
-            ++count;
-            idx.index2int(idx.workspace, i, par.kmerSize);
-            // fwrite(&(subMat->int2aa[idx.workspace[0]]),sizeof(char),KMER_SIZE,handle);
-            for(int k = 0; k < par.kmerSize; ++k){
-                buffer[k] = subMat->int2aa[idx.workspace[k]];
-                // std::cout << subMat->int2aa[idx.workspace[k]];
-            }
-            fwrite(buffer, sizeof(char),KMER_SIZE,handle);
-        }
+    writeKmerTableFWrite(KMERTABLEFILE,kmerCountTable,subMat);
+    // writeKmerTableOfStream(KMERTABLEFILE,kmerCountTable,subMat);
 
-    }
-    std::cout<<count<<std::endl;
-    idx.index2int(idx.workspace, idxSize-1, par.kmerSize);
-    std::cout<<index2long(idx.workspace,KMER_SIZE,19)<<std::endl;
-// size_t kmer = 0;
-//     for(size_t i = 0; i < KMER_SIZE; ++i){
-//         kmer+= idx.workspace[i] * MathUtil::ipow<long>(19,(int)i);
-//         std::cout<<idx.workspace[i]<<std::endl;
-//     }
-//     std::cout<<kmer<<std::endl;
+
+
+    // Indexer idx(subMat->alphabetSize-1, par.kmerSize);
+    // size_t count = 0;
+    // char * filename = KMERTABLEFILE;
+    // FILE* handle = fopen(filename, "ab+");
+    // int fd=fileno(handle);
+    // struct stat fileStat;
+    // fstat(fd, &fileStat);
+    // char *buffer = new char[KMER_SIZE];
+    // 
+    // for(size_t i = 0; i < idxSize; ++i){
+    //     int kmerCount = kmerCountTable[i];
+    //     if(kmerCount){
+    //         ++count;
+    //         idx.index2int(idx.workspace, i, par.kmerSize);
+    //         long kmerAsLong= index2long(idx.workspace,KMER_SIZE,19);
+    //         fwrite(&kmerAsLong, sizeof(kmerAsLong),1,handle);
+    //         std::cout<< kmerAsLong<<std::endl;
+    //         sum+=kmerAsLong;
+    //     }
+
+    // }
+    //  idx.index2int(idx.workspace, idxSize-1, par.kmerSize);
+    //  std::cout<<index2long(idx.workspace,KMER_SIZE,19)<<std::endl;
+    //  std::cout<<"sum: "<< sum<<std::endl;
+
     delete [] kmerCountTable;
 
     return EXIT_SUCCESS;
@@ -115,5 +112,31 @@ long index2long(size_t index[], size_t kmerSize, size_t alphabetSize){
         kmerAsLong += index[i]*MathUtil::ipow<long>(alphabetSize, i);
     }
     return kmerAsLong;
+
 }
+
+void writeKmerTableFWrite(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat ){
+    FILE* handle = fopen(filename, "ab+");
+    Indexer idx(subMat->alphabetSize-1, KMER_SIZE);
+    size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, KMER_SIZE);
+    long sum =0;
+    size_t count = 0;
+    for(size_t i = 0; i < idxSize; ++i){
+        int kmerCount = kmerCountTable[i];
+        if(kmerCount){
+            idx.index2int(idx.workspace, i, KMER_SIZE);
+            long kmerAsLong= index2long(idx.workspace,KMER_SIZE,subMat->alphabetSize-1);
+            fwrite(&kmerAsLong, sizeof(kmerAsLong),1,handle);
+            sum += kmerAsLong;
+            ++count;
+        }
+    }
+
+    Debug(Debug::INFO) << "sum: " << sum <<"\n" << "count: "<< count << "\n" << "last written: " 
+        << index2long(idx.workspace,KMER_SIZE,subMat->alphabetSize-1) << "\n";
+    fclose(handle);
+
+}
+
+
 
