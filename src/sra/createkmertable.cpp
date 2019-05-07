@@ -70,10 +70,14 @@ int createkmertable(int argc, const char **argv, const Command& command){
             }
         }
     }
-
-    // writeKmerTableFWrite(KMERTABLEFILE,kmerCountTable,subMat);
-    writeKmerTableUsingOfStream(KMERTABLEFILE,kmerCountTable,subMat);
-
+     struct timeval startTime;
+        struct timeval endTime; 
+	gettimeofday(&startTime, NULL);
+    writeKmerTableFWrite(KMERTABLEFILE,kmerCountTable,subMat);
+    // writeKmerTableUsingOfStream(KMERTABLEFILE,kmerCountTable,subMat);
+    gettimeofday(&endTime, NULL);
+    double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
+    Debug(Debug::INFO)<<"Time required to write k-mer table to file (wall clock writing time): " << timediff << " s\n";
 
 
     // Indexer idx(subMat->alphabetSize-1, par.kmerSize);
