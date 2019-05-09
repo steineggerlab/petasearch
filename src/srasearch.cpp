@@ -20,6 +20,13 @@ std::vector<struct Command> commands = {
                 "",
                 CITATION_MMSEQS2
         },
+        {"compare2kmertables", compare2kmertables, &par.createkmertable, COMMAND_EXPERT,
+                "",
+                NULL,
+                "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
+                "",
+                CITATION_MMSEQS2
+        },
         // Main tools  (for non-experts)
         {"createdb",             createdb,             &par.createdb,             COMMAND_MAIN,
                 "Convert protein sequence set in a FASTA file to MMseqs sequence DB format",

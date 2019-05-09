@@ -10,14 +10,14 @@ int main (){
     int fd=fileno(handle);
     struct stat fileStat;
     fstat(fd, &fileStat);
+    size_t fileSize = fileStat.st_size;
 
     long* pos = (long*)mmap(NULL, fileStat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     // madvice MADV_SEQUENTIAL
     if (posix_madvise (pos, fileStat.st_size, POSIX_MADV_SEQUENTIAL|POSIX_MADV_WILLNEED) != 0){
         std::cout << "posix_madvise returned an error " << "\n";
     }
-
-    size_t fileSize = fileStat.st_size;
+    
     size_t count=0;
     long sum = 0;
     long lastRead = 0;

@@ -70,40 +70,15 @@ int createkmertable(int argc, const char **argv, const Command& command){
             }
         }
     }
-     struct timeval startTime;
-        struct timeval endTime; 
+
+    struct timeval startTime;
+    struct timeval endTime; 
 	gettimeofday(&startTime, NULL);
     writeKmerTableFWrite(KMERTABLEFILE,kmerCountTable,subMat);
     // writeKmerTableUsingOfStream(KMERTABLEFILE,kmerCountTable,subMat);
     gettimeofday(&endTime, NULL);
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
     Debug(Debug::INFO)<<"Time required to write k-mer table to file (wall clock writing time): " << timediff << " s\n";
-
-
-    // Indexer idx(subMat->alphabetSize-1, par.kmerSize);
-    // size_t count = 0;
-    // char * filename = KMERTABLEFILE;
-    // FILE* handle = fopen(filename, "ab+");
-    // int fd=fileno(handle);
-    // struct stat fileStat;
-    // fstat(fd, &fileStat);
-    // char *buffer = new char[KMER_SIZE];
-    // 
-    // for(size_t i = 0; i < idxSize; ++i){
-    //     int kmerCount = kmerCountTable[i];
-    //     if(kmerCount){
-    //         ++count;
-    //         idx.index2int(idx.workspace, i, par.kmerSize);
-    //         long kmerAsLong= index2long(idx.workspace,KMER_SIZE,19);
-    //         fwrite(&kmerAsLong, sizeof(kmerAsLong),1,handle);
-    //         std::cout<< kmerAsLong<<std::endl;
-    //         sum+=kmerAsLong;
-    //     }
-
-    // }
-    //  idx.index2int(idx.workspace, idxSize-1, par.kmerSize);
-    //  std::cout<<index2long(idx.workspace,KMER_SIZE,19)<<std::endl;
-    //  std::cout<<"sum: "<< sum<<std::endl;
 
     delete [] kmerCountTable;
 
