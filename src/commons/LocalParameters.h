@@ -17,6 +17,7 @@ public:
     }
 
     std::vector<MMseqsParameter*> createkmertable;
+    std::vector<MMseqsParameter*> compare2kmertables;
     ///example
 
     std::vector<MMseqsParameter*> predictexonsworkflow;

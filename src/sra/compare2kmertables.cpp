@@ -43,6 +43,7 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     long* currentTargetPos = posKmerTable2;
     long* endTargetPos = posKmerTable2 + fileSizeTable2/sizeof(long);
     size_t equalKmers = 0;
+
     while(currentTargetPos <= endTargetPos){
         if(*currentQuerryPos == *currentTargetPos){
             //Match found
@@ -59,6 +60,11 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
         }
     }
     Debug(Debug::INFO)<<"number of equal Kmers: "<<equalKmers<<"\n";
+
+    munmap(posKmerTable1, fileSizeTable1);
+    munmap(posKmerTable2, fileSizeTable2);
+    fclose(handleKmerTable1);
+    fclose(handleKmerTable2);
 
     return equalKmers;
 

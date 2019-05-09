@@ -20,7 +20,7 @@ std::vector<struct Command> commands = {
                 "",
                 CITATION_MMSEQS2
         },
-        {"compare2kmertables", compare2kmertables, &par.createkmertable, COMMAND_EXPERT,
+        {"compare2kmertables", compare2kmertables, &par.compare2kmertables, COMMAND_EXPERT,
                 "",
                 NULL,
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
