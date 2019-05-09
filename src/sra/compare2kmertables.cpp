@@ -18,13 +18,13 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     
 
 
-    FILE* handleKmerTable1 = fopen(KMER_TABLE_1,"rb");
+    FILE* handleKmerTable1 = fopen(argv[0],"rb");
     int fdTable1 = fileno(handleKmerTable1);
     struct stat fileStatsTable1;
     fstat(fdTable1, &fileStatsTable1);
     size_t fileSizeTable1 = fileStatsTable1.st_size;
 
-    FILE* handleKmerTable2 = fopen(KMER_TABLE_2,"rb");
+    FILE* handleKmerTable2 = fopen(argv[1],"rb");
     int fdTable2 = fileno(handleKmerTable2);
     struct stat fileStatsTable2;
     fstat(fdTable2,&fileStatsTable2);

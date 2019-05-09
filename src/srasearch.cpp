@@ -24,7 +24,7 @@ std::vector<struct Command> commands = {
                 "",
                 NULL,
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
-                "",
+                "<i:querryKmerTable> <i:targetKmerTable>",
                 CITATION_MMSEQS2
         },
         // Main tools  (for non-experts)
