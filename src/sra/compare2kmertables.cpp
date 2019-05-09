@@ -5,21 +5,18 @@
 #include <sys/mman.h>
 #include "MathUtil.h"
 
-
-size_t kmer2index(long kmer);
-
 int compare2kmertables(int argc, const char **argv, const Command& command){
     Parameters& par = Parameters::getInstance();
     par.spacedKmer = false;
-    par.parseParameters(argc, argv, command, 1, false);
+    par.parseParameters(argc, argv, command, 2, false);
 
-    FILE* handleQuerryKmerTable = fopen(argv[0],"rb");
+    FILE* handleQuerryKmerTable = fopen(par.db1.c_str(),"rb");
     int fdQuerryTable = fileno(handleQuerryKmerTable);
     struct stat fileStatsQuerryTable;
     fstat(fdQuerryTable, &fileStatsQuerryTable);
     size_t fileSizeQuerryTable = fileStatsQuerryTable.st_size;
 
-    FILE* handleTargetKmerTable = fopen(argv[1],"rb");
+    FILE* handleTargetKmerTable = fopen(par.db2.c_str(),"rb");
     int fdTargetTable = fileno(handleTargetKmerTable);
     struct stat fileStatsTargetTable;
     fstat(fdTargetTable,&fileStatsTargetTable);
@@ -45,12 +42,10 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
             ++equalKmers;
             ++currentTargetPos;
         }
-        while (*currentQuerryPos < *currentTargetPos)
-        {
+        while (*currentQuerryPos < *currentTargetPos){
             ++currentQuerryPos;
         }
-        while (*currentTargetPos < *currentQuerryPos)
-        {
+        while (*currentTargetPos < *currentQuerryPos){
             ++currentTargetPos;
         }
     }
@@ -62,15 +57,3 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     Debug(Debug::INFO)<<"number of equal Kmers: "<<equalKmers<<"\n";
     return equalKmers;
 }
-
-
-size_t kmer2index(long kmer){
-    //hornerschema verwenden, bei der division drauf achten,dass wir nicht größer als die alphabet größer werden.
-}
-
-// long readNextQuerryKmer(){
-//     if(currentQuerryPos<file)
-// }
-// long readNextTargetKmer(){
-
-// }

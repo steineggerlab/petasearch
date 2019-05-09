@@ -16,11 +16,10 @@ void writeKmerTableUsingOfStream(char * filename, unsigned int kmerCountTable[],
 void writeKmerTableFWrite(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat );
 
 int createkmertable(int argc, const char **argv, const Command& command){
-    char *KMERTABLEFILE = "tmp/kmerTableDecodedAsLong";    
     Parameters& par = Parameters::getInstance();
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
-    par.parseParameters(argc, argv, command, 1, false);
+    par.parseParameters(argc, argv, command, 2, false);
     int indexSrcType = IndexReader::SEQUENCES;
     Debug(Debug::INFO) << par.db1 << "\n";
     
@@ -66,7 +65,8 @@ int createkmertable(int argc, const char **argv, const Command& command){
                 }
                 size_t kmerIdx = (isNucl) ? Indexer::computeKmerIdx(kmer, par.kmerSize) : idx.int2index(kmer, 0, par.kmerSize);
                 //no need for syncronized, in all cases the index get increased at least by 1 which is sufficent
-                kmerCountTable[kmerIdx]++;
+                // kmerCountTable[kmerIdx]++;
+                __sync_fetch_and_add(&kmerCountTable[kmerIdx], 1);
             }
         }
     }
@@ -74,7 +74,7 @@ int createkmertable(int argc, const char **argv, const Command& command){
     struct timeval startTime;
     struct timeval endTime; 
 	gettimeofday(&startTime, NULL);
-    writeKmerTableFWrite(KMERTABLEFILE,kmerCountTable,subMat);
+    writeKmerTableFWrite((char*)par.db2.c_str(),kmerCountTable,subMat);
     // writeKmerTableUsingOfStream(KMERTABLEFILE,kmerCountTable,subMat);
     gettimeofday(&endTime, NULL);
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
@@ -94,7 +94,7 @@ long index2long(size_t index[], size_t kmerSize, size_t alphabetSize){
 
 }
 
-void writeKmerTableFWrite(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat ){
+void writeKmerTableFWrite(char* filename, unsigned int kmerCountTable[], BaseMatrix *subMat ){
     FILE* handle = fopen(filename, "ab+");
     Indexer idx(subMat->alphabetSize-1, KMER_SIZE);
     size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, KMER_SIZE);
