@@ -8,7 +8,6 @@
 
 #define KMER_TABLE_1 "tmp/kmerTableDecodedAsLong"
 #define KMER_TABLE_2 "tmp/kmerTableDecodedAsLong2"
-#define KMER_SIZE 5
 
 size_t kmer2index(long kmer);
 
@@ -40,12 +39,6 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
         Debug(Debug::ERROR)  << "posix_madvise returned an error for k-mer table 2 " << "\n";
     }
 
-
-    size_t idxSize = MathUtil::ipow<size_t>(20, KMER_SIZE);
-    unsigned int * score = new unsigned int[idxSize];
-    memset(score, 0, sizeof(unsigned int)*idxSize);
-    long querryKmer;
-    long targetKmer;
     long* currentQuerryPos = posKmerTable1;
     long* currentTargetPos = posKmerTable2;
     long* endTargetPos = posKmerTable2 + fileSizeTable2/sizeof(long);
