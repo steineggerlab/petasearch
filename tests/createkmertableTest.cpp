@@ -29,7 +29,8 @@ int main (){
     std::cout<<"filesize/8: "<< fileSize/8<<std::endl;
     std::cout<<"lastRead: "<<lastRead<<std::endl;
     std::cout<<"sum:" <<sum<<std::endl<<"count: "<<count<<std::endl;
-
+    
+    munmap(pos,fileSize);
     fclose(handle);
 
 
