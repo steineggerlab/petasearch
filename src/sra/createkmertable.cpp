@@ -43,13 +43,15 @@ int createkmertable(int argc, const char **argv, const Command& command){
     Debug(Debug::INFO) << "Index Size: " << idxSize << "\n";
     struct timeval startTime;
     struct timeval endTime; 
-    Debug(Debug::INFO) << "Start Zeroing memory: " << idxSize << "\n";
+    Debug(Debug::INFO) << "Starting zeroing memory" << "\n";
     gettimeofday(&startTime, NULL);
-    unsigned char* kmerCountTable=new unsigned char[idxSize];
-    memset(kmerCountTable, (int) 0, sizeof(unsigned char)*idxSize);
+    //unsigned char* kmerCountTable=new unsigned char[idxSize];
+    //memset((long*)kmerCountTable,  0l, sizeof(unsigned char)*idxSize);
+    unsigned char * kmerCountTable = (unsigned char *) calloc(idxSize,sizeof(unsigned char));
+
     gettimeofday(&endTime, NULL);
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
-    Debug(Debug::INFO) << "memory zerod. Requried time: " << timediff << "\n";
+    Debug(Debug::INFO) << "memory zerod. Requried time: " << timediff << " seconds \n";
 #pragma omp parallel
     {
         Indexer idx(subMat->alphabetSize-1, par.kmerSize);
@@ -73,7 +75,8 @@ int createkmertable(int argc, const char **argv, const Command& command){
                 size_t kmerIdx = (isNucl) ? Indexer::computeKmerIdx(kmer, par.kmerSize) : idx.int2index(kmer, 0, par.kmerSize);
                 //no need for syncronized, in all cases the index get increased at least by 1 which is sufficent
                 // kmerCountTable[kmerIdx]++;
-		kmerCountTable[kmerIdx]=1;
+        #pragma omp atomic write
+		kmerCountTable[kmerIdx] = 1;
                 //__sync_fetch_and_add(&kmerCountTable[kmerIdx], 1);
             }
         }
