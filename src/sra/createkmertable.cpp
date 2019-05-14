@@ -13,7 +13,7 @@
 
 long index2long(size_t index[], size_t kmerSize, size_t alphabetSize);
 void writeKmerTableUsingOfStream(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat);
-void writeKmerTableFWrite(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat );
+void writeKmerTableFWrite(char * filename, unsigned char kmerCountTable[], BaseMatrix *subMat );
 
 int createkmertable(int argc, const char **argv, const Command& command){
     Parameters& par = Parameters::getInstance();
@@ -40,8 +40,9 @@ int createkmertable(int argc, const char **argv, const Command& command){
     }
 
     size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, par.kmerSize);
-    unsigned int * kmerCountTable=new unsigned int[idxSize];
-    memset(kmerCountTable, 0, sizeof(unsigned int)*idxSize);
+   Debug(Debug::INFO) << "Index Size: " << idxSize << "\n";
+    unsigned char* kmerCountTable=new unsigned char[idxSize];
+    memset(kmerCountTable, (int) 0, sizeof(unsigned char)*idxSize);
 
 #pragma omp parallel
     {
@@ -66,7 +67,8 @@ int createkmertable(int argc, const char **argv, const Command& command){
                 size_t kmerIdx = (isNucl) ? Indexer::computeKmerIdx(kmer, par.kmerSize) : idx.int2index(kmer, 0, par.kmerSize);
                 //no need for syncronized, in all cases the index get increased at least by 1 which is sufficent
                 // kmerCountTable[kmerIdx]++;
-                __sync_fetch_and_add(&kmerCountTable[kmerIdx], 1);
+		kmerCountTable[kmerIdx]=1;
+                //__sync_fetch_and_add(&kmerCountTable[kmerIdx], 1);
             }
         }
     }
@@ -94,7 +96,7 @@ long index2long(size_t index[], size_t kmerSize, size_t alphabetSize){
 
 }
 
-void writeKmerTableFWrite(char* filename, unsigned int kmerCountTable[], BaseMatrix *subMat ){
+void writeKmerTableFWrite(char* filename, unsigned char kmerCountTable[], BaseMatrix *subMat ){
     FILE* handle = fopen(filename, "ab+");
     Indexer idx(subMat->alphabetSize-1, KMER_SIZE);
     size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, KMER_SIZE);
