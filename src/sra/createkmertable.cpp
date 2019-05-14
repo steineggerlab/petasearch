@@ -40,10 +40,16 @@ int createkmertable(int argc, const char **argv, const Command& command){
     }
 
     size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, par.kmerSize);
-   Debug(Debug::INFO) << "Index Size: " << idxSize << "\n";
+    Debug(Debug::INFO) << "Index Size: " << idxSize << "\n";
+    struct timeval startTime;
+    struct timeval endTime; 
+    Debug(Debug::INFO) << "Start Zeroing memory: " << idxSize << "\n";
+    gettimeofday(&startTime, NULL);
     unsigned char* kmerCountTable=new unsigned char[idxSize];
     memset(kmerCountTable, (int) 0, sizeof(unsigned char)*idxSize);
-
+    gettimeofday(&endTime, NULL);
+    double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
+    Debug(Debug::INFO) << "memory zerod. Requried time: " << timediff << "\n";
 #pragma omp parallel
     {
         Indexer idx(subMat->alphabetSize-1, par.kmerSize);
@@ -73,13 +79,11 @@ int createkmertable(int argc, const char **argv, const Command& command){
         }
     }
 
-    struct timeval startTime;
-    struct timeval endTime; 
 	gettimeofday(&startTime, NULL);
     writeKmerTableFWrite((char*)par.db2.c_str(),kmerCountTable,subMat);
     // writeKmerTableUsingOfStream(KMERTABLEFILE,kmerCountTable,subMat);
     gettimeofday(&endTime, NULL);
-    double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
+    timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
     Debug(Debug::INFO)<<"Time required to write k-mer table to file (wall clock writing time): " << timediff << " s\n";
 
     delete [] kmerCountTable;
