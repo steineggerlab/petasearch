@@ -51,7 +51,7 @@ int createkmertable(int argc, const char **argv, const Command& command){
 
     gettimeofday(&endTime, NULL);
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
-    Debug(Debug::INFO) << "memory zerod. Requried time: " << timediff << " seconds \n";
+    Debug(Debug::INFO) << "memory zerod. Required time: " << timediff << " seconds \n";
 #pragma omp parallel
     {
         Indexer idx(subMat->alphabetSize-1, par.kmerSize);

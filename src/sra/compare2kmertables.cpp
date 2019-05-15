@@ -36,6 +36,10 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     long* endTargetPos = startPosTargetTable + fileSizeTargetTable/sizeof(long);
     size_t equalKmers = 0;
 
+    struct timeval startTime;
+    struct timeval endTime; 
+    gettimeofday(&startTime, NULL);
+
     while(currentTargetPos <= endTargetPos){
         if(*currentQuerryPos == *currentTargetPos){
             //Match found
@@ -49,11 +53,14 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
             ++currentTargetPos;
         }
     }
+    gettimeofday(&endTime, NULL);
+    double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
     munmap(startPosQuerryTable, fileSizeQuerryTable);
     munmap(startPosTargetTable, fileSizeTargetTable);
     fclose(handleQuerryKmerTable);
     fclose(handleTargetKmerTable);
-
+    Debug(Debug::INFO) << timediff<<" s; Rate "<<((fileSizeTargetTable+fileSizeQuerryTable)/1e+9)/timediff
+            <<" GB/s \n";
     Debug(Debug::INFO)<<"number of equal Kmers: "<<equalKmers<<"\n";
     return equalKmers;
 }
