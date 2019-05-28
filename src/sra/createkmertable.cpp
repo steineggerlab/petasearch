@@ -6,7 +6,7 @@
 #include "NucleotideMatrix.h"
 #include "fstream"
 #include "MathUtil.h"
-#include "queryTableStruct.h"
+#include "QueryTableEntry.h"
 #include <algorithm>
 
 #define KMER_SIZE 5
@@ -48,7 +48,10 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     Debug(Debug::INFO)<<"sizeOf unsigned int: "<< sizeof(unsigned int) <<"\n";
     Debug(Debug::INFO)<<"sizeOf unsigned long: "<< sizeof(unsigned long) <<"\n";
     Debug(Debug::INFO)<<"sizeOf queryTableStruct: "<< sizeof(QueryTableStruct) <<"\n";
-    Debug(Debug::INFO)<<"kmercount: " <<kmerCount<<"\nrequired max Mem:"<<(kmerCount*sizeof(QueryTableStruct))/1024/1024<<" MB\n";
+    Debug(Debug::INFO)<<"kmercount: " <<kmerCount<<"\nrequired max Mem:"<<(kmerCount*sizeof(QueryTableEntry))/1024/1024<<" MB\n";
+    
+    QueryTableEntry querryTable[] = new QueryTableEntry[kmerCount];
+    
     // size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, par.kmerSize);
     // Debug(Debug::INFO) << "Index Size: " << idxSize << "\n";
     // struct timeval startTime;
