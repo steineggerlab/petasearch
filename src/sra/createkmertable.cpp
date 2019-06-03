@@ -7,6 +7,7 @@
 #include "fstream"
 #include "MathUtil.h"
 #include "QueryTableEntry.h"
+#include "TargetTableEntry.h"
 #include <algorithm>
 
 #define KMER_SIZE 5
@@ -16,6 +17,10 @@
 long index2long(size_t index[], size_t kmerSize, size_t alphabetSize);
 void writeKmerTableUsingOfStream(char * filename, unsigned int kmerCountTable[], BaseMatrix *subMat);
 void writeKmerTableFWrite(char * filename, unsigned char kmerCountTable[], BaseMatrix *subMat );
+int isQuery(){
+    return true;
+}
+int querryTableSort(QueryTableEntry entryOne, QueryTableEntry entry2);
 
 
 int createkmertable(int argc, const char ** argv, const Command& command){
@@ -24,7 +29,6 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, 2, false);
     int indexSrcType = IndexReader::SEQUENCES;
-
 
     IndexReader reader(par.db1, par.threads, indexSrcType, 0);
     int seqType = reader.sequenceReader->getDbtype();
@@ -44,24 +48,94 @@ int createkmertable(int argc, const char ** argv, const Command& command){
         kmerCount+=reader.sequenceReader->getSeqLens(i)-par.kmerSize-2;
         maxLen = std::max(maxLen, currentSequenceLenth);
     }
-  
+
     Debug(Debug::INFO)<<"sizeOf unsigned int: "<< sizeof(unsigned int) <<"\n";
     Debug(Debug::INFO)<<"sizeOf unsigned long: "<< sizeof(unsigned long) <<"\n";
-    Debug(Debug::INFO)<<"sizeOf queryTableStruct: "<< sizeof(QueryTableStruct) <<"\n";
+    Debug(Debug::INFO)<<"sizeOf queryTableStruct: "<< sizeof(QueryTableEntry) <<"\n";
     Debug(Debug::INFO)<<"kmercount: " <<kmerCount<<"\nrequired max Mem:"<<(kmerCount*sizeof(QueryTableEntry))/1024/1024<<" MB\n";
-    
-    QueryTableEntry querryTable[] = new QueryTableEntry[kmerCount];
-    
-    // size_t idxSize = MathUtil::ipow<size_t>(subMat->alphabetSize-1, par.kmerSize);
-    // Debug(Debug::INFO) << "Index Size: " << idxSize << "\n";
-    // struct timeval startTime;
-    // struct timeval endTime; 
-    // Debug(Debug::INFO) << "Starting zeroing memory" << "\n";
-    // gettimeofday(&startTime, NULL);
-    //unsigned char* kmerCountTable=new unsigned char[idxSize];
-    //memset((long*)kmerCountTable,  0l, sizeof(unsigned char)*idxSize);
-    // unsigned char * kmerCountTable = (unsigned char *) calloc(idxSize,sizeof(unsigned char));
+    if(isQuery()){
+        QueryTableEntry* querryTable = (QueryTableEntry*) calloc(kmerCount,sizeof(QueryTableEntry));
+        QueryTableEntry* posInQueryTable  = querryTable;
+        #pragma omp parallel 
+        {
+            Indexer idx(subMat->alphabetSize-1, par.kmerSize);
+            Sequence s(maxLen, seqType, subMat,
+                        par.kmerSize, par.spacedKmer, false);
 
+            #pragma omp for schedule(dynamic, 1)
+            for (size_t i = 0; i < reader.sequenceReader->getSize(); ++i) {
+                QueryTableEntry * localpos;
+                char *data = reader.sequenceReader->getData(i, 0);
+                s.mapSequence(i, 0, data);
+                
+                const int xIndex = s.subMat->aa2int[(int) 'X'];
+                while (s.hasNextKmer()) {
+                    const int *kmer = s.nextKmer();
+                    int xCount = 0;
+                    for (int pos = 0; pos < par.kmerSize; pos++) {
+                        xCount += (kmer[pos] == xIndex);
+                    }
+                    if (xCount > 0) {
+                        continue;
+                    }
+                    size_t kmerIdx = (isNucl) ? Indexer::computeKmerIdx(kmer, par.kmerSize) : idx.int2index(kmer, 0, par.kmerSize);
+                    
+                    #pragma omp atomic capture
+                    localpos= posInQueryTable++;
+
+                    localpos->querySequenceId=i;
+                    localpos->Query.kmer=index2long(idx.workspace,KMER_SIZE,subMat->alphabetSize-1);
+                    localpos->Query.kmerPosInQuerry=i;
+                }
+            }
+            //TODO sort by k-mer and remove duplicates
+            std::sort(querryTable,querryTable+kmerCount,querryTableSort);
+            
+        }
+    }else{
+        TargetTableEntry* targetTable = (TargetTableEntry*) calloc(kmerCount,sizeof(TargetTableEntry));
+        TargetTableEntry* posInTargetTable = targetTable;
+        #pragma omp parallel 
+        {
+            Indexer idx(subMat->alphabetSize-1, par.kmerSize);
+            Sequence s(maxLen, seqType, subMat,
+                        par.kmerSize, par.spacedKmer, false);
+
+            #pragma omp for schedule(dynamic, 1)
+            for (size_t i = 0; i < reader.sequenceReader->getSize(); ++i) {
+                TargetTableEntry * localpos;
+                char *data = reader.sequenceReader->getData(i, 0);
+                s.mapSequence(i, 0, data);
+                
+                const int xIndex = s.subMat->aa2int[(int) 'X'];
+                while (s.hasNextKmer()) {
+                    const int *kmer = s.nextKmer();
+                    int xCount = 0;
+                    for (int pos = 0; pos < par.kmerSize; pos++) {
+                        xCount += (kmer[pos] == xIndex);
+                    }
+                    if (xCount > 0) {
+                        continue;
+                    }
+                    size_t kmerIdx = (isNucl) ? Indexer::computeKmerIdx(kmer, par.kmerSize) : idx.int2index(kmer, 0, par.kmerSize);
+                    
+                    #pragma omp atomic capture
+                    localpos= posInTargetTable++;
+
+                    localpos->sequenceID=i;
+                    localpos->kmerAsLong=index2long(idx.workspace,KMER_SIZE,subMat->alphabetSize-1);
+                    localpos->sequenceLength=reader.sequenceReader->getSeqLens(i);
+                }
+            }
+        }
+        //TODO stable sort by k-mer, eliminate k-mers with multiple entries by selecting the entry with the longest sequence
+        //TODO write to target-kmer table and target-id table.
+    }
+}
+
+
+int querryTableSort(QueryTableEntry entryOne, QueryTableEntry entryTwo){
+    return entryOne.Query.kmer>entryTwo.Query.kmer;
 }
 
 // int createkmertable(int argc, const char **argv, const Command& command){
@@ -143,14 +217,14 @@ int createkmertable(int argc, const char ** argv, const Command& command){
 //     return EXIT_SUCCESS;
 // }
 
-// long index2long(size_t index[], size_t kmerSize, size_t alphabetSize){
-//     long kmerAsLong = 0;
-//     for(size_t i = 0; i < kmerSize; ++i){
-//         kmerAsLong += index[i]*MathUtil::ipow<long>(alphabetSize, i);
-//     }
-//     return kmerAsLong;
+long index2long(size_t index[], size_t kmerSize, size_t alphabetSize){
+    long kmerAsLong = 0;
+    for(size_t i = 0; i < kmerSize; ++i){
+        kmerAsLong += index[i]*MathUtil::ipow<long>(alphabetSize, i);
+    }
+    return kmerAsLong;
 
-// }
+}
 
 // void writeKmerTableFWrite(char* filename, unsigned char kmerCountTable[], BaseMatrix *subMat ){
 //     FILE* handle = fopen(filename, "ab+");

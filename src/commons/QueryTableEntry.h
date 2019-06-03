@@ -1,5 +1,5 @@
-#ifndef QUERY_TABLE_STRUCT_H
-#define QUERY_TABLE_STRUCT_H
+#ifndef QUERY_TABLE_ENTRY_H
+#define QUERY_TABLE_ENTRY_H
 struct __attribute__((__packed__)) QueryTableEntry
 {
     unsigned int querySequenceId;

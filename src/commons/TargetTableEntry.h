@@ -1,0 +1,10 @@
+#ifndef TARGET_TABLE_ENTRY_H
+#define TARGET_TABLE_ENTRY_H
+struct __attribute__((__packed__)) TargetTableEntry
+{   
+    long kmerAsLong;
+    unsigned int sequenceID;
+    unsigned int sequenceLength;
+};
+
+#endif

@@ -40,6 +40,18 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     struct timeval endTime; 
     gettimeofday(&startTime, NULL);
 
+    //maybe faster:
+    // Type your code here, or load an example.
+// int square(long * currentTargetPos, long * endTargetPos, long * currentQuerryPos) {
+//      long * targetBasePos = currentTargetPos;
+//       while(__builtin_expect(currentTargetPos <= endTargetPos, 1)){
+//         currentTargetPos += (*currentQuerryPos == *currentTargetPos);
+//         //kmer->tidx =  currentTargetPos - targetBasePos;
+//         //kmer += (*currentQuerryPos == *currentTargetPos);
+//         currentQuerryPos += (*currentQuerryPos < *currentTargetPos);
+//         currentTargetPos += (*currentTargetPos < *currentQuerryPos);
+//     }
+// }
     while(currentTargetPos <= endTargetPos){
         if(*currentQuerryPos == *currentTargetPos){
             //Match found
