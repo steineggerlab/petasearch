@@ -1,5 +1,6 @@
 set(commons_source_files
         commons/LocalParameters.h
         commons/LocalParameters.cpp
-        commons/queryTableStruct.h
+        commons/QueryTableEntry.h
+        commons/TargetTableEntry.h
         PARENT_SCOPE)
