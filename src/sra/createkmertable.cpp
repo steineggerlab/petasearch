@@ -14,14 +14,16 @@
 #define SPACED_KMER true
 
 
-long index2long(const int* index, size_t kmerSize, size_t alphabetSize);
+long kmer2long(const int* index, size_t kmerSize, size_t alphabetSize);
 void writeQueryTable(QueryTableEntry* querryTable, size_t kmerCount, std::string querryID);
 void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::string blockID);
+int querryTableSort(QueryTableEntry entryOne, QueryTableEntry entry2);
+int targetTableSort(TargetTableEntry entryOne, TargetTableEntry entryTwo);
+
+
 int isQuery(){
     return false;
 }
-int querryTableSort(QueryTableEntry entryOne, QueryTableEntry entry2);
-int targetTableSort(TargetTableEntry entryOne, TargetTableEntry entryTwo);
 
 
 int createkmertable(int argc, const char ** argv, const Command& command){
@@ -87,8 +89,8 @@ int createkmertable(int argc, const char ** argv, const Command& command){
                     // size_t kmerIdx = (isNucl) ? Indexer::computeKmerIdx(kmer, par.kmerSize) : idx.int2index(kmer, 0, par.kmerSize);
                     // idx.index2int(idx.workspace, kmerIdx, par.kmerSize);
 
-                    localpos->querySequenceId = i;
-                    localpos->Query.kmer = index2long(kmer,par.kmerSize,subMat->alphabetSize-1);
+                    localpos->querySequenceId = s.getId();;
+                    localpos->Query.kmer = kmer2long(kmer,par.kmerSize,subMat->alphabetSize-1);
                     localpos->Query.kmerPosInQuerry = kmerPosInSequence;
                 }
             }
@@ -101,7 +103,8 @@ int createkmertable(int argc, const char ** argv, const Command& command){
         Debug(Debug::INFO) << "Number of all overall kmers: " << kmerCount <<" Requiring " << (kmerCount*sizeof(TargetTableEntry))/1024/1024 << " MB of memory while creating the target table\n";
         TargetTableEntry* targetTable = (TargetTableEntry*) calloc(kmerCount,sizeof(TargetTableEntry));
         TargetTableEntry* posInTargetTable = targetTable;
-        Debug(Debug::INFO)<< "Memory allocated \n";
+        Debug(Debug::INFO)<< "Memory allocated \n"
+        <<"Number of sequences: " << reader.sequenceReader->getSize()<<"\n";
         #pragma omp parallel 
         {
             Indexer idx(subMat->alphabetSize-1, par.kmerSize);
@@ -128,18 +131,10 @@ int createkmertable(int argc, const char ** argv, const Command& command){
                     #pragma omp atomic capture
                     localpos = posInTargetTable++;
 
-                    // size_t kmerIdx = (isNucl) ? Indexer::computeKmerIdx(kmer, par.kmerSize) : idx.int2index(kmer, 0, par.kmerSize);
-                    // idx.index2int(idx.workspace, kmerIdx, par.kmerSize);
 
-                    localpos->sequenceID = i;
-                    localpos->kmerAsLong = index2long(kmer,par.kmerSize,subMat->alphabetSize-1);
+                    localpos->sequenceID = s.getId();
+                    localpos->kmerAsLong = kmer2long(kmer,par.kmerSize,subMat->alphabetSize-1);
                     localpos->sequenceLength = reader.sequenceReader->getSeqLens(i);
-                    // if(i == 1){
-                    //     std::string kmerstring="";
-                    //     for(size_t j =0;j < par.kmerSize; j++)
-                    //         kmerstring+=(char)kmer[i];
-                    //     Debug(Debug::INFO) << "kmer as long:" << localpos->kmerAsLong << " kmer:" << kmerstring << "\n";
-                    // }
                 }
             }
         }
@@ -216,7 +211,7 @@ void writeQueryTable(QueryTableEntry* querryTable, size_t kmerCount, std::string
 
 
 
-long index2long(const int* index, size_t kmerSize, size_t alphabetSize){
+long kmer2long(const int* index, size_t kmerSize, size_t alphabetSize){
     long kmerAsLong = 0;
     for(size_t i = 0; i < kmerSize; ++i){
         kmerAsLong += index[i]*MathUtil::ipow<long>(alphabetSize, i);
