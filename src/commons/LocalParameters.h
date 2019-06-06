@@ -33,6 +33,8 @@ private:
     {
         predictexonsworkflow.push_back(&PARAM_REVERSE_FRAGMENTS);
         createkmertable.push_back(&PARAM_K);
+        createkmertable.push_back(&PARAM_THREADS);
+        createkmertable.push_back(&PARAM_V);
 
         // default value 0 means no reverse of AA fragments
         reverseFragments = 0;

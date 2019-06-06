@@ -8,7 +8,10 @@
 #include "MathUtil.h"
 #include "QueryTableEntry.h"
 #include "TargetTableEntry.h"
+#include "omptl/omptl_algorithm"
+
 #include <algorithm>
+#include <cassert>
 
 #ifdef OPENMP
 #include <omp.h>
@@ -34,33 +37,32 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     Parameters& par = Parameters::getInstance();
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
-    par.parseParameters(argc, argv, command, 2, false);
-    int indexSrcType = IndexReader::SEQUENCES;
-    IndexReader reader(par.db1, par.threads, indexSrcType, 0);
-    int seqType = reader.sequenceReader->getDbtype();
-    BaseMatrix * subMat;
+    par.parseParameters(argc, argv, command, 2, true);
     Timer timer;
-    QueryTableEntry* querryTable = nullptr;
-    TargetTableEntry* targetTable = nullptr;
-    size_t maxLen = 0;
-    size_t kmerCount=0;
-    size_t tableIndex = 0;
 
-    size_t isNucl=Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES);
-    if (isNucl) {
+    DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
+    reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
+
+    BaseMatrix * subMat;
+    int seqType = reader.getDbtype();
+    if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
         subMat = new NucleotideMatrix(par.scoringMatrixFile.c_str(), 1.0, 0.0);
     } else {
         subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
     }
-    for(size_t i = 0; i < reader.sequenceReader->getSize(); i++){
-        size_t currentSequenceLenth = reader.sequenceReader->getSeqLens(i) - 2;
+
+    size_t kmerCount = 0;
+    for (size_t i = 0; i < reader.getSize(); i++) {
+        size_t currentSequenceLength = reader.getSeqLens(i) - 2;
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount+=reader.sequenceReader->getSeqLens(i) - 2 - par.kmerSize+1;
-        maxLen = std::max(maxLen, currentSequenceLenth);
+        kmerCount += currentSequenceLength >= par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
     }
 
-    Debug(Debug::INFO) << "Number of sequences: " << reader.sequenceReader->getSize()<<"\n"
+    Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n";
+
+    QueryTableEntry* querryTable = NULL;
+    TargetTableEntry* targetTable = NULL;
     if(isQuery()){
         Debug(Debug::INFO) << "Creating QueryTable. Requiring " 
                            << ((kmerCount+1)*sizeof(QueryTableEntry))/1024/1024 << " MB of memory for it\n";
@@ -73,19 +75,20 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     Debug(Debug::INFO) << "Memory allocated \n"
                        << timer.lap() << "\n"
                        << "Extracting k-mers\n";
+
+    size_t tableIndex = 0;    
     #pragma omp parallel 
     {   
         unsigned int thread_idx = 0;
         #ifdef OPENMP
-            thread_idx = (unsigned int) omp_get_thread_num();
+        thread_idx = (unsigned int) omp_get_thread_num();
         #endif
         Indexer idx(subMat->alphabetSize-1, par.kmerSize);
-        Sequence s(maxLen, seqType, subMat,
-                    par.kmerSize, par.spacedKmer, false);
+        Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
         #pragma omp for schedule(dynamic, 1)
-        for (size_t i = 0; i < reader.sequenceReader->getSize(); ++i) {
-            char *data = reader.sequenceReader->getData(i, thread_idx);
+        for (size_t i = 0; i < reader.getSize(); ++i) {
+            char *data = reader.getData(i, thread_idx);
             s.mapSequence(i, 0, data);
             short kmerPosInSequence = 0;
             const int xIndex = s.subMat->aa2int[(int) 'X'];
@@ -100,34 +103,41 @@ int createkmertable(int argc, const char ** argv, const Command& command){
                     continue;
                 }
                 size_t localTableIndex = __sync_fetch_and_add(&tableIndex, 1);
+                if (localTableIndex >= kmerCount) {
+                    Debug(Debug::ERROR) << localTableIndex << "\n";
+                    EXIT(EXIT_FAILURE);
+                }
+
                 if(isQuery()){
-                    querryTable[localTableIndex].querySequenceId = s.getId();;
+                    querryTable[localTableIndex].querySequenceId = s.getId();
                     querryTable[localTableIndex].Query.kmer = kmer2long(kmer,par.kmerSize,subMat->alphabetSize-1);
                     querryTable[localTableIndex].Query.kmerPosInQuerry = kmerPosInSequence;
                 }else{
                     targetTable[localTableIndex].sequenceID = s.getId();
                     targetTable[localTableIndex].kmerAsLong = kmer2long(kmer,par.kmerSize,subMat->alphabetSize-1);
-                    targetTable[localTableIndex].sequenceLength = reader.sequenceReader->getSeqLens(i) - 2;
+                    targetTable[localTableIndex].sequenceLength = reader.getSeqLens(i) - 2;
                 }
             }
         }
     }
 
-    Debug(Debug::INFO) << timer.lap() << "\n";
+    Debug(Debug::INFO) << "kmers: " << tableIndex << " time: "<< timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
     if(isQuery()){
-        std::sort(querryTable,querryTable+kmerCount,querryTableSort);
+        omptl::sort(querryTable,querryTable+kmerCount, querryTableSort);
         Debug(Debug::INFO) << timer.lap() << "\n";
         writeQueryTable(querryTable,kmerCount,"Test");
         Debug(Debug::INFO) << timer.lap() << "\n";
         free(querryTable);
     }else{
-        std::sort(targetTable, targetTable+kmerCount,targetTableSort);
+        omptl::sort(targetTable, targetTable+kmerCount, targetTableSort);
         Debug(Debug::INFO) << timer.lap() << "\n";
         writeTargetTables(targetTable,kmerCount,"test");
         Debug(Debug::INFO) << timer.lap() << "\n";
         free(targetTable);
     }
+
+    delete subMat;
     return EXIT_SUCCESS;
 }
 
@@ -221,9 +231,4 @@ long kmer2long(const int* index, size_t kmerSize, size_t alphabetSize){
         kmerAsLong += index[i]*MathUtil::ipow<long>(alphabetSize, i);
     }
     return kmerAsLong;
-
 }
-
-
-
-
