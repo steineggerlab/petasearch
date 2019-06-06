@@ -10,6 +10,10 @@
 #include "TargetTableEntry.h"
 #include <algorithm>
 
+#ifdef OPENMP
+#include <omp.h>
+#endif
+
 #define KMER_SIZE 9
 #define SPACED_KMER true
 
@@ -17,8 +21,8 @@
 long kmer2long(const int* index, size_t kmerSize, size_t alphabetSize);
 void writeQueryTable(QueryTableEntry* querryTable, size_t kmerCount, std::string querryID);
 void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::string blockID);
-int querryTableSort(const QueryTableEntry &entryOne, const QueryTableEntry &entry2);
-int targetTableSort(const TargetTableEntry &entryOne, const TargetTableEntry &entryTwo);
+int querryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
+int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
 
 
 int isQuery(){
@@ -32,10 +36,15 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, 2, false);
     int indexSrcType = IndexReader::SEQUENCES;
-
     IndexReader reader(par.db1, par.threads, indexSrcType, 0);
     int seqType = reader.sequenceReader->getDbtype();
     BaseMatrix * subMat;
+    Timer timer;
+    QueryTableEntry* querryTable = nullptr;
+    TargetTableEntry* targetTable = nullptr;
+    size_t maxLen = 0;
+    size_t kmerCount=0;
+    size_t tableIndex = 0;
 
     size_t isNucl=Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES);
     if (isNucl) {
@@ -43,9 +52,6 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     } else {
         subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
     }
-
-    size_t maxLen = 0;
-    size_t kmerCount=0;
     for(size_t i = 0; i < reader.sequenceReader->getSize(); i++){
         size_t currentSequenceLenth = reader.sequenceReader->getSeqLens(i) - 2;
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
@@ -53,109 +59,109 @@ int createkmertable(int argc, const char ** argv, const Command& command){
         maxLen = std::max(maxLen, currentSequenceLenth);
     }
 
+    Debug(Debug::INFO) << "Number of sequences: " << reader.sequenceReader->getSize()<<"\n"
+                       << "Number of all overall kmers: " << kmerCount << "\n";
     if(isQuery()){
-        Debug(Debug::INFO) << "creating QueryTable with " <<kmerCount <<" entries. Requiring " 
-                           << (kmerCount*sizeof(QueryTableEntry))/1024/1024 << " MB of memory for it\n";
-        QueryTableEntry* querryTable = (QueryTableEntry*) calloc(kmerCount,sizeof(QueryTableEntry));
-        Debug(Debug::INFO)<< "Memory allocated \n"
-        <<"Number of sequences: " << reader.sequenceReader->getSize()<<"\n";
-        #pragma omp parallel 
-        {
-            Indexer idx(subMat->alphabetSize-1, par.kmerSize);
-            Sequence s(maxLen, seqType, subMat,
-                        par.kmerSize, par.spacedKmer, false);
-            #pragma omp for schedule(dynamic, 1)
-            for (size_t i = 0; i < reader.sequenceReader->getSize(); ++i) {
-                char *data = reader.sequenceReader->getData(i, 0);
-                s.mapSequence(i, 0, data);
-                size_t queryIndex = 0;
-                const int xIndex = s.subMat->aa2int[(int) 'X'];
-                short kmerPosInSequence = 0;
-                while (s.hasNextKmer()) {
-                    const int *kmer = s.nextKmer();
-                    kmerPosInSequence++;
-                    int xCount = 0;
-                    for (int pos = 0; pos < par.kmerSize; pos++) {
-                        xCount += (kmer[pos] == xIndex);
-                    }
-                    if (xCount > 0) {
-                        continue;
-                    }
-                
-                    queryIndex = __sync_fetch_and_add(&queryIndex, 1);
-                    querryTable[queryIndex].querySequenceId = s.getId();;
-                    querryTable[queryIndex].Query.kmer = kmer2long(kmer,par.kmerSize,subMat->alphabetSize-1);
-                    querryTable[queryIndex].Query.kmerPosInQuerry = kmerPosInSequence;
-                }
-            }
-        }
-        Debug(Debug::INFO) << "start sorting \n";
-        std::stable_sort(querryTable,querryTable+kmerCount,querryTableSort);
-        writeQueryTable(querryTable,kmerCount,"Test");
-        free(querryTable);
-            
+        Debug(Debug::INFO) << "Creating QueryTable. Requiring " 
+                           << ((kmerCount+1)*sizeof(QueryTableEntry))/1024/1024 << " MB of memory for it\n";
+        querryTable = (QueryTableEntry*) calloc(kmerCount + 1, sizeof(QueryTableEntry));
     }else{
-        Timer timer;
-        Debug(Debug::INFO) << "Number of all overall kmers: " << kmerCount <<" Requiring " 
-                           << (kmerCount*sizeof(TargetTableEntry))/1024/1024 << " MB of memory while creating the target table\n";
-        TargetTableEntry* targetTable = (TargetTableEntry*) calloc(kmerCount,sizeof(TargetTableEntry));
-        size_t targetIndex = 0;
-        Debug(Debug::INFO) << "Memory allocated \n"
-                           << "Number of sequences: " << reader.sequenceReader->getSize()<<"\n";
-        #pragma omp parallel 
-        {
-            Indexer idx(subMat->alphabetSize-1, par.kmerSize);
-            Sequence s(maxLen, seqType, subMat,
-                        par.kmerSize, par.spacedKmer, false);
+        Debug(Debug::INFO) << "Creating TargetTable. Requiring " 
+                           << ((kmerCount+1)*sizeof(TargetTableEntry))/1024/1024 << " MB of memory for it\n";
+        targetTable = (TargetTableEntry*) calloc(kmerCount + 1, sizeof(TargetTableEntry));
+    }
+    Debug(Debug::INFO) << "Memory allocated \n"
+                       << timer.lap() << "\n"
+                       << "Extracting k-mers\n";
+    #pragma omp parallel 
+    {   
+        unsigned int thread_idx = 0;
+        #ifdef OPENMP
+            thread_idx = (unsigned int) omp_get_thread_num();
+        #endif
+        Indexer idx(subMat->alphabetSize-1, par.kmerSize);
+        Sequence s(maxLen, seqType, subMat,
+                    par.kmerSize, par.spacedKmer, false);
 
-            #pragma omp for schedule(dynamic, 1)
-            for (size_t i = 0; i < reader.sequenceReader->getSize(); ++i) {
-                char *data = reader.sequenceReader->getData(i, 0);
-                s.mapSequence(i, 0, data);
-                
-                const int xIndex = s.subMat->aa2int[(int) 'X'];
-                while (s.hasNextKmer()) {
-                    const int *kmer = s.nextKmer();
-                    int xCount = 0;
-                    for (int pos = 0; pos < par.kmerSize; pos++) {
-                        xCount += (kmer[pos] == xIndex);
-                    }
-                    if (xCount > 0) {
-                        continue;
-                    }
-
-                    targetIndex = __sync_fetch_and_add(&targetIndex, 1);
-                    targetTable[targetIndex].sequenceID = s.getId();
-                    targetTable[targetIndex].kmerAsLong = kmer2long(kmer,par.kmerSize,subMat->alphabetSize-1);
-                    targetTable[targetIndex].sequenceLength = reader.sequenceReader->getSeqLens(i) - 2;
+        #pragma omp for schedule(dynamic, 1)
+        for (size_t i = 0; i < reader.sequenceReader->getSize(); ++i) {
+            char *data = reader.sequenceReader->getData(i, thread_idx);
+            s.mapSequence(i, 0, data);
+            short kmerPosInSequence = 0;
+            const int xIndex = s.subMat->aa2int[(int) 'X'];
+            while (s.hasNextKmer()) {
+                const int *kmer = s.nextKmer();
+                ++kmerPosInSequence;
+                int xCount = 0;
+                for (int pos = 0; pos < par.kmerSize; pos++) {
+                    xCount += (kmer[pos] == xIndex);
+                }
+                if (xCount > 0) {
+                    continue;
+                }
+                size_t localTableIndex = __sync_fetch_and_add(&tableIndex, 1);
+                if(isQuery()){
+                    querryTable[localTableIndex].querySequenceId = s.getId();;
+                    querryTable[localTableIndex].Query.kmer = kmer2long(kmer,par.kmerSize,subMat->alphabetSize-1);
+                    querryTable[localTableIndex].Query.kmerPosInQuerry = kmerPosInSequence;
+                }else{
+                    targetTable[localTableIndex].sequenceID = s.getId();
+                    targetTable[localTableIndex].kmerAsLong = kmer2long(kmer,par.kmerSize,subMat->alphabetSize-1);
+                    targetTable[localTableIndex].sequenceLength = reader.sequenceReader->getSeqLens(i) - 2;
                 }
             }
         }
+    }
 
+    Debug(Debug::INFO) << timer.lap() << "\n";
+    Debug(Debug::INFO) << "start sorting \n";
+    if(isQuery()){
+        std::sort(querryTable,querryTable+kmerCount,querryTableSort);
         Debug(Debug::INFO) << timer.lap() << "\n";
-        Debug(Debug::INFO) << "start sorting \n";
-        std::stable_sort(targetTable,targetTable+kmerCount,targetTableSort);
+        writeQueryTable(querryTable,kmerCount,"Test");
+        Debug(Debug::INFO) << timer.lap() << "\n";
+        free(querryTable);
+    }else{
+        std::sort(targetTable, targetTable+kmerCount,targetTableSort);
         Debug(Debug::INFO) << timer.lap() << "\n";
         writeTargetTables(targetTable,kmerCount,"test");
         Debug(Debug::INFO) << timer.lap() << "\n";
-        Debug(Debug::INFO)<<(targetTable)->kmerAsLong << "\n";
         free(targetTable);
-       
     }
     return EXIT_SUCCESS;
 }
 
 
-int querryTableSort(const QueryTableEntry &entryOne, const QueryTableEntry &entryTwo){
-    return entryOne.Query.kmer < entryTwo.Query.kmer;
+int querryTableSort(const QueryTableEntry &first, const QueryTableEntry &second){
+    if (first.Query.kmer < second.Query.kmer)
+        return true;
+    if (second.Query.kmer < first.Query.kmer)
+        return false;
+    if (first.querySequenceId > second.querySequenceId)
+        return true;
+    if (second.querySequenceId > first.querySequenceId)
+        return false;
+    if (first.Query.kmerPosInQuerry < second.Query.kmerPosInQuerry)
+        return true;
+    if (second.Query.kmerPosInQuerry < first.Query.kmerPosInQuerry)
+        return false;
+    return false;
 }
 
-int targetTableSort(const TargetTableEntry &entryOne, const TargetTableEntry &entryTwo){
-    if(entryOne.kmerAsLong != entryTwo.kmerAsLong){
-        return entryOne.kmerAsLong < entryTwo.kmerAsLong;
-    }
-    return entryOne.sequenceLength < entryTwo.sequenceLength;
-    
+int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second){
+    if (first.kmerAsLong < second.kmerAsLong)
+        return true;
+    if (second.kmerAsLong < first.kmerAsLong)
+        return false;
+    if (first.sequenceLength > second.sequenceLength)
+        return true;
+    if (second.sequenceLength > first.sequenceLength)
+        return false;
+    if (first.sequenceID < second.sequenceID)
+        return true;
+    if (second.sequenceID < first.sequenceID)
+        return false;
+    return false;
 }
 
 
