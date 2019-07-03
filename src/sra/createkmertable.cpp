@@ -134,7 +134,6 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatri
     Debug(Debug::INFO) << timer.lap() << "\n";
     free(targetTable);
  
-    delete subMat;
     return EXIT_SUCCESS;
 }
 
