@@ -93,7 +93,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatri
 
     int seqType = reader.getDbtype();
     size_t tableIndex = 0;    
-    // #pragma omp parallel 
+    #pragma omp parallel 
     {   
         unsigned int thread_idx = 0;
         #ifdef OPENMP
@@ -102,7 +102,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatri
         Indexer idx(subMat->alphabetSize-1, par.kmerSize);
         Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
-        // #pragma omp for schedule(dynamic, 1)
+        #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
             char *data = reader.getData(i, thread_idx);
             s.mapSequence(i, 0, data);
