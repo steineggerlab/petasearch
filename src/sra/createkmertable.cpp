@@ -26,10 +26,10 @@ void writeQueryTable(QueryTableEntry* querryTable, size_t kmerCount, std::string
 void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::string blockID);
 int querryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
-size_t countKmer(DBReader<unsigned int> reader, Parameters & par);
+size_t countKmer(DBReader<unsigned int> *reader, Parameters & par);
 int xCountInSequence(const int* kmer, size_t kmerSize, const int xIndex);
-int createQueryTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition);
-int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition);
+int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition);
+int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition);
 
 int isQuery(){
     return false;
@@ -65,25 +65,25 @@ int createkmertable(int argc, const char ** argv, const Command& command){
 
     int result = EXIT_FAILURE;
     if(isQuery()){
-        result = createQueryTable(par, reader, subMat, aminoAcidValueAtPosition);
+        result = createQueryTable(par, &reader, subMat, aminoAcidValueAtPosition);
     }else{
-        result = createTargetTable(par, reader, subMat, aminoAcidValueAtPosition);
+        result = createTargetTable(par, &reader, subMat, aminoAcidValueAtPosition);
     }
+
     delete subMat;
-    delete aminoAcidValueAtPosition;
+    for(int i = 0; i < par.kmerSize; ++i){
+        delete [] aminoAcidValueAtPosition[i];
+    }
+    delete [] aminoAcidValueAtPosition;
+    reader.close();
     return result;
 }
 
-int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition){
+int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition){
     Timer timer;
-    size_t kmerCount = 0;
-    for (size_t i = 0; i < reader.getSize(); i++) {
-    size_t currentSequenceLength = reader.getSeqLens(i) - 2;
-    //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-    kmerCount += currentSequenceLength >= (unsigned int )par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
-    }
+    size_t kmerCount = countKmer(reader,par);
     TargetTableEntry* targetTable = NULL;
-    Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
+    Debug(Debug::INFO) << "Number of sequences: " << reader->getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n"
                        << "Creating TargetTable. Requiring " << ((kmerCount+1)*sizeof(TargetTableEntry))/1024/1024 << " MB of memory for it\n";
     targetTable = (TargetTableEntry*) calloc(kmerCount + 1, sizeof(TargetTableEntry));
@@ -91,7 +91,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatri
                        << timer.lap() << "\n"
                        << "Extracting k-mers\n";
 
-    int seqType = reader.getDbtype();
+    int seqType = reader->getDbtype();
     size_t tableIndex = 0;    
     #pragma omp parallel 
     {   
@@ -103,8 +103,8 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatri
         Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
         #pragma omp for schedule(dynamic, 1)
-        for (size_t i = 0; i < reader.getSize(); ++i) {
-            char *data = reader.getData(i, thread_idx);
+        for (size_t i = 0; i < reader->getSize(); ++i) {
+            char *data = reader->getData(i, thread_idx);
             s.mapSequence(i, 0, data);
             short kmerPosInSequence = 0;
             const int xIndex = s.subMat->aa2int[(int) 'X'];
@@ -121,7 +121,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatri
                 }
                 targetTable[localTableIndex].sequenceID = s.getId();
                 targetTable[localTableIndex].kmerAsLong = kmer2long(kmer,par.kmerSize,aminoAcidValueAtPosition);
-                targetTable[localTableIndex].sequenceLength = reader.getSeqLens(i) - 2;
+                targetTable[localTableIndex].sequenceLength = reader->getSeqLens(i) - 2;
             }
         }
     }
@@ -133,20 +133,14 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatri
     writeTargetTables(targetTable,kmerCount,"test");
     Debug(Debug::INFO) << timer.lap() << "\n";
     free(targetTable);
- 
     return EXIT_SUCCESS;
 }
 
-int createQueryTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition){
+int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition){
     Timer timer;
-    size_t kmerCount = 0;
-    for (size_t i = 0; i < reader.getSize(); i++) {
-        size_t currentSequenceLength = reader.getSeqLens(i) - 2;
-        //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength >= (unsigned int )par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
-    }
+    size_t kmerCount = countKmer(reader,par);
     QueryTableEntry* querryTable = NULL;
-    Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
+    Debug(Debug::INFO) << "Number of sequences: " << reader->getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n"
                        << "Creating QueryTable. Requiring " << ((kmerCount+1)*sizeof(QueryTableEntry))/1024/1024 << " MB of memory for it\n";
     querryTable = (QueryTableEntry*) calloc(kmerCount + 1, sizeof(QueryTableEntry));
@@ -155,7 +149,7 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatrix
                        << "Extracting k-mers\n";
 
     size_t tableIndex = 0;    
-    int seqType = reader.getDbtype();
+    int seqType = reader->getDbtype();
     #pragma omp parallel 
     {   
         unsigned int thread_idx = 0;
@@ -166,8 +160,8 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatrix
         Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
         #pragma omp for schedule(dynamic, 1)
-        for (size_t i = 0; i < reader.getSize(); ++i) {
-            char *data = reader.getData(i, thread_idx);
+        for (size_t i = 0; i < reader->getSize(); ++i) {
+            char *data = reader->getData(i, thread_idx);
             s.mapSequence(i, 0, data);
             short kmerPosInSequence = 0;
             const int xIndex = s.subMat->aa2int[(int) 'X'];
@@ -197,15 +191,14 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> reader,  BaseMatrix
     Debug(Debug::INFO) << timer.lap() << "\n";
     writeQueryTable(querryTable,kmerCount,"Test");
     Debug(Debug::INFO) << timer.lap() << "\n";
-    
     free(querryTable);
     return EXIT_SUCCESS;
 }
 
-size_t countKmer(DBReader<unsigned int> reader, Parameters & par){
+size_t countKmer(DBReader<unsigned int> *reader, Parameters & par){
     size_t kmerCount = 0;
-    for (size_t i = 0; i < reader.getSize(); i++) {
-        size_t currentSequenceLength = reader.getSeqLens(i) - 2;
+    for (size_t i = 0; i < reader->getSize(); i++) {
+        size_t currentSequenceLength = reader->getSeqLens(i) - 2;
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
         kmerCount += currentSequenceLength >= (unsigned int )par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
     }
@@ -265,8 +258,8 @@ void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::str
     std::string idTablefileName = blockID + "_IDTable";
     Debug(Debug::INFO) << "Writing k-mer target table to file: " << kmerTableFileName <<"\n";
     Debug(Debug::INFO) << "Writing target ID table to file:  " << idTablefileName <<"\n";
-    FILE* handleKmerTable = fopen(kmerTableFileName.c_str(), "ab+");
-    FILE* handleIDTable = fopen(idTablefileName.c_str(),"ab+");
+    FILE* handleKmerTable = fopen(kmerTableFileName.c_str(), "wb");
+    FILE* handleIDTable = fopen(idTablefileName.c_str(),"wb");
     TargetTableEntry* entryToWrite = targetTable;
     TargetTableEntry* posInTable = targetTable;
     size_t uniqueKmerCount = 0;
@@ -302,7 +295,7 @@ void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::str
 void writeQueryTable(QueryTableEntry* querryTable, size_t kmerCount, std::string querryID){
     std::string fileName = "querryTable_"+querryID;
     Debug(Debug::INFO) << "Writing query table to file: " << fileName <<"\n";
-    FILE* handleQueryTable = fopen(fileName.c_str(),"ab+");
+    FILE* handleQueryTable = fopen(fileName.c_str(),"wb");
     fwrite(querryTable,sizeof(querryTable),kmerCount,handleQueryTable);
     fclose(handleQueryTable);
 }
