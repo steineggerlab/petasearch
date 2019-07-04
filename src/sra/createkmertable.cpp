@@ -1,4 +1,4 @@
-#include "Parameters.h"
+#include "LocalParameters.h"
 #include "Command.h"
 #include "Debug.h"
 #include "IndexReader.h"
@@ -37,7 +37,8 @@ int isQuery(){
 
 
 int createkmertable(int argc, const char ** argv, const Command& command){
-    Parameters& par = Parameters::getInstance();
+    // Parameters& par = Parameters::getInstance();
+    LocalParameters& par = LocalParameters::getLocalInstance();
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, 2, true);
@@ -64,10 +65,10 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     }
 
     int result = EXIT_FAILURE;
-    if(isQuery()){
-        result = createQueryTable(par, &reader, subMat, aminoAcidValueAtPosition);
-    }else{
+    if(par.createTargetTable){
         result = createTargetTable(par, &reader, subMat, aminoAcidValueAtPosition);
+    }else{
+        result = createQueryTable(par, &reader, subMat, aminoAcidValueAtPosition);
     }
 
     delete subMat;
@@ -130,7 +131,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
     Debug(Debug::INFO) << "start sorting \n";
     omptl::sort(targetTable, targetTable+kmerCount, targetTableSort);
     Debug(Debug::INFO) << timer.lap() << "\n";
-    writeTargetTables(targetTable,kmerCount,"test");
+    writeTargetTables(targetTable,kmerCount, par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
     free(targetTable);
     return EXIT_SUCCESS;
@@ -189,7 +190,7 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
     Debug(Debug::INFO) << "start sorting \n";
     omptl::sort(querryTable,querryTable+kmerCount, querryTableSort);
     Debug(Debug::INFO) << timer.lap() << "\n";
-    writeQueryTable(querryTable,kmerCount,"Test");
+    writeQueryTable(querryTable,kmerCount,par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
     free(querryTable);
     return EXIT_SUCCESS;
