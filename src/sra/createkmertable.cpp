@@ -37,7 +37,6 @@ int isQuery(){
 
 
 int createkmertable(int argc, const char ** argv, const Command& command){
-    // Parameters& par = Parameters::getInstance();
     LocalParameters& par = LocalParameters::getLocalInstance();
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
