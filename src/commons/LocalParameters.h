@@ -44,7 +44,7 @@ private:
 
         // default value 0 means no reverse of AA fragments
         reverseFragments = 0;
-        createTargetTable = 0;
+        createTargetTable = 1;
     }
     LocalParameters(LocalParameters const&);
     ~LocalParameters() {};
