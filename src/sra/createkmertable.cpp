@@ -9,6 +9,7 @@
 #include "QueryTableEntry.h"
 #include "TargetTableEntry.h"
 #include "omptl/omptl_algorithm"
+#include <sys/mman.h>
 
 #include <algorithm>
 #include <cassert>
@@ -44,6 +45,9 @@ int createkmertable(int argc, const char ** argv, const Command& command){
 
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
+    if (par.preloadMode != Parameters::PRELOAD_MODE_MMAP) {
+        reader.readMmapedDataInMemory();
+    }
 
     BaseMatrix * subMat;
     int seqType = reader.getDbtype();
@@ -86,7 +90,11 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
     Debug(Debug::INFO) << "Number of sequences: " << reader->getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n"
                        << "Creating TargetTable. Requiring " << ((kmerCount+1)*sizeof(TargetTableEntry))/1024/1024 << " MB of memory for it\n";
-    targetTable = (TargetTableEntry*) calloc(kmerCount + 1, sizeof(TargetTableEntry));
+    size_t page_size = Util::getPageSize();
+    targetTable = (TargetTableEntry*) mem_align(page_size, (kmerCount + 1) * sizeof(TargetTableEntry));
+    if (madvise(targetTable,  (kmerCount + 1) * sizeof(TargetTableEntry), MADV_HUGEPAGE|MADV_SEQUENTIAL) != 0){
+        Debug(Debug::ERROR) << "madvise returned an error\n";
+    }
     Debug(Debug::INFO) << "Memory allocated \n"
                        << timer.lap() << "\n"
                        << "Extracting k-mers\n";
@@ -143,10 +151,16 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
     Debug(Debug::INFO) << "Number of sequences: " << reader->getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n"
                        << "Creating QueryTable. Requiring " << ((kmerCount+1)*sizeof(QueryTableEntry))/1024/1024 << " MB of memory for it\n";
-    querryTable = (QueryTableEntry*) calloc(kmerCount + 1, sizeof(QueryTableEntry));
+    size_t page_size = Util::getPageSize();
+    querryTable = (QueryTableEntry*) mem_align(page_size, (kmerCount + 1) * sizeof(QueryTableEntry));
+    if (madvise(querryTable,  (kmerCount + 1) * sizeof(QueryTableEntry), MADV_HUGEPAGE|MADV_SEQUENTIAL) != 0){
+        Debug(Debug::ERROR) << "madvise returned an error\n";
+    }
     Debug(Debug::INFO) << "Memory allocated \n"
                        << timer.lap() << "\n"
                        << "Extracting k-mers\n";
+
+    const int xIndex = subMat->aa2int[(int) 'X'];
 
     size_t tableIndex = 0;    
     int seqType = reader->getDbtype();
@@ -164,7 +178,6 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
             char *data = reader->getData(i, thread_idx);
             s.mapSequence(i, 0, data);
             short kmerPosInSequence = 0;
-            const int xIndex = s.subMat->aa2int[(int) 'X'];
             while (s.hasNextKmer()) {
                 const int *kmer = s.nextKmer();
                 ++kmerPosInSequence;
@@ -178,8 +191,9 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
                     EXIT(EXIT_FAILURE);
                 }
 
-                querryTable[localTableIndex].querySequenceId = s.getId();
-                querryTable[localTableIndex].Query.kmer = kmer2long(kmer,par.kmerSize,aminoAcidValueAtPosition);
+                querryTable[localTableIndex].querySequenceId = i;
+                querryTable[localTableIndex].targetSequenceID = 0;
+                querryTable[localTableIndex].Query.kmer = kmer2long(kmer, par.kmerSize, aminoAcidValueAtPosition);
                 querryTable[localTableIndex].Query.kmerPosInQuerry = kmerPosInSequence;
             }
         }
@@ -187,9 +201,10 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
 
     Debug(Debug::INFO) << "kmers: " << tableIndex << " time: "<< timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
-    omptl::sort(querryTable,querryTable+kmerCount, querryTableSort);
+
+    omptl::sort(querryTable,querryTable+tableIndex, querryTableSort);
     Debug(Debug::INFO) << timer.lap() << "\n";
-    writeQueryTable(querryTable,kmerCount,par.db2);
+    writeQueryTable(querryTable,tableIndex,par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
     free(querryTable);
     return EXIT_SUCCESS;
