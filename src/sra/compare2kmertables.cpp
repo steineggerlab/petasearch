@@ -23,8 +23,15 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     fstat(fdTargetTable,&fileStatsTargetTable);
     size_t fileSizeTargetTable = fileStatsTargetTable.st_size;
 
+    // FILE* handleTargetIDTable = fopen(par.db3.c_str(),"rb");
+    // int fdTargetIDTable = fileno(handleTargetIDTable);
+    // struct stat fileStatsTargetIDTable;
+    // fstat(fdTargetIDTable,&fileStatsTargetIDTable);
+    // size_t fileSizeTargetIDTable = fileStatsTargetIDTable.st_size;
+
     QueryTableEntry* startPosQuerryTable = (QueryTableEntry*) mmap(NULL, fileSizeQuerryTable, PROT_READ | PROT_WRITE,MAP_SHARED, fdQuerryTable, 0);
-    long* startPosTargetTable = (long*) mmap(NULL, fileSizeTargetTable, PROT_READ,MAP_PRIVATE, fdTargetTable, 0);
+    unsigned long* startPosTargetTable = (unsigned long*) mmap(NULL, fileSizeTargetTable, PROT_READ,MAP_PRIVATE, fdTargetTable, 0);
+    // int* startPosIDTable = (int *) mmap(NULL,fileSizeTargetIDTable,PROT_READ,MAP_PRIVATE,fdTargetIDTable,0); 
     if (posix_madvise (startPosQuerryTable, fileSizeQuerryTable, POSIX_MADV_SEQUENTIAL|POSIX_MADV_WILLNEED) != 0){
         Debug(Debug::ERROR) << "posix_madvise returned an error for  the query k-mer table\n";
     } 
@@ -34,8 +41,9 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
 
     QueryTableEntry* currentQuerryPos = startPosQuerryTable;
     QueryTableEntry* currentQueryRewritePos = startPosQuerryTable;
-    long* currentTargetPos = startPosTargetTable;
-    long* endTargetPos = startPosTargetTable + fileSizeTargetTable/sizeof(long);
+    QueryTableEntry* endQueryPos = startPosQuerryTable + fileSizeQuerryTable/sizeof(QueryTableEntry);
+    unsigned long* currentTargetPos = startPosTargetTable;
+    unsigned long* endTargetPos = startPosTargetTable + fileSizeTargetTable/sizeof(long);
     size_t equalKmers = 0;
 
     struct timeval startTime;
@@ -62,10 +70,13 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
         }
         while (currentQuerryPos->Query.kmer < *currentTargetPos){
             ++currentQuerryPos;
+            // continue;
         }
         while (*currentTargetPos < currentQuerryPos->Query.kmer){
             ++currentTargetPos;
+            // continue;
         }
+    
     }
     gettimeofday(&endTime, NULL);
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);

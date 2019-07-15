@@ -23,9 +23,9 @@
 
 
 long kmer2long(const int* index, size_t kmerSize, long **aminoAcidValueAtPosition );
-void writeQueryTable(QueryTableEntry* querryTable, size_t kmerCount, std::string querryID);
+void writeQueryTable(QueryTableEntry* queryTable, size_t kmerCount, std::string queryID);
 void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::string blockID);
-int querryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
+int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
 size_t countKmer(DBReader<unsigned int> *reader, Parameters & par);
 int xCountInSequence(const int* kmer, size_t kmerSize, const int xIndex);
@@ -45,9 +45,9 @@ int createkmertable(int argc, const char ** argv, const Command& command){
 
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
-    if (par.preloadMode != Parameters::PRELOAD_MODE_MMAP) {
-        reader.readMmapedDataInMemory();
-    }
+    // if (par.preloadMode != Parameters::PRELOAD_MODE_MMAP) {
+        // reader.readMmapedDataInMemory();
+    // }
 
     BaseMatrix * subMat;
     int seqType = reader.getDbtype();
@@ -93,7 +93,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
     size_t page_size = Util::getPageSize();
     targetTable = (TargetTableEntry*) mem_align(page_size, (kmerCount + 1) * sizeof(TargetTableEntry));
     if (madvise(targetTable,  (kmerCount + 1) * sizeof(TargetTableEntry), MADV_HUGEPAGE|MADV_SEQUENTIAL) != 0){
-        Debug(Debug::ERROR) << "madvise returned an error\n";
+        Debug(Debug::WARNING) << "madvise returned an error\n";
     }
     Debug(Debug::INFO) << "Memory allocated \n"
                        << timer.lap() << "\n"
@@ -123,12 +123,9 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
                     continue;
                 }
                 size_t localTableIndex = __sync_fetch_and_add(&tableIndex, 1);
-                if (localTableIndex >= kmerCount) {
-                    Debug(Debug::ERROR) << localTableIndex << "\n";
-                    EXIT(EXIT_FAILURE);
-                }
-                targetTable[localTableIndex].sequenceID = s.getId();
-                targetTable[localTableIndex].kmerAsLong = kmer2long(kmer,par.kmerSize,aminoAcidValueAtPosition);
+                targetTable[localTableIndex].sequenceID = i;
+                // targetTable[localTableIndex].kmerAsLong = kmer2long(kmer,par.kmerSize,aminoAcidValueAtPosition);
+                targetTable[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
                 targetTable[localTableIndex].sequenceLength = reader->getSeqLens(i) - 2;
             }
         }
@@ -147,14 +144,14 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
 int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition){
     Timer timer;
     size_t kmerCount = countKmer(reader,par);
-    QueryTableEntry* querryTable = NULL;
+    QueryTableEntry* queryTable = NULL;
     Debug(Debug::INFO) << "Number of sequences: " << reader->getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n"
                        << "Creating QueryTable. Requiring " << ((kmerCount+1)*sizeof(QueryTableEntry))/1024/1024 << " MB of memory for it\n";
     size_t page_size = Util::getPageSize();
-    querryTable = (QueryTableEntry*) mem_align(page_size, (kmerCount + 1) * sizeof(QueryTableEntry));
-    if (madvise(querryTable,  (kmerCount + 1) * sizeof(QueryTableEntry), MADV_HUGEPAGE|MADV_SEQUENTIAL) != 0){
-        Debug(Debug::ERROR) << "madvise returned an error\n";
+    queryTable = (QueryTableEntry*) mem_align(page_size, (kmerCount + 1) * sizeof(QueryTableEntry));
+    if (madvise(queryTable,  (kmerCount + 1) * sizeof(QueryTableEntry), MADV_HUGEPAGE|MADV_SEQUENTIAL) != 0){
+        Debug(Debug::WARNING) << "madvise returned an error\n";
     }
     Debug(Debug::INFO) << "Memory allocated \n"
                        << timer.lap() << "\n"
@@ -178,7 +175,9 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
             char *data = reader->getData(i, thread_idx);
             s.mapSequence(i, 0, data);
             short kmerPosInSequence = 0;
+            // bool hadKmer = false;
             while (s.hasNextKmer()) {
+                // hadKmer = true;
                 const int *kmer = s.nextKmer();
                 ++kmerPosInSequence;
                 if(xCountInSequence(kmer,par.kmerSize, xIndex)){
@@ -186,27 +185,29 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
                 }
 
                 size_t localTableIndex = __sync_fetch_and_add(&tableIndex, 1);
-                if (localTableIndex >= kmerCount) {
-                    Debug(Debug::ERROR) << localTableIndex << "\n";
-                    EXIT(EXIT_FAILURE);
-                }
+                queryTable[localTableIndex].querySequenceId = i;
+                queryTable[localTableIndex].targetSequenceID = 0;
+                // queryTable[localTableIndex].Query.kmer = kmer2long(kmer, par.kmerSize, aminoAcidValueAtPosition);
+                queryTable[localTableIndex].Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
+                queryTable[localTableIndex].Query.kmerPosInQuery = kmerPosInSequence;
 
-                querryTable[localTableIndex].querySequenceId = i;
-                querryTable[localTableIndex].targetSequenceID = 0;
-                querryTable[localTableIndex].Query.kmer = kmer2long(kmer, par.kmerSize, aminoAcidValueAtPosition);
-                querryTable[localTableIndex].Query.kmerPosInQuerry = kmerPosInSequence;
+                // Debug(Debug::INFO) << kmer2long(kmer, par.kmerSize, aminoAcidValueAtPosition) << "\n";
+                // idx.printKmer(kmer, par.kmerSize, subMat->int2aa);
+                // Debug(Debug::INFO) << "\n" << idx.int2index(kmer, 0, par.kmerSize) << "\n";
             }
+            // if (hadKmer)
+            // break;
         }
     }
 
     Debug(Debug::INFO) << "kmers: " << tableIndex << " time: "<< timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
 
-    omptl::sort(querryTable,querryTable+tableIndex, querryTableSort);
+    omptl::sort(queryTable,queryTable+tableIndex, queryTableSort);
     Debug(Debug::INFO) << timer.lap() << "\n";
-    writeQueryTable(querryTable,tableIndex,par.db2);
+    writeQueryTable(queryTable,tableIndex,par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
-    free(querryTable);
+    free(queryTable);
     return EXIT_SUCCESS;
 }
 
@@ -236,7 +237,7 @@ long kmer2long(const int* index, size_t kmerSize, long** aminoAcidValueAtPositio
     return kmerAsLong;
 }
 
-int querryTableSort(const QueryTableEntry &first, const QueryTableEntry &second){
+int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second){
     if (first.Query.kmer < second.Query.kmer)
         return true;
     if (second.Query.kmer < first.Query.kmer)
@@ -245,9 +246,9 @@ int querryTableSort(const QueryTableEntry &first, const QueryTableEntry &second)
         return true;
     if (second.querySequenceId > first.querySequenceId)
         return false;
-    if (first.Query.kmerPosInQuerry < second.Query.kmerPosInQuerry)
+    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery)
         return true;
-    if (second.Query.kmerPosInQuerry < first.Query.kmerPosInQuerry)
+    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery)
         return false;
     return false;
 }
@@ -281,11 +282,11 @@ void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::str
     for(size_t i = 0; i < kmerCount; ++i, ++posInTable){
         if(posInTable->kmerAsLong == entryToWrite->kmerAsLong){
             if(posInTable->sequenceLength > entryToWrite->sequenceLength){
-                entryToWrite=posInTable;
+                entryToWrite = posInTable;
             }
         }else{
-            fwrite(&(entryToWrite->kmerAsLong),sizeof(entryToWrite->kmerAsLong),1,handleKmerTable);
-            fwrite(&(entryToWrite->sequenceID),sizeof(entryToWrite->sequenceID),1,handleIDTable);
+            fwrite(&(entryToWrite->kmerAsLong),sizeof(long),1,handleKmerTable);
+            fwrite(&(entryToWrite->sequenceID),sizeof(unsigned int),1,handleIDTable);
             entryToWrite = posInTable;
             ++uniqueKmerCount;
         }
@@ -298,8 +299,8 @@ void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::str
         // }
     }
     //write last one
-    fwrite(&(entryToWrite->kmerAsLong),sizeof(entryToWrite->kmerAsLong),1,handleKmerTable);
-    fwrite(&(entryToWrite->sequenceID),sizeof(entryToWrite->sequenceID),1,handleIDTable);
+    fwrite(&(entryToWrite->kmerAsLong),sizeof(long),1,handleKmerTable);
+    fwrite(&(entryToWrite->sequenceID),sizeof(unsigned int),1,handleIDTable);
     ++uniqueKmerCount;
 
     fclose(handleKmerTable);
@@ -307,10 +308,10 @@ void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::str
     Debug(Debug::INFO)<<"Wrote "<< uniqueKmerCount << " unique k-mers.\n";
 }
 
-void writeQueryTable(QueryTableEntry* querryTable, size_t kmerCount, std::string querryID){
-    std::string fileName = "querryTable_"+querryID;
+void writeQueryTable(QueryTableEntry* queryTable, size_t kmerCount, std::string queryID){
+    std::string fileName = "queryTable_"+queryID;
     Debug(Debug::INFO) << "Writing query table to file: " << fileName <<"\n";
     FILE* handleQueryTable = fopen(fileName.c_str(),"wb");
-    fwrite(querryTable,sizeof(querryTable),kmerCount,handleQueryTable);
+    fwrite(queryTable,sizeof(QueryTableEntry),kmerCount,handleQueryTable);
     fclose(handleQueryTable);
 }

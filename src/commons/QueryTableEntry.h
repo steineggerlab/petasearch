@@ -6,7 +6,7 @@ struct __attribute__((__packed__)) QueryTableEntry
     unsigned int targetSequenceID;
     union {
         struct __attribute__((__packed__)) {
-            unsigned int kmerPosInQuerry;
+            unsigned int kmerPosInQuery;
             unsigned long kmer;
         } Query;
         struct __attribute__((__packed__)) {
