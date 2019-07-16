@@ -43,12 +43,11 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, 2, true);
-    
+
+    Debug(Debug::INFO)<<"Preparing input database\n";
+
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
-    // if (par.preloadMode != Parameters::PRELOAD_MODE_MMAP) {
-        // reader.readMmapedDataInMemory();
-    // }
 
     BaseMatrix * subMat;
     int seqType = reader.getDbtype();
@@ -58,16 +57,6 @@ int createkmertable(int argc, const char ** argv, const Command& command){
         subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
     }
 
-    // long** aminoAcidValueAtPosition;
-    // aminoAcidValueAtPosition = new long *[par.kmerSize];
-    // for(int i = 0; i < par.kmerSize; i++){
-    //     long posBaseValue = MathUtil::ipow<long>(subMat->alphabetSize, i);
-    //     aminoAcidValueAtPosition[i] = new long[subMat->alphabetSize];
-    //     for (int aa = 0; aa < subMat->alphabetSize; aa++){
-    //         aminoAcidValueAtPosition[i][aa] = aa * posBaseValue;
-    //     }  
-    // }
-
     int result = EXIT_FAILURE;
     if(par.createTargetTable){
         result = createTargetTable(par, &reader, subMat);
@@ -76,10 +65,6 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     }
 
     delete subMat;
-    // for(int i = 0; i < par.kmerSize; ++i){
-    //     delete [] aminoAcidValueAtPosition[i];
-    // }
-    // delete [] aminoAcidValueAtPosition;
     reader.close();
     return result;
 }
