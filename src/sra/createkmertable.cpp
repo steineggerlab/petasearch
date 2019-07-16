@@ -20,6 +20,7 @@
 
 #define KMER_SIZE 9
 #define SPACED_KMER true
+#define BUFFERSIZE Util::getPageSize()
 
 
 long kmer2long(const int* index, size_t kmerSize, long **aminoAcidValueAtPosition );
@@ -29,8 +30,8 @@ int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
 size_t countKmer(DBReader<unsigned int> *reader, Parameters & par);
 int xCountInSequence(const int* kmer, size_t kmerSize, const int xIndex);
-int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition);
-int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition);
+int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat);
+int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat);
 
 int isQuery(){
     return false;
@@ -42,7 +43,7 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, 2, true);
-
+    
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
     // if (par.preloadMode != Parameters::PRELOAD_MODE_MMAP) {
@@ -57,33 +58,33 @@ int createkmertable(int argc, const char ** argv, const Command& command){
         subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
     }
 
-    long** aminoAcidValueAtPosition;
-    aminoAcidValueAtPosition = new long *[par.kmerSize];
-    for(int i = 0; i < par.kmerSize; i++){
-        long posBaseValue = MathUtil::ipow<long>(subMat->alphabetSize, i);
-        aminoAcidValueAtPosition[i] = new long[subMat->alphabetSize];
-        for (int aa = 0; aa < subMat->alphabetSize; aa++){
-            aminoAcidValueAtPosition[i][aa] = aa * posBaseValue;
-        }  
-    }
+    // long** aminoAcidValueAtPosition;
+    // aminoAcidValueAtPosition = new long *[par.kmerSize];
+    // for(int i = 0; i < par.kmerSize; i++){
+    //     long posBaseValue = MathUtil::ipow<long>(subMat->alphabetSize, i);
+    //     aminoAcidValueAtPosition[i] = new long[subMat->alphabetSize];
+    //     for (int aa = 0; aa < subMat->alphabetSize; aa++){
+    //         aminoAcidValueAtPosition[i][aa] = aa * posBaseValue;
+    //     }  
+    // }
 
     int result = EXIT_FAILURE;
     if(par.createTargetTable){
-        result = createTargetTable(par, &reader, subMat, aminoAcidValueAtPosition);
+        result = createTargetTable(par, &reader, subMat);
     }else{
-        result = createQueryTable(par, &reader, subMat, aminoAcidValueAtPosition);
+        result = createQueryTable(par, &reader, subMat);
     }
 
     delete subMat;
-    for(int i = 0; i < par.kmerSize; ++i){
-        delete [] aminoAcidValueAtPosition[i];
-    }
-    delete [] aminoAcidValueAtPosition;
+    // for(int i = 0; i < par.kmerSize; ++i){
+    //     delete [] aminoAcidValueAtPosition[i];
+    // }
+    // delete [] aminoAcidValueAtPosition;
     reader.close();
     return result;
 }
 
-int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition){
+int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat){
     Timer timer;
     size_t kmerCount = countKmer(reader,par);
     TargetTableEntry* targetTable = NULL;
@@ -109,7 +110,8 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
         #endif
         Indexer idx(subMat->alphabetSize-1, par.kmerSize);
         Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
-
+        TargetTableEntry* localBuffer = new TargetTableEntry[BUFFERSIZE];
+        size_t localTableIndex = 0;
         #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader->getSize(); ++i) {
             char *data = reader->getData(i, thread_idx);
@@ -122,13 +124,23 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
                if(xCountInSequence(kmer,par.kmerSize, xIndex)){
                     continue;
                 }
-                size_t localTableIndex = __sync_fetch_and_add(&tableIndex, 1);
-                targetTable[localTableIndex].sequenceID = i;
-                // targetTable[localTableIndex].kmerAsLong = kmer2long(kmer,par.kmerSize,aminoAcidValueAtPosition);
-                targetTable[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
-                targetTable[localTableIndex].sequenceLength = reader->getSeqLens(i) - 2;
+                 
+                localBuffer[localTableIndex].sequenceID = i;
+                localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
+                localBuffer[localTableIndex].sequenceLength = reader->getSeqLens(i) - 2;
+                ++localTableIndex;
+                if(localTableIndex>=BUFFERSIZE){
+                    size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
+                    memcpy(targetTable + writeOffset, localBuffer, sizeof(TargetTableEntry) * localTableIndex);
+                    localTableIndex = 0;
+                }
             }
         }
+        if(localTableIndex > 0){
+            size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
+            memcpy(targetTable + writeOffset, localBuffer, sizeof(TargetTableEntry) * localTableIndex);
+        }
+        delete [] localBuffer;
     }
 
     Debug(Debug::INFO) << "kmers: " << tableIndex << " time: "<< timer.lap() << "\n";
@@ -141,7 +153,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
     return EXIT_SUCCESS;
 }
 
-int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat, long** aminoAcidValueAtPosition){
+int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat){
     Timer timer;
     size_t kmerCount = countKmer(reader,par);
     QueryTableEntry* queryTable = NULL;
@@ -169,7 +181,8 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
         #endif
         Indexer idx(subMat->alphabetSize-1, par.kmerSize);
         Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
-
+        QueryTableEntry* localBuffer = new QueryTableEntry[BUFFERSIZE];
+        size_t localTableIndex = 0;
         #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader->getSize(); ++i) {
             char *data = reader->getData(i, thread_idx);
@@ -183,21 +196,25 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
                 if(xCountInSequence(kmer,par.kmerSize, xIndex)){
                     continue;
                 }
+                
+                localBuffer[localTableIndex].querySequenceId = i;
+                localBuffer[localTableIndex].targetSequenceID = 0;
+                localBuffer[localTableIndex].Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
+                localBuffer[localTableIndex].Query.kmerPosInQuery = kmerPosInSequence;
+                ++localTableIndex;
 
-                size_t localTableIndex = __sync_fetch_and_add(&tableIndex, 1);
-                queryTable[localTableIndex].querySequenceId = i;
-                queryTable[localTableIndex].targetSequenceID = 0;
-                // queryTable[localTableIndex].Query.kmer = kmer2long(kmer, par.kmerSize, aminoAcidValueAtPosition);
-                queryTable[localTableIndex].Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
-                queryTable[localTableIndex].Query.kmerPosInQuery = kmerPosInSequence;
-
-                // Debug(Debug::INFO) << kmer2long(kmer, par.kmerSize, aminoAcidValueAtPosition) << "\n";
-                // idx.printKmer(kmer, par.kmerSize, subMat->int2aa);
-                // Debug(Debug::INFO) << "\n" << idx.int2index(kmer, 0, par.kmerSize) << "\n";
+                if(localTableIndex>=BUFFERSIZE){
+                    size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
+                    memcpy(queryTable + writeOffset, localBuffer, sizeof(QueryTableEntry) * localTableIndex);
+                    localTableIndex = 0;
+                }       
             }
-            // if (hadKmer)
-            // break;
         }
+        if(localTableIndex > 0){
+            size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
+            memcpy(queryTable + writeOffset, localBuffer, sizeof(QueryTableEntry) * localTableIndex);
+        }
+        delete [] localBuffer;
     }
 
     Debug(Debug::INFO) << "kmers: " << tableIndex << " time: "<< timer.lap() << "\n";
@@ -227,14 +244,6 @@ int xCountInSequence(const int* kmer, size_t kmerSize, const int xIndex){
         xCount += (kmer[pos] == xIndex);
     }
     return xCount;
-}
-
-long kmer2long(const int* index, size_t kmerSize, long** aminoAcidValueAtPosition){
-    long kmerAsLong = 0;
-    for(size_t i = 0; i < kmerSize; ++i){
-        kmerAsLong += aminoAcidValueAtPosition[i][index[i]];
-    }
-    return kmerAsLong;
 }
 
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second){

@@ -14,8 +14,8 @@ LocalParameters& par = LocalParameters::getLocalInstance();
 
 std::vector<struct Command> commands = {
         {"createkmertable", createkmertable, &par.createkmertable, COMMAND_EXPERT,
-                "",
-                NULL,
+                "Extracts a table containing all (quniqe) k-mers",
+                "Extract a unique k-mer table and  table with the corresponding sequence ids or a table containing sequence id, an empty field for the target id, the position of the k-mer in the sequence and the k-mer. The mode is set by the createTarget flag.",
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
                 "<i:sequenceDB> <o:kmerTableFile>",
                 CITATION_MMSEQS2
@@ -24,7 +24,7 @@ std::vector<struct Command> commands = {
                 "",
                 NULL,
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
-                "<i:querryKmerTable> <i:targetKmerTable>",
+                "<i:querryKmerTable> <i:targetKmerTable> <i:targetIDTable>",
                 CITATION_MMSEQS2
         },
         // Main tools  (for non-experts)
