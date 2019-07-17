@@ -43,7 +43,7 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, 2, true);
-
+    Timer timer;
     Debug(Debug::INFO)<<"Preparing input database\n";
 
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
@@ -56,7 +56,7 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     } else {
         subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
     }
-
+    Debug(Debug::INFO)<<"input prepared, Time spent: " << timer.lap() << "\n";
     int result = EXIT_FAILURE;
     if(par.createTargetTable){
         result = createTargetTable(par, &reader, subMat);
@@ -126,6 +126,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
             memcpy(targetTable + writeOffset, localBuffer, sizeof(TargetTableEntry) * localTableIndex);
         }
         delete [] localBuffer;
+        #pragma omp barrier
     }
 
     Debug(Debug::INFO) << "kmers: " << tableIndex << " time: "<< timer.lap() << "\n";
