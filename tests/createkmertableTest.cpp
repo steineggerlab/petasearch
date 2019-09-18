@@ -6,7 +6,7 @@
 #include <sys/mman.h>
 
 int main (){
-    FILE* handle = fopen("../tmp/kmerTableDecodedAsLong", "rb");
+    FILE* handle = fopen("../test_k-merTable", "rb");
     int fd=fileno(handle);
     struct stat fileStat;
     fstat(fd, &fileStat);
@@ -37,7 +37,7 @@ int main (){
     count = 0;
     lastRead = 0;
     sum = 0;
-    std::ifstream myFile ("../tmp/kmerTableDecodedAsLong", std::ios::in | std::ios::binary);
+    std::ifstream myFile ("../test_k-merTable", std::ios::in | std::ios::binary);
     for(size_t i = 0; i < fileSize/sizeof(long); ++i){
        count ++;
        myFile.read((char *) &lastRead,sizeof(long));

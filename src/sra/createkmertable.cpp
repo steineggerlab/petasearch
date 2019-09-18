@@ -126,7 +126,6 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
             memcpy(targetTable + writeOffset, localBuffer, sizeof(TargetTableEntry) * localTableIndex);
         }
         delete [] localBuffer;
-        #pragma omp barrier
     }
 
     Debug(Debug::INFO) << "kmers: " << tableIndex << " time: "<< timer.lap() << "\n";
