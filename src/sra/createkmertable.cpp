@@ -32,6 +32,7 @@ size_t countKmer(DBReader<unsigned int> *reader, Parameters & par);
 int xCountInSequence(const int* kmer, size_t kmerSize, const int xIndex);
 int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat);
 int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatrix * subMat);
+void writeKmerDiff(size_t lastKmer, TargetTableEntry* entryToWrite, FILE* handleKmerTable , FILE* handleIDTable);
 
 int isQuery(){
     return false;
@@ -86,7 +87,8 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
                        << "Extracting k-mers\n";
 
     int seqType = reader->getDbtype();
-    size_t tableIndex = 0;    
+    size_t tableIndex = 0;
+    Debug::Progress progress(reader->getSize());
     #pragma omp parallel 
     {   
         unsigned int thread_idx = 0;
@@ -99,6 +101,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
         size_t localTableIndex = 0;
         #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader->getSize(); ++i) {
+            progress.updateProgress();
             char *data = reader->getData(i, thread_idx);
             s.mapSequence(i, 0, data);
             short kmerPosInSequence = 0;
@@ -106,7 +109,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
             while (s.hasNextKmer()) {
                 const int *kmer = s.nextKmer();
                 ++kmerPosInSequence;
-               if(xCountInSequence(kmer,par.kmerSize, xIndex)){
+                if(xCountInSequence(kmer,par.kmerSize, xIndex)){
                     continue;
                 }
                  
@@ -130,9 +133,9 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
 
     Debug(Debug::INFO) << "kmers: " << tableIndex << " time: "<< timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
-    omptl::sort(targetTable, targetTable+kmerCount, targetTableSort);
+    omptl::sort(targetTable, targetTable+tableIndex, targetTableSort);
     Debug(Debug::INFO) << timer.lap() << "\n";
-    writeTargetTables(targetTable,kmerCount, par.db2);
+    writeTargetTables(targetTable,tableIndex, par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
     free(targetTable);
     return EXIT_SUCCESS;
@@ -273,33 +276,36 @@ void writeTargetTables(TargetTableEntry* targetTable, size_t kmerCount, std::str
     TargetTableEntry* entryToWrite = targetTable;
     TargetTableEntry* posInTable = targetTable;
     size_t uniqueKmerCount = 0;
+    size_t lastKmer = 0;
     for(size_t i = 0; i < kmerCount; ++i, ++posInTable){
-        if(posInTable->kmerAsLong == entryToWrite->kmerAsLong){
-            if(posInTable->sequenceLength > entryToWrite->sequenceLength){
-                entryToWrite = posInTable;
-            }
-        }else{
-            fwrite(&(entryToWrite->kmerAsLong),sizeof(long),1,handleKmerTable);
-            fwrite(&(entryToWrite->sequenceID),sizeof(unsigned int),1,handleIDTable);
-            entryToWrite = posInTable;
+        if(posInTable->kmerAsLong != entryToWrite->kmerAsLong){
+            writeKmerDiff(lastKmer,entryToWrite,handleKmerTable,handleIDTable);
+            lastKmer = entryToWrite->kmerAsLong;
+            entryToWrite = posInTable;         
             ++uniqueKmerCount;
         }
-        //TODO Test
-        // if(posInTable->kmerAsLong != entryToWrite->kmerAsLong){
-        //     fwrite(&(entryToWrite->kmerAsLong),sizeof(entryToWrite->kmerAsLong),1,handleKmerTable);
-        //     fwrite(&(entryToWrite->sequenceID),sizeof(entryToWrite->sequenceID),1,handleIDTable);
-        //     entryToWrite=posInTable;
-        //     ++uniqueKmerCount;
-        // }
     }
     //write last one
-    fwrite(&(entryToWrite->kmerAsLong),sizeof(long),1,handleKmerTable);
-    fwrite(&(entryToWrite->sequenceID),sizeof(unsigned int),1,handleIDTable);
+    writeKmerDiff(lastKmer,entryToWrite,handleKmerTable,handleIDTable);
     ++uniqueKmerCount;
+
 
     fclose(handleKmerTable);
     fclose(handleIDTable);
     Debug(Debug::INFO)<<"Wrote "<< uniqueKmerCount << " unique k-mers.\n";
+}
+
+void writeKmerDiff(size_t lastKmer, TargetTableEntry* entryToWrite, FILE* handleKmerTable , FILE* handleIDTable){
+    size_t kmerdiff = entryToWrite->kmerAsLong-lastKmer;
+    unsigned short maxshort =  65534; //2^16 -2 
+    while (kmerdiff > maxshort)
+    {   
+        fwrite(&(maxshort),sizeof(short),1,handleKmerTable);
+        fwrite(&(entryToWrite->sequenceID),sizeof(unsigned int),1,handleIDTable);
+        kmerdiff -= maxshort;
+    }       
+    fwrite((short *)&(kmerdiff),sizeof(short),1,handleKmerTable);
+    fwrite(&(entryToWrite->sequenceID),sizeof(unsigned int),1,handleIDTable);
 }
 
 void writeQueryTable(QueryTableEntry* queryTable, size_t kmerCount, std::string queryID){
