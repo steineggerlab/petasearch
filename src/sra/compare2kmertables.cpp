@@ -57,19 +57,7 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     struct timeval endTime; 
     gettimeofday(&startTime, NULL);
     
-    //maybe faster:
-    // Type your code here, or load an example.
-// int square(long * currentTargetPos, long * endTargetPos, long * currentQueryPos) {
-//      long * targetBasePos = currentTargetPos;
-//       while(__builtin_expect(currentTargetPos <= endTargetPos, 1)){
-//         currentTargetPos += (*currentQueryPos == *currentTargetPos);
-//         //kmer->tidx =  currentTargetPos - targetBasePos;
-//         //kmer += (*currentQueryPos == *currentTargetPos);
-//         currentQueryPos += (*currentQueryPos < *currentTargetPos);
-//         currentTargetPos += (*currentTargetPos < *currentQueryPos);
-//     }
-// }
-
+   
 
     // cover the rare case that the first (real) target entry is larger than maxshort
 
@@ -91,13 +79,11 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
             }
             ++currentTargetPos;
             ++currentIDPos;
-            // if(__builtin_expect(*currentTargetPos == maxshort,0)){
-                while(__builtin_expect(*currentTargetPos == maxshort,0)){
-                    currentKmer+= maxshort;
-                    ++currentTargetPos;
-                    ++currentIDPos;
-                }
-            // }
+            while(__builtin_expect(*currentTargetPos == maxshort,0)){
+                currentKmer+= maxshort;
+                ++currentTargetPos;
+                ++currentIDPos;
+            }
             currentKmer+=*currentTargetPos;
         }
 
@@ -108,58 +94,16 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
          while(currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos){
             ++currentTargetPos;
             ++currentIDPos;
-            // if(__builtin_expect(*currentTargetPos == maxshort,0)){
-                while(__builtin_expect(*currentTargetPos == maxshort,0)){
-                    currentKmer+= maxshort;
-                    ++currentTargetPos;
-                    ++currentIDPos;
-                }
-            // }
+            while(__builtin_expect(*currentTargetPos == maxshort,0)){
+                currentKmer+= maxshort;
+                ++currentTargetPos;
+                ++currentIDPos;
+            }
             currentKmer+= *currentTargetPos;
          }      
     }
 
 
-    // size_t lastkmer =0;
-    // while(currentTargetPos <= endTargetPos && *currentTargetPos == maxshort){
-    //     lastkmer+= maxshort;
-    //     ++currentTargetPos;
-    //     ++currentIDPos;
-    // }
-    // while(currentTargetPos <= endTargetPos){
-    //     if((lastkmer + *currentTargetPos) == currentQueryPos->Query.kmer){
-    //         ++equalKmers;
-    //         currentQueryPos->targetSequenceID= *currentIDPos;
-    //         ++currentQueryPos;
-    //         while ((lastkmer + *currentTargetPos) == currentQueryPos->Query.kmer && currentQueryPos <= endQueryPos)
-    //         {
-    //             currentQueryPos->targetSequenceID = *currentIDPos;
-    //             ++currentQueryPos;
-    //         }
-    //         lastkmer=+ *currentTargetPos;
-    //         ++currentTargetPos;
-    //         ++currentIDPos;
-    //         if(__builtin_expect(currentTargetPos >= endTargetPos,0)){
-    //             continue;
-    //         }
-    //     }
-
-    //     while(currentQueryPos <= endQueryPos && currentQueryPos->Query.kmer < (lastkmer + *currentTargetPos)){
-    //         ++currentQueryPos;
-    //     }
-
-    //     while(currentTargetPos <= endTargetPos && 
-    //             ((*currentTargetPos + lastkmer)<currentQueryPos->Query.kmer || *currentTargetPos == maxshort)){
-    //         while(__builtin_expect(*currentTargetPos == maxshort,0)){
-    //             lastkmer+= *currentTargetPos;
-    //             ++currentTargetPos;
-    //             ++currentIDPos;
-    //         }
-    //         lastkmer+= *currentTargetPos;
-    //         ++currentTargetPos;
-    //         ++currentIDPos;
-    //     }
-    // }
 
     gettimeofday(&endTime, NULL);
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
