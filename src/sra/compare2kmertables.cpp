@@ -157,9 +157,9 @@ QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableE
 }
 
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second){   
-    if (first.querySequenceId > second.querySequenceId)
+    if (first.querySequenceId < second.querySequenceId)
         return true;
-    if (second.querySequenceId > first.querySequenceId)
+    if (second.querySequenceId < first.querySequenceId)
         return false;
     if(first.targetSequenceID < second.targetSequenceID)
         return true;
