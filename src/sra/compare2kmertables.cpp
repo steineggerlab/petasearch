@@ -119,8 +119,8 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
 
     Debug(Debug::INFO) << "Removing Sequences with less than two hits \n";
     QueryTableEntry *truncatedResultEndPos = removeNotHittedSequences(startPosQueryTable,endQueryPos);
-    Debug(Debug::INFO) << "Truncating resuly table: Removing " << endQueryPos-truncatedResultEndPos 
-        << " entries with less than 2 hits. \n";
+    Debug(Debug::INFO) << "Truncating result table: Removing " << endQueryPos-truncatedResultEndPos 
+        << " kmer-entries \n";
     if(ftruncate(fdQueryTable,(truncatedResultEndPos-startPosQueryTable) * sizeof(QueryTableEntry))){
         Debug(Debug::ERROR) << "An error occurred while truncating the file. It should be truncated to the size of "
             << (truncatedResultEndPos-startPosQueryTable) * sizeof(QueryTableEntry) << "bytes.\n";
@@ -157,13 +157,13 @@ QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableE
 }
 
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second){   
-    if(first.targetSequenceID < second.targetSequenceID)
-        return true;
-    if(second.targetSequenceID < first.targetSequenceID)
-        return false;
     if (first.querySequenceId > second.querySequenceId)
         return true;
     if (second.querySequenceId > first.querySequenceId)
+        return false;
+    if(first.targetSequenceID < second.targetSequenceID)
+        return true;
+    if(second.targetSequenceID < first.targetSequenceID)
         return false;
     if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery)
         return true;
