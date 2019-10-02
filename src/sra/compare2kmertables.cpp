@@ -5,9 +5,12 @@
 #include <sys/mman.h>
 #include "MathUtil.h"
 #include "QueryTableEntry.h"
+#include "omptl/omptl_algorithm"
 
 
 unsigned short maxshort = 65534;
+QueryTableEntry *removeNotHittedSequences(QueryTableEntry * startPos, QueryTableEntry *endPos);
+int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 
 int compare2kmertables(int argc, const char **argv, const Command& command){
     LocalParameters& par = LocalParameters::getLocalInstance();
@@ -104,12 +107,26 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     }
 
 
-
     gettimeofday(&endTime, NULL);
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
     Debug(Debug::INFO) << timediff<<" s; Rate "<<((fileSizeTargetTable+fileSizeQueryTable+fileSizeTargetIDTable)/1e+9)/timediff
             <<" GB/s \n";
     Debug(Debug::INFO)<<"number of equal Kmers: "<<equalKmers<<"\n";
+
+    Debug(Debug::INFO)<<"Sorting Resulttable "<<"\n";
+
+    omptl::sort(startPosQueryTable,endQueryPos, resultTableSort);
+
+    Debug(Debug::INFO) << "Removing Sequences with less than two hits \n";
+    QueryTableEntry *truncatedResultEndPos = removeNotHittedSequences(startPosQueryTable,endQueryPos);
+    Debug(Debug::INFO) << "Truncating resuly table: Removing " << endQueryPos-truncatedResultEndPos 
+        << " entries with less than 2 hits. \n";
+    if(ftruncate(fdQueryTable,(truncatedResultEndPos-startPosQueryTable) * sizeof(QueryTableEntry))){
+        Debug(Debug::ERROR) << "An error occurred while truncating the file. It should be truncated to the size of "
+            << (truncatedResultEndPos-startPosQueryTable) * sizeof(QueryTableEntry) << "bytes.\n";
+    }
+
+
     munmap(startPosQueryTable, fileSizeQueryTable);
     munmap(startPosTargetTable, fileSizeTargetTable);
     munmap(startPosIDTable, fileSizeTargetIDTable);
@@ -118,4 +135,43 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     fclose(handleTargetIDTable);
 
     return 0;
+}
+
+QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos){
+    QueryTableEntry *currentReadPos = startPos;
+    QueryTableEntry *currentWritePos = startPos;
+    while(currentReadPos < endPos){
+        size_t count = 0;
+        while(currentReadPos < endPos && (currentReadPos + 1)->targetSequenceID == currentReadPos->targetSequenceID){
+            count++;
+            ++currentReadPos;
+        }
+        if(count > 1){
+            memcpy(currentWritePos,currentReadPos - count,sizeof(QueryTableEntry) * count );
+            currentWritePos+=count;
+            //memcopy the sequences
+        }
+        ++currentReadPos;
+    }
+    return currentWritePos;
+}
+
+int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second){   
+    if(first.targetSequenceID < second.targetSequenceID)
+        return true;
+    if(second.targetSequenceID < first.targetSequenceID)
+        return false;
+    if (first.querySequenceId > second.querySequenceId)
+        return true;
+    if (second.querySequenceId > first.querySequenceId)
+        return false;
+    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery)
+        return true;
+    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery)
+        return false;
+    if (first.Query.kmer < second.Query.kmer)
+        return true;
+    if (second.Query.kmer < first.Query.kmer)
+        return false;
+    return false;
 }
