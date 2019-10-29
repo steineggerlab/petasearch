@@ -161,6 +161,7 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
 
     size_t tableIndex = 0;    
     int seqType = reader->getDbtype();
+    Debug::Progress progress(reader->getSize());
     #pragma omp parallel 
     {   
         unsigned int thread_idx = 0;
@@ -173,6 +174,7 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
         size_t localTableIndex = 0;
         #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader->getSize(); ++i) {
+            progress.updateProgress();
             char *data = reader->getData(i, thread_idx);
             s.mapSequence(i, 0, data);
             short kmerPosInSequence = 0;

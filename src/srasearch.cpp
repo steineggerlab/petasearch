@@ -27,6 +27,13 @@ std::vector<struct Command> commands = {
                 "<i:querryKmerTable> <i:targetKmerTable> <i:targetIDTable>",
                 CITATION_MMSEQS2
         },
+        {"computeAlignments", computeAlignments, &par.compare2kmertables, COMMAND_EXPERT,
+                "",
+                NULL,
+                "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
+                "<i:querryKmerTable> <i:targetKmerTable> <i:targetIDTable>",
+                CITATION_MMSEQS2
+        },
         // Main tools  (for non-experts)
         {"createdb",             createdb,             &par.createdb,             COMMAND_MAIN,
                 "Convert protein sequence set in a FASTA file to MMseqs sequence DB format",
