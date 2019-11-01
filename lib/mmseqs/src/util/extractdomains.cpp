@@ -16,7 +16,7 @@
 #endif
 
 #include "kseq.h"
-#include "kseq_buffer_reader.h"
+#include "KSeqBufferReader.h"
 
 KSEQ_INIT(kseq_buffer_t*, kseq_buffer_reader)
 
@@ -60,11 +60,11 @@ int scoreSubAlignment(std::string query, std::string target, unsigned int qStart
     unsigned int qPos = qStart;
 
     Sequence qSeq(query.length() + 1, Parameters::DBTYPE_AMINO_ACIDS, &matrix, 0, false, false);
-    qSeq.mapSequence(0, 0, query.c_str());
+    qSeq.mapSequence(0, 0, query.c_str(), query.size());
 
     Sequence tSeq(target.length() + 1, Parameters::DBTYPE_AMINO_ACIDS, &matrix, 0, false, false);
 
-    tSeq.mapSequence(0, 0, target.c_str());
+    tSeq.mapSequence(0, 0, target.c_str(), target.size());
 
     for (unsigned int i = 0; i < (qEnd - qStart); ++i) {
         if (tPos >= tEnd) {
@@ -208,7 +208,7 @@ std::vector<Domain> mapMsa(const std::string &msa, const std::vector<Domain> &do
 int doExtract(Parameters &par, DBReader<unsigned int> &blastTabReader,
               const std::pair<std::string, std::string>& resultdb,
               const size_t dbFrom, const size_t dbSize) {
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0, 0);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0, 0);
 
     std::string msaDataName = par.db2;
     std::string msaIndexName = par.db2Index;
@@ -259,7 +259,7 @@ int doExtract(Parameters &par, DBReader<unsigned int> &blastTabReader,
 
 
             char *tabData = blastTabReader.getData(i, thread_idx);
-            size_t tabLength = blastTabReader.getSeqLens(i) - 1;
+            size_t tabLength = blastTabReader.getEntryLen(i) - 1;
             const std::vector<Domain> result = getEntries(std::string(tabData, tabLength));
             if (result.size() == 0) {
                 Debug(Debug::WARNING) << "Can not map any entries for entry " << id << "!\n";
@@ -267,7 +267,7 @@ int doExtract(Parameters &par, DBReader<unsigned int> &blastTabReader,
             }
 
             char *data = msaReader.getData(entry, thread_idx);
-            size_t entryLength = msaReader.getSeqLens(entry) - 1;
+            size_t entryLength = msaReader.getEntryLen(entry) - 1;
 
             std::string msa;
             switch (par.msaType) {
@@ -322,8 +322,7 @@ int doExtract(Parameters &par, const unsigned int mpiRank, const unsigned int mp
 
     size_t dbFrom = 0;
     size_t dbSize = 0;
-    Util::decomposeDomainByAminoAcid(reader.getDataSize(), reader.getSeqLens(), reader.getSize(),
-                                     mpiRank, mpiNumProc, &dbFrom, &dbSize);
+    reader.decomposeDomainByAminoAcid(mpiRank, mpiNumProc, &dbFrom, &dbSize);
     std::pair<std::string, std::string> tmpOutput = Util::createTmpFileNames(par.db3, par.db3Index, mpiRank);
 
     int status = doExtract(par, reader, tmpOutput, dbFrom, dbSize);
@@ -364,7 +363,7 @@ int extractdomains(int argc, const char **argv, const Command& command) {
     MMseqsMPI::init(argc, argv);
 
     Parameters& par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 3);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
 #ifdef HAVE_MPI
     int status = doExtract(par, MMseqsMPI::rank, MMseqsMPI::numProc);

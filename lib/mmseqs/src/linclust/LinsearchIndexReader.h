@@ -42,24 +42,24 @@ public:
 
 
     template<int TYPE>
-    static size_t pickCenterKmer(KmerPosition *kmers, size_t splitKmerCount);
+    static size_t pickCenterKmer(KmerPosition<short> *kmers, size_t splitKmerCount);
 
     template<int TYPE>
     static void mergeAndWriteIndex(DBWriter &dbw, std::vector<std::string> tmpFiles, int alphSize, int kmerSize);
 
     template<int TYPE>
     static void writeIndex(DBWriter &dbw,
-                           KmerPosition *hashSeqPair, size_t totalKmers,
+                           KmerPosition<short> *hashSeqPair, size_t totalKmers,
                            int alphSize, int kmerSize);
 
     static std::string indexName(std::string baseName);
 
-    static void writeKmerIndexToDisk(std::string fileName, KmerPosition *kmers, size_t kmerCnt);
+    static void writeKmerIndexToDisk(std::string fileName, KmerPosition<short> *kmers, size_t kmerCnt);
 
     static bool checkIfIndexFile(DBReader<unsigned int> *pReader);
 
-    static bool isIndexCompatible(DBReader<unsigned int> & index, Parameters &parameters, int dbtype);
+    static std::string findIncompatibleParameter(DBReader<unsigned int> & index, Parameters &parameters, int dbtype);
 
-    static std::string searchForIndex(std::string dbName);
+    static std::string searchForIndex(const std::string& dbName);
 };
 #endif

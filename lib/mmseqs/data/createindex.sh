@@ -8,25 +8,19 @@ notExists() {
 	[ ! -f "$1" ]
 }
 
-# check amount of input variables
+# check number of input variables
 [ "$#" -ne 2 ] && echo "Please provide <sequenceDB> <tmp>" && exit 1;
-# check if files exists
-[ ! -f "$1" ] &&  echo "$1 not found!" && exit 1;
-[ ! -d "$2" ] &&  echo "tmp directory $2 not found!" && mkdir -p "$2";
+# check if files exist
+[ ! -f "$1.dbtype" ] && echo "$1.dbtype not found!" && exit 1;
+[ ! -d "$2" ] && echo "tmp directory $2 not found!" && mkdir -p "$2";
 
 INPUT="$1"
 if [ -n "$TRANSLATED" ]; then
     # 1. extract orf
-    if notExists "$2/orfs.dbtype"; then
-        # shellcheck disable=SC2086
-        "$MMSEQS" extractorfs "$INPUT" "$2/orfs" $ORF_PAR \
-            || fail "extractorfs died"
-    fi
-
     if notExists "$2/orfs_aa.dbtype"; then
         # shellcheck disable=SC2086
-        "$MMSEQS" translatenucs "$2/orfs" "$2/orfs_aa" $TRANSLATE_PAR \
-            || fail "translatenucs died"
+        "$MMSEQS" extractorfs "$INPUT" "$2/orfs_aa" $ORF_PAR \
+            || fail "extractorfs died"
     fi
 
     # shellcheck disable=SC2086
@@ -35,7 +29,6 @@ if [ -n "$TRANSLATED" ]; then
 
     if [ -n "$REMOVE_TMP" ]; then
         echo "Remove temporary files"
-        "$MMSEQS" rmdb "$2/orfs"
         "$MMSEQS" rmdb "$2/orfs_aa"
         rm -f "$2/createindex.sh"
     fi

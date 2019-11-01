@@ -7,10 +7,6 @@
 #include <string.h>
 
 #include "Clustering.h"
-#include "SetElement.h"
-#define ZSTD_STATIC_LINKING_ONLY // ZSTD_findDecompressedSize
-#include <zstd/lib/zstd.h>
-
 #include "DBReader.h"
 #include "DBWriter.h"
 #include "Parameters.h"
@@ -137,7 +133,7 @@ int main (int, const char**) {
     reader.printMagicNumber();
     std::cout << reader.getSize() << std::endl;
     for(size_t i = 0; i < reader.getSize(); i++){
-        std::cout << reader.getSeqLens(i) << std::endl;
+        std::cout << reader.getSeqLen(i) << std::endl;
         std::cout << reader.getData(i, 0) << std::endl;
     }
     reader.close();

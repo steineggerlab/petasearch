@@ -16,35 +16,61 @@
 struct ScoreMatrix;
 
 const int8_t seed_4[]        = {1, 1, 1, 1};
-const int8_t seed_4_spaced[] = {1, 1, 1, 0, 1};
+const int8_t spaced_seed_4[] = {1, 1, 1, 0, 1};
 const int8_t seed_5[]        = {1, 1, 1, 1, 1};
-//const char seed_5_spaced[] = {1, 1, 1, 0, 1, 1};
-//const char seed_5_spaced[] = {1, 1, 0, 1, 0, 1, 1};// better than 111011
-const int8_t seed_5_spaced[]  = {1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1}; // just 0.001 %worse ROC5 but way faster
+const int8_t spaced_seed_5[]  = {1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1}; // just 0.001 %worse ROC5 but way faster
 const int8_t seed_6[]         = {1, 1, 1, 1, 1, 1};
-//const char seed_6_spaced[] = {1, 1, 1, 0, 1, 1, 0, 1};
-const int8_t seed_6_spaced[]  = {1, 1, 0, 1, 0, 1, 0, 0, 1, 1}; // better than 11101101
+const int8_t spaced_seed_6[]  = {1, 1, 0, 1, 0, 1, 0, 0, 1, 1}; // better than 11101101
 const int8_t seed_7[]         = {1, 1, 1, 1, 1, 1, 1};
-//const char seed_7_spaced[] = {1, 1, 1, 1, 0, 1, 0, 1, 0, 1};
-const int8_t seed_7_spaced[]  = {1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1};
+const int8_t spaced_seed_7[]  = {1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1};
+const int8_t seed_8[]         = {1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_8[]  = {1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1};
 const int8_t seed_9[]         = {1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_9_spaced[]  = {1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1};
+const int8_t spaced_seed_9[]  = {1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1};
 const int8_t seed_10[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_10_spaced[] = {1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1};
+const int8_t spaced_seed_10[] = {1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1};
 const int8_t seed_11[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_11_spaced[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_11[] = {1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1};
 const int8_t seed_12[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_12_spaced[] = {1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1};
+const int8_t spaced_seed_12[] = {1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1};
 const int8_t seed_13[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_13_spaced[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_13[] = {1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1};
 const int8_t seed_14[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_14_spaced[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_14[] = {1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1};
 const int8_t seed_15[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_15_spaced[] = {1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1};
+const int8_t spaced_seed_15[] = {1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1};
 const int8_t seed_16[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_16_spaced[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_16[] = {1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1};
 const int8_t seed_17[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-const int8_t seed_17_spaced[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_17[] = {1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1};
+const int8_t seed_18[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_18[] = {1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1};
+const int8_t seed_19[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_19[] = {1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1};
+const int8_t seed_20[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_20[] = {1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1};
+const int8_t seed_21[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_21[] = {1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1};
+const int8_t seed_22[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_22[] = {1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1};
+const int8_t seed_23[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_23[] = {1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1};
+const int8_t seed_24[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_24[] = {1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1};
+const int8_t seed_25[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_25[] = {1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1};
+const int8_t seed_26[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_26[] = {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1};
+const int8_t seed_27[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_27[] = {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1};
+const int8_t seed_28[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_28[] = {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1};
+const int8_t seed_29[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_29[] = {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t seed_30[]        = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const int8_t spaced_seed_30[] = {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1};
+
+
 
 
 class Sequence {
@@ -54,20 +80,20 @@ public:
     ~Sequence();
 
     // Map char -> int
-    void mapSequence(size_t id, unsigned int dbKey, const char *seq);
+    void mapSequence(size_t id, unsigned int dbKey, const char *seq, unsigned int seqLen);
 
     // map sequence from SequenceLookup
     void mapSequence(size_t id, unsigned int dbKey, std::pair<const unsigned char *, const unsigned int> data);
 
     // map profile HMM, *data points to start position of Profile
-    void mapProfile(const char *sequence, bool mapScores);
+    void mapProfile(const char *sequence, bool mapScores,  unsigned int seqLen);
 
     // mixture of library and profile prob
     template <int T>
-    void mapProfileState(const char *sequence);
+    void mapProfileState(const char *sequence, unsigned int seqLen);
 
     // map the profile state sequence
-    void mapProfileStateSequence(const char *sequence);
+    void mapProfileStateSequence(const char *sequence, unsigned int seqLen);
 
     // checks if there is still a k-mer left
     bool hasNextKmer() {
@@ -332,7 +358,7 @@ public:
                 break;
         }
 
-        if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_HMM_PROFILE)||
+        if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_HMM_PROFILE) ||
             Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_PROFILE_STATE_PROFILE)) {
             nextProfileKmer();
             for (unsigned int i = 0; i < this->kmerSize; i++) {
@@ -453,7 +479,7 @@ public:
     }
 
 private:
-    void mapSequence(const char *seq);
+    void mapSequence(const char *seq, unsigned int dataLen);
     size_t id;
     unsigned int dbKey;
     const char *seqData;

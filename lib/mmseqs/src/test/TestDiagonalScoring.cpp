@@ -9,11 +9,8 @@
 #include "ExtendedSubstitutionMatrix.h"
 
 #include "Clustering.h"
-#include "SetElement.h"
-
 #include "DBReader.h"
 #include "DBWriter.h"
-
 #include "Parameters.h"
 
 const char* binary_name = "test_diagonalscoring";
@@ -21,26 +18,25 @@ const char* binary_name = "test_diagonalscoring";
 int main (int, const char**) {
     size_t kmer_size = 6;
     Parameters& par = Parameters::getInstance();
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(),
-                              8.0, -0.2);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 8.0, -0.2);
     SubstitutionMatrix::print(subMat.subMatrix,subMat.int2aa,subMat.alphabetSize);
 
     std::string S1 = "PQITLWQG";
     const char* S1char = S1.c_str();
     std::cout << S1char << "\n\n";
     Sequence s1(10000, 0, &subMat, kmer_size, true, false);
-    s1.mapSequence(0,0,S1char);
+    s1.mapSequence(0,0,S1char, S1.size());
     //                0123456789
     std::string S2 = "XXXXXXXXXPQITLWQG";
     const char* S2char = S2.c_str();
     std::cout << S2char << "\n\n";
     Sequence s2(10000,  0, &subMat, kmer_size, true, false);
-    s2.mapSequence(1,1,S2char);
+    s2.mapSequence(1,1,S2char, S2.size());
     std::string S3 = "PQITLWQGXXXXXXXXX";
     const char* S3char = S3.c_str();
     std::cout << S3char << "\n\n";
     Sequence s3(10000,  0, &subMat, kmer_size, true, false);
-    s3.mapSequence(2,2, S3char);
+    s3.mapSequence(2,2, S3char, S3.size());
     std::string S4 = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
@@ -48,7 +44,7 @@ int main (int, const char**) {
     const char* S4char = S4.c_str();
     std::cout << S4char << "\n\n";
     Sequence s4(10000,  0, &subMat, kmer_size, true, false);
-    s4.mapSequence(3,3, S4char);
+    s4.mapSequence(3,3, S4char, S4.size());
 
 
 
@@ -56,14 +52,14 @@ int main (int, const char**) {
     const char* S5char = S5.c_str();
     std::cout << S5char << "\n\n";
     Sequence s5(10000,  0, &subMat, kmer_size, true, false);
-    s5.mapSequence(4,4, S5char);
+    s5.mapSequence(4,4, S5char, S5.size());
 //    s5.reverse();
 
     std::string S6 = "LSGGPAVSDHDFSSRMSDVKRKESAEARKLKERGAKKSKYREEQYFKKLAGTYVGDESEEEQVEDDVQWRKQVIVIDYDYEAGGDDEDDRDLEGALDALKDFDDDAGKIKKNRGVEKDVARVDTKNMLKKDAIKNKPNGKITFDASVLGDDKLKSDACGDLENLILPPPVAIPLKQIQTMTPKGSSPRSNHITTGKAFPVSPAKTAEVVPPASTRPKISPRAVEGVQELDEVASGLEKEMQADEDTEPEVFDFMGEPEEFADEDWMKVDELEKSAAVADAKGKSEEVGLPQSPEELVFDSDSTIDSYECFSGVEDVGWQQSDPHQLVVSLSKSAGDEEQVFHFYWLDAYEDQYNQPGVVFLFGKVWIESAETHVSCCVMVKNIERTLYFLPREMKIDLNTGKETGTPISMKDVYEEFDEKIATKYKIMKFKSKPVEKNYAFEIPDVPEKSEYLEVKYSAEMPQLPQDLKGETFSHVFGTNTSSLELFLMNRKIKGPCWLEVKSPQLLNQPVSWCKVEAMALKPDLVNVIKDVSPPPLVVMAFSMKTMQNAKNHQNEIIAMAALVHHSFALDKAAPKPPFQSHFCVVSKPKDCIFPYAFKEVIEKKNVKVEVAATERTLLGFFLAKVHKIDPDIIVGHNIYGFELEVLLQRINVCKAPHWSKIGRLKRSNMPKLGGRSGFGERNATCGRMICDVEISAKELIRCKSYHLSELVQQILKTERVVIPMENIQNMYSESSQLLYLLEHTWKDAKFILQIMCELNVLPLALQITNIAGNIMSRNYGFTEGSMHRFLYNAVLNLQKEPPIEKFDQEELGDGILRKDQKNKGKEIYDRTRDKKAAYAGGLVLDPKVGFYDKFILLLDFNSLYPSIIQEFNICFTTVQRVASEAQKVTEDGEQEQIPELPDPSLEMGILPREIRKLVERRKQVKQLMKQQDLNPDLILQYDIRQKALKLTANSMYGCLGFSYSRFYAKPLAALVTYKGREILMHTKEMVQKMNLEVIYGDTDSIMINTNSTNLEEVFKLGNKVKSEVNKLYKLLEIDIDGVFKSLLLLKKKKYAALVVEPTSDGNYVTKQELKGLDIVRRDWCDLAKDTGNFVIGQILSDQSRDTIVENIQKRLIEIGENVLNGSVPVSQFEINKALTKDPQDYPDKKSLPHVHVALWINSQGGRKVKAGDTVSYVICQDGSNLTASQRAYAPEQLQKQDNLTIDTQYYLAQQIHPVVARICEPIDGIDAVLIATWLGLLHHVDHPTDERYGKLPANQFKYLDETGCEAPDRCCRQGPDIFEECKDTFDTVTNDMPELGNSSEYDKCCATGNPLYNVRLILIMTQIFKDSSRKYFDSGLWRYIKICEEPTCRNRTRHLPLQFSRTGPLCPACMKAYQYSKYLRTCEFDADLAPLIKEFLDYTESQKCLKQTKFHEKFPKKTVLTLRLEDTDNAYSSQNREQKVYGCFAKASSLLGLSKFV";
     const char* S6char = S6.c_str();
     std::cout << S6char << "\n\n";
     Sequence s6(10000,  0, &subMat, kmer_size, true, false);
-    s6.mapSequence(5,5, S6char);
+    s6.mapSequence(5,5, S6char, S6.size());
 
 
     std::string S7 = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
@@ -77,7 +73,7 @@ int main (int, const char**) {
     const char* S7char = S7.c_str();
     std::cout << S7char << "\n\n";
     Sequence s7(10000,  0, &subMat, kmer_size, true, false);
-    s7.mapSequence(6,6, S7char);
+    s7.mapSequence(6,6, S7char, S7.size());
 
 
 

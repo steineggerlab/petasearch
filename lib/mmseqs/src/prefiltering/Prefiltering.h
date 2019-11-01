@@ -18,6 +18,8 @@
 class Prefiltering {
 public:
     Prefiltering(
+            const std::string &queryDB,
+            const std::string &queryDBIndex,
             const std::string &targetDB,
             const std::string &targetDBIndex,
             int querySeqType, int targetSeqType,
@@ -25,44 +27,44 @@ public:
 
     ~Prefiltering();
 
-    void runAllSplits(const std::string &queryDB, const std::string &queryDBIndex,
-                      const std::string &resultDB, const std::string &resultDBIndex);
+    void runAllSplits(const std::string &resultDB, const std::string &resultDBIndex);
 
 #ifdef HAVE_MPI
-    void runMpiSplits(const std::string &queryDB, const std::string &queryDBIndex,
-                      const std::string &resultDB, const std::string &resultDBIndex,
-                      const std::string &localTmpPath);
+    void runMpiSplits(const std::string &resultDB, const std::string &resultDBIndex, const std::string &localTmpPath);
 #endif
 
-    bool runSplits(const std::string &queryDB, const std::string &queryDBIndex,
-                   const std::string &resultDB, const std::string &resultDBIndex,
-                   size_t fromSplit, size_t splitProcessCount, bool merge);
+    int runSplits(const std::string &resultDB, const std::string &resultDBIndex, size_t fromSplit, size_t splitProcessCount, bool merge);
 
     // merge file
-    void mergeFiles(const std::string &outDb, const std::string &outDBIndex,
+    void mergePrefilterSplits(const std::string &outDb, const std::string &outDBIndex,
                     const std::vector<std::pair<std::string, std::string>> &splitFiles);
 
     // get substitution matrix
-    static BaseMatrix *getSubstitutionMatrix(const std::string &scoringMatrixFile, size_t alphabetSize, float bitFactor, bool profileState, bool isNucl);
+    static BaseMatrix *getSubstitutionMatrix(const ScoreMatrixFile &scoringMatrixFile, size_t alphabetSize, float bitFactor, bool profileState, bool isNucl);
 
     static void setupSplit(DBReader<unsigned int>& dbr, const int alphabetSize, const unsigned int querySeqType, const int threads,
-                           const bool templateDBIsIndex, const size_t maxResListLen, const size_t memoryLimit,
-                           int *kmerSize, int *split, int *splitMode);
+                           const bool templateDBIsIndex, const size_t memoryLimit, const size_t qDbSize,
+                           size_t& maxResListLen, int& kmerSize, int& split, int& splitMode);
 
     static int getKmerThreshold(const float sensitivity, const bool isProfile, const int kmerScore, const int kmerSize);
 
-private:
-    static const size_t BUFFER_SIZE = 1000000;
+    static void mergeTargetSplits(const std::string &outDB, const std::string &outDBIndex,
+                                  const std::vector<std::pair<std::string, std::string>> &fileNames, unsigned int threads);
 
+private:
+    const std::string queryDB;
+    const std::string queryDBIndex;
     const std::string targetDB;
     const std::string targetDBIndex;
+    DBReader<unsigned int> *qdbr;
     DBReader<unsigned int> *tdbr;
     DBReader<unsigned int> *tidxdbr;
+    bool sameQTDB;
 
     BaseMatrix *kmerSubMat;
     BaseMatrix *ungappedSubMat;
-    ScoreMatrix *_2merSubMatrix;
-    ScoreMatrix *_3merSubMatrix;
+    ScoreMatrix _2merSubMatrix;
+    ScoreMatrix _3merSubMatrix;
     IndexTable *indexTable;
     SequenceLookup *sequenceLookup;
 
@@ -78,19 +80,17 @@ private:
     int maskLowerCaseMode;
     int splitMode;
     int kmerThr;
-    std::string scoringMatrixFile;
-    std::string seedScoringMatrixFile;
+    ScoreMatrixFile scoringMatrixFile;
+    ScoreMatrixFile seedScoringMatrixFile;
     int targetSeqType;
     bool takeOnlyBestKmer;
+    size_t maxResListLen;
 
-
-    const size_t maxResListLen;
     const int kmerScore;
     const float sensitivity;
-    const size_t resListOffset;
     size_t maxSeqLen;
     int querySeqType;
-    const bool diagonalScoring;
+    const unsigned int diagonalScoring;
     const unsigned int minDiagScoreThr;
     bool aaBiasCorrection;
     const float covThr;
@@ -98,10 +98,9 @@ private:
     const bool includeIdentical;
     int preloadMode;
     const unsigned int threads;
-    const int compressed;
+    int compressed;
 
-    bool runSplit(DBReader<unsigned int> *qdbr, const std::string &resultDB, const std::string &resultDBIndex,
-                  size_t split, size_t splitCount, bool sameQTDB, bool merge);
+    bool runSplit(const std::string &resultDB, const std::string &resultDBIndex, size_t split, bool merge);
 
     // compute kmer size and split size for index table
     static std::pair<int, int> optimizeSplit(size_t totalMemoryInByte, DBReader<unsigned int> *tdbr, int alphabetSize, int kmerSize,
@@ -115,33 +114,18 @@ private:
 
     static size_t estimateHDDMemoryConsumption(size_t dbSize, size_t maxResListLen);
 
-    ScoreMatrix *getScoreMatrix(const BaseMatrix& matrix, const size_t kmerSize);
+    ScoreMatrix getScoreMatrix(const BaseMatrix& matrix, const size_t kmerSize);
 
 
     // needed for index lookup
     void getIndexTable(int split, size_t dbFrom, size_t dbSize);
 
-    /*
-     * Set the k-mer similarity threshold that regulates the length of k-mer lists for each k-mer in the query sequence.
-     * As a result, the prefilter always has roughly the same speed for different k-mer and alphabet sizes.
-     */
-    double setKmerThreshold(DBReader<unsigned int> *qdb);
-
-    // write prefiltering to ffindex database
-    void writePrefilterOutput(DBReader<unsigned int> *qdbr, DBWriter *dbWriter, unsigned int thread_idx, size_t id,
-                              const std::pair<hit_t *, size_t> &prefResults, size_t seqIdOffset,
-                              size_t resultOffsetPos, size_t maxResults);
-
     void printStatistics(const statistics_t &stats, std::list<int> **reslens,
                          unsigned int resLensSize, size_t empty, size_t maxResults);
 
-    void mergeOutput(const std::string &outDb, const std::string &outDBIndex,
-                     const std::vector<std::pair<std::string, std::string>> &filenames);
-
-    bool isSameQTDB(const std::string &queryDB);
+    bool isSameQTDB();
 
     void reopenTargetDb();
-
 };
 
 #endif

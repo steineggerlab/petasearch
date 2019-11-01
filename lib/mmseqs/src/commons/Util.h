@@ -5,13 +5,9 @@
 #include <cstddef>
 #include <cstring>
 #include <vector>
-#include <sstream>
-#include <map>
-#include <unordered_map>
 #include <limits>
 
 #include "MMseqsMPI.h"
-
 
 #ifndef EXIT
 #define EXIT(exitCode) do { int __status = (exitCode); std::cerr.flush(); std::cout.flush(); exit(__status); } while(0)
@@ -20,8 +16,6 @@
 #define BIT_SET(a,b) ((a) | (1ULL<<(b)))
 #define BIT_CLEAR(a,b) ((a) & ~(1ULL<<(b)))
 #define BIT_CHECK(a,b) (!!((a) & (1ULL<<(b))))
-
-
 
 template<typename T>
 struct assert_false : std::false_type
@@ -65,7 +59,15 @@ template<> std::string SSTR(float);
 #define UNLIKELY(x) (x)
 #endif
 
+#ifndef __has_attribute
+#define __has_attribute(x) 0
+#endif
 
+#if defined(__GNUC__) || __has_attribute(unused)
+#  define MAYBE_UNUSED(x) x __attribute__((__unused__))
+#else
+#  define MAYBE_UNUSED(x) x
+#endif
 
 class Util {
 public:
@@ -76,9 +78,7 @@ public:
     static void rankedDescSort8(short *val, unsigned int *index);
     static void rankedDescSort32(short *val, unsigned int *index);
     static void rankedDescSort20(short *val, unsigned int *index);
-    template <typename T>
-    static void decomposeDomainByAminoAcid(size_t aaSize, T seqSizes, size_t count,
-                                           size_t worldRank, size_t worldSize, size_t *start, size_t *end);
+
     static size_t getTotalSystemMemory();
     static size_t getPageSize();
     static size_t getTotalMemoryPages();
@@ -88,7 +88,7 @@ public:
 
     static size_t countLines(const char *data, size_t length);
 
-    static size_t ompCountLines(const char *data, size_t length);
+    static size_t ompCountLines(const char *data, size_t length, unsigned int threads);
 
     static int readMapping(std::string mappingFilename, std::vector<std::pair<unsigned int, unsigned int> > & mapping);
 
@@ -201,9 +201,19 @@ public:
 
     static std::pair<std::string, std::string> createTmpFileNames(const std::string &db,
                                                                   const std::string &dbindex, int count){
+        // TODO take only db and not db and dbindex
+        // TODO check naming of old database paths
         std::string suffix = std::string("_tmp_") + SSTR(count);
-        std::string data  = db + suffix;
-        std::string index = dbindex + suffix;
+        std::string data = db + suffix;
+        
+        std::string index = "";
+        if (dbindex.compare(db + ".index") == 0) {
+            index.append(db + suffix + ".index");
+        } else {
+            //Debug(Debug::WARNING) << "Database index name is deprecated (" << dbindex << ")\n";
+            index.append(dbindex + suffix);
+        }
+
         return std::make_pair(data, index);
     }
 
@@ -252,14 +262,6 @@ public:
         typename std::string::size_type const p(filename.find_last_of('.'));
         return p > 0 && p != std::string::npos ? filename.substr(0, p) : filename;
     }
-
-    static std::map<std::string, size_t> readMapping(const char *fastaFile);
-
-    static std::map<unsigned int, std::string> readLookup(const std::string& lookupFile,
-                                                          const bool removeSplit = false);
-
-    static std::map<std::string, unsigned int> readLookupReverse(const std::string& lookupFile,
-                                                                 const bool removeSplit = false);
 
     static void checkAllocation(void *pointer, std::string message);
 
@@ -317,8 +319,6 @@ public:
     static float computeSeqId(int seqIdMode, int aaIds, int qLen, int tLen, int alnLen);
 
     static uint64_t revComplement(const uint64_t kmer, const int k);
-
-    static float averageValueOnAminoAcids(const std::unordered_map<char, float> &values, const char *seq);
 
     static bool hasAlignmentLength(int alnLenThr, int alnLen) {
         return alnLen >= alnLenThr;

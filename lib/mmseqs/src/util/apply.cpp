@@ -274,12 +274,16 @@ int apply(int argc, const char **argv, const Command& command) {
     MMseqsMPI::init(argc, argv);
 
     Parameters& par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 2, true, Parameters::PARSE_REST);
+    par.parseParameters(argc, argv, command, true, Parameters::PARSE_REST, 0);
+
+#ifdef OPENMP
+    // forking does not play well with OpenMP threads
+    omp_set_num_threads(1);
+#endif
 
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX);
     reader.open(DBReader<unsigned int>::SORT_BY_LENGTH);
 
-    const unsigned int *sizes = reader.getSeqLens();
     Debug::Progress progress(reader.getSize());
 
 #ifdef HAVE_MPI
@@ -305,6 +309,11 @@ int apply(int argc, const char **argv, const Command& command) {
                 int mpiRank = 0;
                 int mpiProcs = 1;
 
+                // get progress only from first thread on master
+                if (thread != 0 || mpiRank != MMseqsMPI::MASTER) {
+                    Debug::setDebugLevel(0);
+                }
+
 #ifdef HAVE_MPI
                 while (shared_memory->ready == 0) {
                     usleep(10);
@@ -325,33 +334,30 @@ int apply(int argc, const char **argv, const Command& command) {
 
                 ignore_signal(SIGPIPE);
                 for (size_t i = 0; i < reader.getSize(); ++i) {
+                    progress.updateProgress();
                     if (static_cast<ssize_t>(i) % (mpiProcs * par.threads) != (thread * mpiProcs + mpiRank)) {
                         continue;
                     }
 
-                    progress.updateProgress();
-
-                    size_t index = i;
-                    size_t size = sizes[i] - 1;
-
-                    char *data = reader.getData(index, thread);
-                    if (data == NULL) {
+                    unsigned int key = reader.getDbKey(i);
+                    char *data = reader.getData(i, thread);
+                    if (*data == '\0') {
+                        writer.writeData(NULL, 0, key, thread);
                         continue;
                     }
 
-                    unsigned int key = reader.getDbKey(index);
+                    size_t size = reader.getEntryLen(i) - 1;
                     int status = apply_by_entry(data, size, key, writer, par.restArgv[0], const_cast<char**>(par.restArgv), local_environ, 0);
                     if (status == -1) {
-                        Debug(Debug::WARNING) << "Entry " << index << " system error " << errno << "!\n";
+                        Debug(Debug::WARNING) << "Entry " << key << " system error number " << errno << "!\n";
                         continue;
                     }
                     if (status > 0) {
-                        Debug(Debug::WARNING) << "Entry " << index << " exited with error code " << status << "!\n";
+                        Debug(Debug::WARNING) << "Entry " << key << " exited with error code " << status << "!\n";
                         continue;
                     }
                 }
 
-                Debug::setDebugLevel(0);
                 writer.close(true);
                 reader.close();
                 free_local_environment(local_environ);

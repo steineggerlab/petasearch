@@ -19,9 +19,8 @@ const char* binary_name = "test_kmergenerator";
 int main (int, const char**) {
     const size_t kmer_size=6;
 
-
     Parameters& par = Parameters::getInstance();
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 8.0, 0);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 8.0, 0);
     std::cout << "Subustitution matrix:\n";
 
     //   BaseMatrix::print(subMat.subMatrix, subMat.alphabetSize);
@@ -33,19 +32,19 @@ int main (int, const char**) {
     std::cout <<  std::endl;
     std::cout << "ExtSupMatrix:"<< std::endl;
 
-    ScoreMatrix* extMattwo = ExtendedSubstitutionMatrix::calcScoreMatrix(subMat, 2);
-    ScoreMatrix* extMatthree = ExtendedSubstitutionMatrix::calcScoreMatrix(subMat, 3);
+    ScoreMatrix extMattwo = ExtendedSubstitutionMatrix::calcScoreMatrix(subMat, 2);
+    ScoreMatrix extMatthree = ExtendedSubstitutionMatrix::calcScoreMatrix(subMat, 3);
 
     Indexer idx(subMat.alphabetSize,kmer_size);
     std::cout << "Sequence (id 0):\n";
     const char* sequence = "PATWPCLVALG";
     std::cout << sequence << "\n\n";
     Sequence* s = new Sequence(10000, Parameters::DBTYPE_AMINO_ACIDS, &subMat, kmer_size, false, false);
-    s->mapSequence(0,0,sequence);
+    s->mapSequence(0,0,sequence, strlen(sequence));
 
     KmerGenerator kmerGen(kmer_size,subMat.alphabetSize,161);
+    kmerGen.setDivideStrategy(&extMatthree, &extMattwo);
 
-    kmerGen.setDivideStrategy(extMatthree, extMattwo);
     size_t * testKmer = new size_t[kmer_size];
     int i = 0; 
     while(s->hasNextKmer()){
@@ -77,8 +76,9 @@ int main (int, const char**) {
         }
     }
 
-    delete extMattwo;
-    delete extMatthree;
-    return 0;
+    ExtendedSubstitutionMatrix::freeScoreMatrix(extMatthree);
+    ExtendedSubstitutionMatrix::freeScoreMatrix(extMattwo);
+
+    return EXIT_SUCCESS;
 }
 

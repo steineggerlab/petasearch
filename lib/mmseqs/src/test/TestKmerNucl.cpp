@@ -22,14 +22,14 @@ int main (int, const char**) {
     const size_t kmer_size = 6;
 
     Parameters& par = Parameters::getInstance();
-    NucleotideMatrix subMat(par.scoringMatrixFile.c_str(), 2.0, -0.0f);
+    NucleotideMatrix subMat(par.scoringMatrixFile.nucleotides, 2.0, -0.0f);
 
     Indexer idx((size_t)subMat.alphabetSize, kmer_size);
     std::cout << "Sequence: ";
     const char* sequence = "GATACAGATACAGATACAGATACA";
     std::cout << sequence << "\n";
     Sequence* s = new Sequence(10000, Parameters::DBTYPE_NUCLEOTIDES, &subMat, kmer_size, false, false);
-    s->mapSequence(0, 0, sequence);
+    s->mapSequence(0, 0, sequence, strlen(sequence));
 
     size_t i = 0;
     while (s->hasNextKmer()) {

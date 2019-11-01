@@ -2,6 +2,7 @@ set(commons_header_files
         commons/A3MReader.h
         commons/AminoAcidLookupTables.h
         commons/BacktraceTranslator.h
+        commons/ByteParser.h
         commons/Command.h
         commons/CommandCaller.h
         commons/Concat.h
@@ -16,6 +17,8 @@ set(commons_header_files
         commons/HeaderSummarizer.h
         commons/IndexReader.h
         commons/itoa.h
+        commons/KSeqBufferReader.h
+        commons/KSeqWrapper.h
         commons/MathUtil.h
         commons/MemoryMapped.h
         commons/MMseqsMPI.h
@@ -26,6 +29,7 @@ set(commons_header_files
         commons/Parameters.h
         commons/PatternCompiler.h
         commons/ScoreMatrix.h
+        commons/ScoreMatrixFile.h
         commons/Sequence.h
         commons/SubstitutionMatrix.h
         commons/SubstitutionMatrixProfileStates.h
@@ -58,6 +62,7 @@ set(commons_source_files
         commons/Parameters.cpp
         commons/ProfileStates.cpp
         commons/LibraryReader.cpp
+        commons/ScoreMatrixFile.cpp
         commons/Sequence.cpp
         commons/SubstitutionMatrix.cpp
         commons/tantan.cpp

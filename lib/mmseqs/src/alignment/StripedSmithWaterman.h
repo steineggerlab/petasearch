@@ -37,7 +37,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(__llvm__)
 #include <malloc.h>
 #endif
 
@@ -46,7 +46,6 @@
 
 #include "Sequence.h"
 #include "EvalueComputation.h"
-
 typedef struct {
     short qStartPos;
     short dbStartPos;
@@ -56,8 +55,8 @@ typedef struct {
 
 
 typedef struct {
-    uint16_t score1;
-    uint16_t score2;
+    uint32_t score1;
+    uint32_t score2;
     int32_t dbStartPos1;
     int32_t dbEndPos1;
     int32_t	qStartPos1;
@@ -253,7 +252,7 @@ private:
      wight_match > 0, all other weights < 0.
      The returned positions are 0-based.
      */
-    alignment_end* sw_sse2_byte (const int*db_sequence,
+    std::pair<alignment_end, alignment_end> sw_sse2_byte (const int*db_sequence,
                                  int8_t ref_dir,	// 0: forward ref; 1: reverse ref
                                  int32_t db_length,
                                  int32_t query_length,
@@ -267,7 +266,7 @@ private:
                                  uint8_t bias,  /* Shift 0 point to a positive value. */
                                  int32_t maskLen);
 
-    alignment_end* sw_sse2_word (const int* db_sequence,
+    std::pair<alignment_end, alignment_end> sw_sse2_word (const int* db_sequence,
                                  int8_t ref_dir,	// 0: forward ref; 1: reverse ref
                                  int32_t db_length,
                                  int32_t query_lenght,

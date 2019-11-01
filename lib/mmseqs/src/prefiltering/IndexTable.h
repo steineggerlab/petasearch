@@ -69,14 +69,13 @@ public:
               indexer(new Indexer(alphabetSize, kmerSize)), entries(NULL), offsets(NULL) {
         if (externalData == false) {
             offsets = new(std::nothrow) size_t[tableSize + 1];
-            memset(offsets, 0, (tableSize + 1) * sizeof(size_t));
             Util::checkAllocation(offsets, "Can not allocate entries memory in IndexTable");
+            memset(offsets, 0, (tableSize + 1) * sizeof(size_t));
         }
     }
 
     virtual ~IndexTable() {
         deleteEntries();
-
         delete indexer;
     }
 
@@ -95,7 +94,6 @@ public:
 
     // count k-mers in the sequence, so enough memory for the sequence lists can be allocated in the end
     size_t addSimilarKmerCount(Sequence* s, KmerGenerator* kmerGenerator){
-
         s->resetCurrPos();
         std::vector<unsigned int> seqKmerPosBuffer;
 
@@ -234,13 +232,23 @@ public:
     }
 
     // init index table with external data (needed for index readin)
-    void initTableByExternalData(size_t sequenceCount, size_t tableEntriesNum,
-                                 IndexEntryLocal *entries, size_t *entryOffsets) {
+    void initTableByExternalData(size_t sequenceCount, size_t tableEntriesNum, IndexEntryLocal *entries, size_t *entryOffsets) {
         this->tableEntriesNum = tableEntriesNum;
         this->size = sequenceCount;
 
         this->entries = entries;
         this->offsets = entryOffsets;
+    }
+
+    void initTableByExternalDataCopy(size_t sequenceCount, size_t tableEntriesNum, IndexEntryLocal *entries, size_t *entryOffsets) {
+        this->tableEntriesNum = tableEntriesNum;
+        this->size = sequenceCount;
+
+        this->entries = new(std::nothrow) IndexEntryLocal[tableEntriesNum];
+        Util::checkAllocation(entries, "Can not allocate " + SSTR(tableEntriesNum * sizeof(IndexEntryLocal)) + " bytes for entries in IndexTable::initMemory");
+        memcpy(this->entries, entries, tableEntriesNum * sizeof(IndexEntryLocal));
+
+        memcpy(this->offsets, entryOffsets, (tableSize + 1) * sizeof(size_t));
     }
 
     void revertPointer() {
@@ -441,6 +449,17 @@ public:
         }
     }
 
+    static size_t getUpperBoundNucCountForKmerSize(int kmerSize) {
+        switch (kmerSize) {
+            case 14:
+                return 3350000000;
+            case 15:
+                return (SIZE_MAX - 1); // SIZE_MAX is often reserved as safe flag
+            default:
+                Debug(Debug::ERROR) << "Invalid kmer size of " << kmerSize << "!\n";
+                EXIT(EXIT_FAILURE);
+        }
+    }
 
 protected:
     // alphabetSize**kmerSize

@@ -20,7 +20,7 @@
 #endif
 
 int result2msa(Parameters &par, const std::string &resultData, const std::string &resultIndex,
-               const size_t dbFrom, const size_t dbSize, bool merge, DBConcat *referenceDBr = NULL) {
+               const size_t dbFrom, const size_t dbSize, DBConcat *referenceDBr = NULL) {
     if (par.compressMSA && referenceDBr == NULL) {
         Debug(Debug::ERROR) << "Need a sequence and header database for ca3m output!\n";
         EXIT(EXIT_FAILURE);
@@ -38,28 +38,25 @@ int result2msa(Parameters &par, const std::string &resultData, const std::string
     DBReader<unsigned int> *tDbr = &qDbr;
     DBReader<unsigned int> *tempateHeaderReader = &queryHeaderReader;
 
-    unsigned int maxSequenceLength = 0;
+    size_t maxSequenceLength = 0;
     const bool sameDatabase = (par.db1.compare(par.db2) == 0) ? true : false;
     if (!sameDatabase) {
         tDbr = new DBReader<unsigned int>(par.db2.c_str(), par.db2Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
         tDbr->open(DBReader<unsigned int>::NOSORT);
 
-        unsigned int *lengths = qDbr.getSeqLens();
         for (size_t i = 0; i < qDbr.getSize(); i++) {
-            maxSequenceLength = std::max(lengths[i], maxSequenceLength);
+            maxSequenceLength = std::max(qDbr.getEntryLen(i), maxSequenceLength);
         }
 
-        lengths = tDbr->getSeqLens();
         for (size_t i = 0; i < tDbr->getSize(); i++) {
-            maxSequenceLength = std::max(lengths[i], maxSequenceLength);
+            maxSequenceLength = std::max(tDbr->getEntryLen(i), maxSequenceLength);
         }
 
         tempateHeaderReader = new DBReader<unsigned int>(par.hdr2.c_str(), par.hdr2Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
         tempateHeaderReader->open(DBReader<unsigned int>::NOSORT);
     } else {
-        unsigned int *lengths = qDbr.getSeqLens();
         for (size_t i = 0; i < qDbr.getSize(); i++) {
-            maxSequenceLength = std::max(lengths[i], maxSequenceLength);
+        maxSequenceLength = std::max(qDbr.getEntryLen(i), maxSequenceLength);
         }
     }
 
@@ -79,7 +76,7 @@ int result2msa(Parameters &par, const std::string &resultData, const std::string
     size_t maxSetSize = resultReader.maxCount('\n') + 1;
 
     // adjust score of each match state by -0.2 to trim alignment
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0f, -0.2f);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0f, -0.2f);
 
     Debug(Debug::INFO) << "Start computing "
                        << (par.compressMSA ? "compressed" : "") << " multiple sequence alignments.\n";
@@ -126,13 +123,14 @@ int result2msa(Parameters &par, const std::string &resultData, const std::string
 
             // Get the sequence from the queryDB
             unsigned int queryKey = resultReader.getDbKey(id);
-            char *seqData = qDbr.getDataByDBKey(queryKey, thread_idx);
-            if (seqData == NULL) {
-                Debug(Debug::WARNING) << "Empty sequence " << id << ". Skipping.\n";
+            size_t queryId = qDbr.getId(queryKey);
+            if (queryId == UINT_MAX) {
+                Debug(Debug::WARNING) << "Invalid query sequence " << queryKey << ".\n";
                 continue;
             }
+            centerSequence.mapSequence(id, queryKey, qDbr.getData(queryId, thread_idx), qDbr.getSeqLen(queryId));
 
-            centerSequence.mapSequence(0, queryKey, seqData);
+            // TODO: Do we still need this?
             if (centerSequence.L)
             {
                 if(centerSequence.int_sequence[centerSequence.L-1] == 20) // remove last in it is a *
@@ -162,7 +160,7 @@ int result2msa(Parameters &par, const std::string &resultData, const std::string
                 }
 
                 const size_t edgeId = tDbr->getId(key);
-                Sequence *edgeSequence = new Sequence(tDbr->getSeqLens(edgeId), tDbr->getDbtype(), &subMat, 0, false, false);
+                Sequence *edgeSequence = new Sequence(tDbr->getSeqLen(edgeId), tDbr->getDbtype(), &subMat, 0, false, false);
 
 
                 char *dbSeqData = tDbr->getData(edgeId, thread_idx);
@@ -175,7 +173,7 @@ int result2msa(Parameters &par, const std::string &resultData, const std::string
                         EXIT(EXIT_FAILURE);
                     }
                 }
-                edgeSequence->mapSequence(0, key, dbSeqData);
+                edgeSequence->mapSequence(0, key, dbSeqData, tDbr->getSeqLen(edgeId));
                 seqSet.push_back(edgeSequence);
 
                 results = Util::skipLine(results);
@@ -303,7 +301,7 @@ int result2msa(Parameters &par, const std::string &resultData, const std::string
     }
 
     // cleanup
-    resultWriter.close(merge);
+    resultWriter.close(true);
     resultReader.close();
     queryHeaderReader.close();
     qDbr.close();
@@ -362,7 +360,7 @@ int result2msa(Parameters &par) {
         outIndex.append("_ca3m.ffindex");
     }
 
-    int status = result2msa(par, outDb, outIndex, 0, resultSize, false, referenceDBr);
+    int status = result2msa(par, outDb, outIndex, 0, resultSize, referenceDBr);
 
     if (referenceDBr != NULL) {
         referenceDBr->close();
@@ -377,8 +375,7 @@ int result2msa(Parameters &par, const unsigned int mpiRank, const unsigned int m
 
     size_t dbFrom = 0;
     size_t dbSize = 0;
-    Util::decomposeDomainByAminoAcid(qDbr->getDataSize(), qDbr->getSeqLens(), qDbr->getSize(),
-                                     mpiRank, mpiNumProc, &dbFrom, &dbSize);
+    qDbr->decomposeDomainByAminoAcid(mpiRank, mpiNumProc, &dbFrom, &dbSize);
     qDbr->close();
     delete qDbr;
 
@@ -427,7 +424,7 @@ int result2msa(Parameters &par, const unsigned int mpiRank, const unsigned int m
     }
 
     std::pair<std::string, std::string> tmpOutput = Util::createTmpFileNames(outDb, outIndex, mpiRank);
-    int status = result2msa(par, tmpOutput.first, tmpOutput.second, dbFrom, dbSize, true, referenceDBr);
+    int status = result2msa(par, tmpOutput.first, tmpOutput.second, dbFrom, dbSize, referenceDBr);
 
     // close reader to reduce memory
     if (referenceDBr != NULL) {
@@ -461,7 +458,7 @@ int result2msa(int argc, const char **argv, const Command &command) {
     // do not filter as default
     par.filterMsa = 0;
     par.pca = 0.0;
-    par.parseParameters(argc, argv, command, 4);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
 #ifdef HAVE_MPI
     int status = result2msa(par, MMseqsMPI::rank, MMseqsMPI::numProc);

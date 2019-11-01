@@ -13,7 +13,7 @@
 
 int translateaa(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 2);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
@@ -22,7 +22,7 @@ int translateaa(int argc, const char **argv, const Command &command) {
     writer.open();
 
     TranslateNucl translateNucl(static_cast<TranslateNucl::GenCode>(par.translationTable));
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0f, -0.0f);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0f, -0.0f);
 
     char lookupAA[21][3];
     const char nucLookup[4] = {'A', 'C', 'G', 'T'};
@@ -60,16 +60,16 @@ int translateaa(int argc, const char **argv, const Command &command) {
         thread_idx = omp_get_thread_num();
 #endif
 
-        char *aa = new char[par.maxSeqLen / 3 + 3 + 1];
+        char *aa = new char[(par.maxSeqLen + 1) / 3 + 3 + 1];
         std::string nucSeq;
         nucSeq.reserve(10000);
-        Sequence aaSequence(par.maxSeqLen, Parameters::DBTYPE_AMINO_ACIDS, &subMat, 0, false, par.compBiasCorrection);
+        Sequence aaSequence(par.maxSeqLen + 1, Parameters::DBTYPE_AMINO_ACIDS, &subMat, 0, false, par.compBiasCorrection);
 
 #pragma omp for schedule(dynamic, 5)
         for (size_t i = 0; i < reader.getSize(); ++i) {
             unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, thread_idx);
-            aaSequence.mapSequence(0, key, data);
+            aaSequence.mapSequence(0, key, data, reader.getSeqLen(i));
 
             // ignore null char at the end
             for (int pos = 0; pos < aaSequence.L; ++pos) {
@@ -84,6 +84,7 @@ int translateaa(int argc, const char **argv, const Command &command) {
     }
     writer.close(true);
     reader.close();
+    DBReader<unsigned int>::softlinkDb(par.db1, par.db2, DBFiles::SEQUENCE_ANCILLARY);
 
     return EXIT_SUCCESS;
 }

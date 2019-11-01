@@ -61,17 +61,15 @@ ffindexFilter::ffindexFilter(Parameters &par) {
 	initFiles();
 
 
-    if (par.sortEntries)
-    {
+    if (par.sortEntries) {
         mode = SORT_ENTRIES;
         std::cout<<"Filtering by sorting entries."<<std::endl;
         sortingMode = par.sortEntries;
     } else if (par.filteringFile != "") {
         mode = FILE_FILTERING;
-//        filter.reserve(1000000);
-        std::cout << "Filtering with a filter files." << std::endl;
+        std::cout << "Filtering with filter files." << std::endl;
         filterFile = par.filteringFile;
-        // Fill the filter with the data contained in the file
+        // Fill the filter with the keys contained in the file
         std::vector<std::string> filenames;
         if (FileUtil::fileExists(filterFile.c_str())) {
             filenames.push_back(filterFile);
@@ -81,15 +79,14 @@ ffindexFilter::ffindexFilter(Parameters &par) {
             Debug(Debug::ERROR) << "File " << filterFile << " does not exist.\n";
             EXIT(EXIT_FAILURE);
         }
-        char *line = new char[65536];
+        char *line = NULL;
         size_t len = 0;
-        char * key=new char[65536];
-        for(size_t i = 0; i < filenames.size(); i++) {
+        char key[4096];
+        for (size_t i = 0; i < filenames.size(); i++) {
             FILE *orderFile = fopen(filenames[i].c_str(), "r");
             while (getline(&line, &len, orderFile) != -1) {
                 size_t offset = 0;
-                // ignore \0 in data files
-                // to support datafiles as input
+                // ignore \0 in data files to support datafiles as input
                 while (offset < len && line[offset] == '\0') {
                     offset++;
                 }
@@ -101,14 +98,11 @@ ffindexFilter::ffindexFilter(Parameters &par) {
             }
             fclose(orderFile);
         }
-        delete [] key;
-        delete [] line;
+        free(line);
         omptl::sort(filter.begin(), filter.end());
         std::vector<std::string>::iterator last = std::unique(filter.begin(), filter.end());
         filter.erase(last, filter.end());
-    } else if(par.mappingFile != "")
-    {
-
+    } else if(par.mappingFile != "") {
         mode = FILE_MAPPING;
         std::cout<<"Filtering by mapping values."<<std::endl;
         filterFile = par.mappingFile;
@@ -175,7 +169,7 @@ ffindexFilter::ffindexFilter(Parameters &par) {
         regexStr = par.filterColumnRegex;
         int status = regcomp(&regex, regexStr.c_str(), REG_EXTENDED | REG_NEWLINE);
         if (status != 0 ){
-            Debug(Debug::INFO) << "Error in regex " << regexStr << "\n";
+            Debug(Debug::ERROR) << "Error in regex " << regexStr << "\n";
             EXIT(EXIT_FAILURE);
         }
     }
@@ -208,6 +202,8 @@ int ffindexFilter::runFilter(){
 		char *columnValue = new char[LINE_BUFFER_SIZE];
 		const char **columnPointer = new const char*[column + 1];
 
+		double threadCompValue = compValue;
+
 		std::string buffer = "";
 		buffer.reserve(LINE_BUFFER_SIZE);
 
@@ -217,7 +213,7 @@ int ffindexFilter::runFilter(){
 
 			char *data = dataDb->getData(id,  thread_idx);
             unsigned int queryKey = dataDb->getDbKey(id);
-			size_t dataLength = dataDb->getSeqLens(id);
+			size_t dataLength = dataDb->getEntryLen(id);
 			int counter = 0;
             
             std::vector<std::pair<double, std::string>> toSort;
@@ -272,11 +268,11 @@ int ffindexFilter::runFilter(){
 				} else if (mode == NUMERIC_COMPARISON) {
                     double toCompare = strtod(columnValue, NULL);
                     if (compOperator == GREATER_OR_EQUAL) {
-                        nomatch = !(toCompare >= compValue); // keep if the comparison is true
+                        nomatch = !(toCompare >= threadCompValue); // keep if the comparison is true
                     } else if (compOperator == LOWER_OR_EQUAL) {
-                        nomatch = !(toCompare <= compValue); // keep if the comparison is true
+                        nomatch = !(toCompare <= threadCompValue); // keep if the comparison is true
                     } else if (compOperator == EQUAL) {
-                        nomatch = !(toCompare == compValue); // keep if the comparison is true
+                        nomatch = !(toCompare == threadCompValue); // keep if the comparison is true
                     } else {
                         nomatch = 0;
                     }
@@ -300,12 +296,13 @@ int ffindexFilter::runFilter(){
                 } else if (mode == JOIN_DB){
                     size_t newId = joinDB->getId(static_cast<unsigned int>(strtoul(columnValue, NULL, 10)));
                     size_t originalLength = strlen(lineBuffer);
-                    // Replace the last \n
-                    lineBuffer[originalLength - 1] = '\t';
+                    // add tab
+                    lineBuffer[originalLength] = '\t';
+                    originalLength++;
                     char* fullLine = joinDB->getData(newId, thread_idx);
                     // either append the full line (default mode):
                     if (columnToTake == -1) {
-                        size_t fullLineLength = joinDB->getSeqLens(newId);
+                        size_t fullLineLength = joinDB->getEntryLen(newId);
                         // Appending join database entry to query database entry
                         memcpy(lineBuffer + originalLength, fullLine, fullLineLength);
                     }
@@ -314,7 +311,7 @@ int ffindexFilter::runFilter(){
                         if(*fullLine != '\0'){
                             std::vector<std::string> splittedLine = Util::split(fullLine, "\t") ;
                             char* newValue = const_cast<char *>(splittedLine[columnToTake].c_str());
-                            size_t valueLength = joinDB->getSeqLens(newId);
+                            size_t valueLength = joinDB->getEntryLen(newId);
                             // Appending join database entry to query database entry
                             memcpy(lineBuffer + originalLength, newValue, valueLength);
                         }
@@ -413,15 +410,15 @@ int ffindexFilter::runFilter(){
                 }
                 else if (mode == BEATS_FIRST){
                     if (counter == 1) {
-                        compValue = strtod(columnValue, NULL);
+                        threadCompValue = strtod(columnValue, NULL);
                     } else {
                         double toCompare = strtod(columnValue, NULL);
                         if (compOperator == GREATER_OR_EQUAL) {
-                            nomatch = !(toCompare >= compValue); // keep if the comparison is true
+                            nomatch = !(toCompare >= threadCompValue); // keep if the comparison is true
                         } else if(compOperator == LOWER_OR_EQUAL) {
-                            nomatch = !(toCompare <= compValue); // keep if the comparison is true
+                            nomatch = !(toCompare <= threadCompValue); // keep if the comparison is true
                         } else if(compOperator == EQUAL) {
-                            nomatch = !(toCompare == compValue); // keep if the comparison is true
+                            nomatch = !(toCompare == threadCompValue); // keep if the comparison is true
                         } else {
                             nomatch = 0;
                         }
@@ -559,7 +556,7 @@ int ffindexFilter::runFilter(){
 
 int filterdb(int argc, const char **argv, const Command& command) {
 	Parameters& par = Parameters::getInstance();
-	par.parseParameters(argc, argv, command, 2);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     ffindexFilter filter(par);
     return filter.runFilter();

@@ -15,7 +15,7 @@
 
 int alignall(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 3);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     DBReader<unsigned int> tdbr(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX);
     tdbr.open(DBReader<unsigned int>::NOSORT);
@@ -26,10 +26,10 @@ int alignall(int argc, const char **argv, const Command &command) {
 
     BaseMatrix *subMat;
     if (Parameters::isEqualDbtype(targetSeqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.scoringMatrixFile.c_str(), 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
     } else {
         // keep score bias at 0.0 (improved ROC)
-        subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
+        subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
     }
 
     DBReader<unsigned int> dbr_res(par.db2.c_str(), par.db2Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX);
@@ -83,7 +83,7 @@ int alignall(int argc, const char **argv, const Command &command) {
                     const unsigned int queryId = tdbr.getId(results[entryIdx1]);
                     const unsigned int queryKey = tdbr.getDbKey(queryId);
                     char *querySeq = tdbr.getData(queryId, thread_idx);
-                    query.mapSequence(id, queryKey, querySeq);
+                    query.mapSequence(queryId, queryKey, querySeq, tdbr.getSeqLen(queryId));
                     matcher.initQuery(&query);
 
                     char * tmpBuff = Itoa::u32toa_sse2((uint32_t) queryKey, buffer);
@@ -94,7 +94,7 @@ int alignall(int argc, const char **argv, const Command &command) {
                         const unsigned int targetId = tdbr.getId(results[entryIdx]);
                         const unsigned int targetKey = tdbr.getDbKey(targetId);
                         char *targetSeq = tdbr.getData(targetId, thread_idx);
-                        target.mapSequence(id, targetKey, targetSeq);
+                        target.mapSequence(id, targetKey, targetSeq, tdbr.getSeqLen(targetId));
 
                         if (Util::canBeCovered(par.covThr, par.covMode, query.L, target.L) == false) {
                             continue;

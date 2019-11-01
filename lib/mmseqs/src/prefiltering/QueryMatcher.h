@@ -46,21 +46,15 @@ struct hit_t {
             return false;
         return false;
     }
-
-
 };
-
-
 
 class QueryMatcher {
 public:
     QueryMatcher(IndexTable *indexTable, SequenceLookup *sequenceLookup,
                  BaseMatrix *kmerSubMat, BaseMatrix *ungappedAlignmentSubMat,
-                 unsigned int *seqLens, short kmerThr,
-                 double kmerMatchProb, int kmerSize, size_t dbSize,
-                 unsigned int maxSeqLen, unsigned int effectiveKmerSize,
-                 size_t maxHitsPerQuery, bool aaBiasCorrection, bool diagonalScoring,
-                 unsigned int minDiagScoreThr, bool takeOnlyBestKmer,size_t resListOffset);
+                 short kmerThr, int kmerSize, size_t dbSize, unsigned int maxSeqLen,
+                 size_t maxHitsPerQuery, bool aaBiasCorrection, bool diagonalScoringMode,
+                 unsigned int minDiagScoreThr, bool takeOnlyBestKmer);
     ~QueryMatcher();
 
     // returns result for the sequence
@@ -101,27 +95,17 @@ public:
         return scoreThr;
     }
 
-// compute -log(p)
-    static inline double computeLogProbability(const unsigned short rawScore, const unsigned int dbSeqLen,
-                                               const double kmerMatchProb, const double logMatchProb,
-                                               const double logScoreFactorial) {
-        const double score = static_cast<double>(rawScore);
-        const double dbSeqLenDbl = static_cast<double>(dbSeqLen);
-        const double mu = kmerMatchProb * dbSeqLenDbl;
-        const double mid_term = score * (logMatchProb + log(dbSeqLenDbl));
-        const double first_term = -(mu * score /(score + 1));
-        return first_term + mid_term - logScoreFactorial;
-    }
-
-    static hit_t parsePrefilterHit(char* data)
-    {
+    static hit_t parsePrefilterHit(char* data) {
         hit_t result;
         const char *wordCnt[255];
         size_t cols = Util::getWordsOfLine(data, wordCnt, 254);
         if (cols == 3) {
             result.seqId = Util::fast_atoi<unsigned int>(wordCnt[0]);
-            result.prefScore = Util::fast_atoi<short>(wordCnt[1]);
+            result.prefScore = Util::fast_atoi<int>(wordCnt[1]);
             result.diagonal = static_cast<unsigned short>(Util::fast_atoi<short>(wordCnt[2]));
+        } else {
+            Debug(Debug::INFO) << "Invalid prefilter input: cols = " << cols << " wordCnt[0]: " << wordCnt[0] << "\n" ;
+            EXIT(EXIT_FAILURE);
         }
         return result;
     }
@@ -215,24 +199,8 @@ protected:
     // last data pointer (for overflow check)
     IndexEntryLocal * lastSequenceHit;
 
-    // the following variables are needed to calculate the Z-score computation
-    double mu;
-
-    //log match prob (mu) of poisson distribution
-    double logMatchProb;
-
-    //pre computed score factorials
-    // S_fact = score!
-    double *logScoreFactorial;
-
     // max seq. per query
     size_t maxHitsPerQuery;
-
-    // offset in the result list
-    size_t resListOffset;
-
-    //pointer to seqLens
-    float *seqLens;
 
     // match sequence against the IndexTable
     size_t match(Sequence *seq, float *pDouble);
@@ -241,7 +209,6 @@ protected:
     template <int TYPE>
     std::pair<hit_t *, size_t> getResult(CounterResult * results,
                                          size_t resultSize,
-                                         size_t maxHitPerQuery,
                                          const unsigned int id,
                                          const unsigned short thr,
                                          UngappedAlignment *ungappedAlignment,
@@ -257,11 +224,13 @@ protected:
     // size of max diagonalMatcher result objects
     size_t counterResultSize;
 
+    Indexer idx;
+
     void initDiagonalMatcher(size_t dbsize, unsigned int maxDbMatches);
 
     void deleteDiagonalMatcher(unsigned int activeCounter);
 
-    size_t mergeElements(bool diagonalScoring, CounterResult *foundDiagonals, size_t hitCounter);
+    size_t mergeElements(CounterResult *foundDiagonals, size_t hitCounter);
 
     size_t keepMaxScoreElementOnly(CounterResult *foundDiagonals, size_t resultSize);
 
