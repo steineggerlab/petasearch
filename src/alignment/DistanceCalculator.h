@@ -55,6 +55,42 @@ public:
     };
 
     template<typename T>
+    static LocalAlignment computeUngappedWrappedAlignment(const T *querySeq, unsigned int querySeqLen,
+                                                   const T *dbSeq, unsigned int dbSeqLen,
+                                                   const unsigned short diagonal, const char **subMat, int alnMode){
+        /* expect: querySeq = originQuerySeq+originQuerySeq
+                   queryLen = len(querySeq) */
+
+        LocalAlignment max;
+        for(unsigned int devisions = 1; (-devisions * 65536  + diagonal) > -dbSeqLen; devisions++) {
+
+            int realDiagonal = (-devisions * 65536  + diagonal) + querySeqLen/2;
+            LocalAlignment tmp = ungappedAlignmentByDiagonal(querySeq + realDiagonal, querySeqLen/2, dbSeq, dbSeqLen, 0, subMat, alnMode);
+            tmp.diagonal += realDiagonal;
+            tmp.distToDiagonal = abs(realDiagonal);
+
+             if(tmp.score > max.score){
+                max = tmp;
+            }
+        }
+        for(unsigned int devisions = 0; (devisions * 65536 + diagonal) < querySeqLen/2; devisions++) {
+            int realDiagonal = (devisions * 65536 + diagonal);
+            LocalAlignment tmp = ungappedAlignmentByDiagonal(querySeq + realDiagonal, querySeqLen/2, dbSeq, dbSeqLen, 0, subMat, alnMode);
+
+            tmp.diagonal += realDiagonal;
+            tmp.distToDiagonal = abs(realDiagonal);
+
+            if(tmp.score > max.score){
+                max = tmp;
+            }
+        }
+        unsigned int minSeqLen = std::min(dbSeqLen, querySeqLen/2);
+        max.diagonalLen = minSeqLen;
+
+        return  max;
+    }
+
+    template<typename T>
     static LocalAlignment computeUngappedAlignment(const T *querySeq, unsigned int querySeqLen,
                                                    const T *dbSeq, unsigned int dbSeqLen,
                                                    const unsigned short diagonal, const char **subMat, int alnMode){
@@ -98,6 +134,16 @@ public:
                 res.score = tmp.score;
                 res.startPos = tmp.startPos;
                 res.endPos = tmp.endPos;
+            } else if (alnMode == Parameters::RESCORE_MODE_GLOBAL_ALIGNMENT) {
+                LocalAlignment tmp = computeGlobalSubstitutionStartEndDistance(querySeq + minDistToDiagonal, dbSeq, minSeqLen, subMat);
+                res.score = tmp.score;
+                res.startPos = tmp.startPos;
+                res.endPos = tmp.endPos;
+            }else if (alnMode == Parameters::RESCORE_MODE_WINDOW_QUALITY_ALIGNMENT) {
+                LocalAlignment tmp = computeWindowQualitySubstitutionStartEndDistance(querySeq + minDistToDiagonal, dbSeq, minSeqLen, subMat);
+                res.score = tmp.score;
+                res.startPos = tmp.startPos;
+                res.endPos = tmp.endPos;
             }
         } else if (diagonal < 0 && minDistToDiagonal < dbSeqLen) {
             unsigned int minSeqLen = std::min(dbSeqLen - minDistToDiagonal, querySeqLen);
@@ -110,6 +156,16 @@ public:
                         querySeq, dbSeq + minDistToDiagonal, minSeqLen, subMat, false);
             } else if (alnMode == Parameters::RESCORE_MODE_ALIGNMENT) {
                 LocalAlignment tmp = computeSubstitutionStartEndDistance(querySeq, dbSeq + minDistToDiagonal, minSeqLen, subMat);
+                res.score = tmp.score;
+                res.startPos = tmp.startPos;
+                res.endPos = tmp.endPos;
+            } else if (alnMode == Parameters::RESCORE_MODE_GLOBAL_ALIGNMENT) {
+                LocalAlignment tmp = computeGlobalSubstitutionStartEndDistance(querySeq, dbSeq + minDistToDiagonal, minSeqLen, subMat);
+                res.score = tmp.score;
+                res.startPos = tmp.startPos;
+                res.endPos = tmp.endPos;
+            } else if (alnMode == Parameters::RESCORE_MODE_WINDOW_QUALITY_ALIGNMENT) {
+                LocalAlignment tmp = computeWindowQualitySubstitutionStartEndDistance(querySeq, dbSeq + minDistToDiagonal, minSeqLen, subMat);
                 res.score = tmp.score;
                 res.startPos = tmp.startPos;
                 res.endPos = tmp.endPos;
@@ -144,6 +200,78 @@ public:
         return LocalAlignment(maxStartPos, maxEndPos, maxScore);
     }
 
+
+    template<typename T>
+    static LocalAlignment computeGlobalSubstitutionStartEndDistance(const T *seq1, const T *seq2,
+                                                                    const unsigned int length,
+                                                                    const char **subMat) {
+
+        unsigned int first =  (seq1[0] == '*' || seq2[0] == '*')? 1:0;
+        unsigned int last = length-1;
+        if (last > 0 && (seq1[length-1] =='*' || seq2[length-1] == '*'))
+            last--;
+        int64_t score = 0;
+        for(unsigned int pos = first; pos <= last; pos++){
+            int curr = subMat[static_cast<int>(seq1[pos])][static_cast<int>(seq2[pos])];
+            score += curr;
+        }
+        score = std::max(score, (int64_t) 0);
+        return LocalAlignment(first, last, score);
+    }
+
+    template<typename T>
+    static LocalAlignment computeWindowQualitySubstitutionStartEndDistance(const T *seq1, const T *seq2,
+                                                                                 const unsigned int length,
+                                                                                 const char **subMat,
+                                                                                 unsigned int windowSize = 20,
+                                                                                 unsigned int historyErrors = 5) {
+        uint64_t window = 0;
+        uint64_t windowMask = (uint64_t)1 << (windowSize-1);
+        unsigned int currErrors = 0;
+	    unsigned int maxLength = 0;
+        unsigned int currLength = 0;
+        unsigned int maxEndPos = 0;
+        unsigned int maxStartPos = 0;
+        int maxScore = 0;
+        unsigned int first =  (seq1[0] =='*' || seq2[0] == '*')? 1:0;
+        unsigned int last = length-1;
+        if (last > 0 && (seq1[length-1] =='*' || seq2[length-1] == '*'))
+            last--;
+        unsigned int startPos = first;
+        for(unsigned int pos = first; pos <= last; pos++){
+
+            bool currMatch = seq1[pos]==seq2[pos];
+            if(window & windowMask){
+                currErrors -= 1;
+            }
+            window = window << (uint64_t) 1;
+
+            if(!currMatch){
+                window = window | (uint64_t) 1;
+                currErrors += 1;
+            }
+            currLength += 1;
+            if(pos >= windowSize-1 && currErrors > historyErrors){
+                startPos = pos-windowSize+2;
+                currLength = windowSize -1;
+            }
+            if (currLength > maxLength){
+                maxStartPos = startPos;
+                maxEndPos = pos;
+                maxLength = currLength;
+            }
+
+
+        }
+        for(unsigned int pos = maxStartPos; pos < maxEndPos; pos++){
+            int curr = subMat[static_cast<int>(seq1[pos])][static_cast<int>(seq2[pos])];
+            maxScore += curr;
+        }
+
+        return LocalAlignment(maxStartPos, maxEndPos, maxScore);
+    }
+
+
     template<typename T>
     static unsigned int computeInverseHammingDistance(const T *seq1, const T *seq2, unsigned int length){
         unsigned int diff = 0;
@@ -165,6 +293,7 @@ public:
         }
         return diff;
     }
+
 
 
     /*
@@ -247,34 +376,6 @@ public:
 
         return score;
     }
-
-    void prepareGlobalAliParam(const BaseMatrix &subMat) {
-        globalAliMu = 0;
-        globalAliSigma = 0;
-
-        for (int i = 0; i < (subMat.alphabetSize - 1); i++) {
-            for (int j = 0; j < (subMat.alphabetSize - 1); j++) {
-                globalAliMu += subMat.pBack[i] * subMat.pBack[j] * subMat.subMatrix[i][j];
-            }
-        }
-
-        for (int i = 0; i < (subMat.alphabetSize - 1); i++) {
-            for (int j = 0; j < (subMat.alphabetSize - 1); j++) {
-                double distToMean = (subMat.subMatrix[i][j] - globalAliMu);
-                globalAliSigma += subMat.pBack[i] * subMat.pBack[j] * distToMean * distToMean;
-            }
-        }
-        globalAliSigma = sqrt(globalAliSigma);
-
-    }
-
-    double getPvalGlobalAli(float score, size_t len) {
-        return 0.5 - 0.5 * erf((score / len - globalAliMu) / (sqrt(2.0 / sqrt((float) len)) * globalAliSigma));
-    }
-
-private:
-    float globalAliMu, globalAliSigma;
-
 };
 
 #endif //MMSEQS_DISTANCECALCULATOR_H

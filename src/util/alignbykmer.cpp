@@ -20,7 +20,7 @@
 int alignbykmer(int argc, const char **argv, const Command &command) {
     Debug(Debug::INFO) << "Rescore diagonals.\n";
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 4, false);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     bool touch = (par.preloadMode != Parameters::PRELOAD_MODE_MMAP);
     IndexReader * tDbrIdx = new IndexReader(par.db2, par.threads, IndexReader::SEQUENCES, (touch) ? (IndexReader::PRELOAD_INDEX | IndexReader::PRELOAD_DATA) : 0 );
@@ -73,18 +73,18 @@ int alignbykmer(int argc, const char **argv, const Command &command) {
 
     BaseMatrix *subMat;
     if (Parameters::isEqualDbtype(querySeqType,Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.scoringMatrixFile.c_str(), 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
     } else {
         if (par.alphabetSize == 21) {
-            subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
+            subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
         } else {
-            SubstitutionMatrix sMat(par.scoringMatrixFile.c_str(), 2.0, 0.0);
+            SubstitutionMatrix sMat(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
             subMat = new ReducedMatrix(sMat.probMatrix, sMat.subMatrixPseudoCounts, sMat.aa2int, sMat.int2aa,
                     sMat.alphabetSize, par.alphabetSize, 2.0);
             SubstitutionMatrix::print(subMat->subMatrix, subMat->int2aa, subMat->alphabetSize );
         }
     }
-    ScoreMatrix * _2merSubMatrix =  ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 2);
+    ScoreMatrix _2merSubMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 2);
 
     EvalueComputation evaluer(tdbr->getAminoAcidDBSize(), subMat, par.gapOpen, par.gapExtend);
 
@@ -169,34 +169,34 @@ int alignbykmer(int argc, const char **argv, const Command &command) {
             Sequence query(par.maxSeqLen, querySeqType, subMat, par.kmerSize, par.spacedKmer, false, true, par.spacedKmerPattern);
             Sequence target(par.maxSeqLen, targetSeqType, subMat, par.kmerSize, par.spacedKmer, false, true, par.spacedKmerPattern);
             KmerGenerator kmerGenerator(par.kmerSize, subMat->alphabetSize, 70.0);
-            kmerGenerator.setDivideStrategy(NULL, _2merSubMatrix);
+            kmerGenerator.setDivideStrategy(NULL, &_2merSubMatrix);
             size_t lookupSize = MathUtil::ipow<size_t>(par.alphabetSize, par.kmerSize);
             unsigned short * queryPosLookup = new unsigned short[lookupSize];
             memset(queryPosLookup, 255, lookupSize * sizeof(unsigned short) );
 
             Indexer idxer(subMat->alphabetSize, par.kmerSize);
-            KmerPos * kmerPosVec = new KmerPos[par.maxSeqLen];
-            Stretche * stretcheVec = new Stretche[par.maxSeqLen];
-            DpMatrixRow * dpMatrixRow = new DpMatrixRow[par.maxSeqLen];
-            int * scores = new int[par.maxSeqLen];
+            KmerPos * kmerPosVec = new KmerPos[par.maxSeqLen + 1];
+            Stretche * stretcheVec = new Stretche[par.maxSeqLen + 1];
+            DpMatrixRow * dpMatrixRow = new DpMatrixRow[par.maxSeqLen + 1];
+            int * scores = new int[par.maxSeqLen + 1];
             std::string bt;
+            bt.reserve(par.maxSeqLen + 1);
 
             unsigned int thread_idx = 0;
 #ifdef OPENMP
             thread_idx = (unsigned int) omp_get_thread_num();
 #endif
             char buffer[1024 + 32768];
+            char dbKeyBuffer[255 + 1];
 
 #pragma omp for schedule(dynamic, 1)
             for (size_t id = start; id < (start + bucketSize); id++) {
                 progress.updateProgress();
-                std::string prefResultsOutString;
-                prefResultsOutString.reserve(1000000);
 
                 char *data = dbr_res.getData(id, thread_idx);
                 unsigned int queryId = qdbr->getId(dbr_res.getDbKey(id));
                 char *querySeq = qdbr->getData(queryId, thread_idx);
-                query.mapSequence(id, queryId, querySeq);
+                query.mapSequence(id, queryId, querySeq, qdbr->getSeqLen(id));
 
                 while (query.hasNextKmer()) {
                     const int *kmer = query.nextKmer();
@@ -216,13 +216,12 @@ int alignbykmer(int argc, const char **argv, const Command &command) {
 
                 while (*data != '\0') {
                     // DB key of the db sequence
-                    char dbKeyBuffer[255 + 1];
                     Util::parseKey(data, dbKeyBuffer);
                     const unsigned int dbKey = (unsigned int) strtoul(dbKeyBuffer, NULL, 10);
                     unsigned int targetId = tdbr->getId(dbKey);
                     char *targetSeq = tdbr->getData(targetId, thread_idx);
                     const bool isIdentity = (queryId == targetId && (par.includeIdentity || sameDB)) ? true : false;
-                    target.mapSequence(targetId, dbKey, targetSeq);
+                    target.mapSequence(targetId, dbKey, targetSeq, tdbr->getSeqLen(targetId));
                     size_t kmerPosSize = 0;
                     while (target.hasNextKmer()) {
                         const int *kmer = target.nextKmer();
@@ -496,8 +495,8 @@ int alignbykmer(int argc, const char **argv, const Command &command) {
     resultWriter.close();
     dbr_res.close();
 
+    ExtendedSubstitutionMatrix::freeScoreMatrix(_2merSubMatrix);
     delete subMat;
-    ScoreMatrix::cleanup(_2merSubMatrix);
 
     if (tDbrIdx != NULL) {
         delete tDbrIdx;

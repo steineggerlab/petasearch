@@ -16,7 +16,7 @@
 int profile2cs(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
     par.alphabetSize = 8;
-    par.parseParameters(argc, argv, command, 2,  true, 0, MMseqsParameter::COMMAND_PROFILE);
+    par.parseParameters(argc, argv, command, true, 0, MMseqsParameter::COMMAND_PROFILE);
 
     DBReader<unsigned int> profileReader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     profileReader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
@@ -35,7 +35,7 @@ int profile2cs(int argc, const char **argv, const Command &command) {
         size_t alphSize = alphabetSize[i];
         size_t entries = profileReader.getSize();
 
-        SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0f, 0.0);
+        SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0f, 0.0);
         Debug::Progress progress(entries);
 
         Debug(Debug::INFO) << "Start converting profiles.\n";
@@ -46,9 +46,8 @@ int profile2cs(int argc, const char **argv, const Command &command) {
 #ifdef OPENMP
             thread_idx = static_cast<unsigned int>(omp_get_thread_num());
 #endif
-            char* buffer = new char[64];
             std::string result;
-            result.reserve(par.maxSeqLen);
+            result.reserve(par.maxSeqLen + 1);
             ProfileStates ps(alphabetSize[i], subMat.pBack);
 
 #pragma omp for schedule(dynamic, 1000)
@@ -57,7 +56,7 @@ int profile2cs(int argc, const char **argv, const Command &command) {
                 result.clear();
 
                 unsigned int key = profileReader.getDbKey(i);
-                seq.mapSequence(i, key, profileReader.getData(i, thread_idx));
+                seq.mapSequence(i, key, profileReader.getData(i, thread_idx), profileReader.getSeqLen(i));
                 if(alphSize == 219){
                     ps.discretizeCs219(seq.getProfile(), seq.L, result);
                 }else {
@@ -97,7 +96,6 @@ int profile2cs(int argc, const char **argv, const Command &command) {
                 }
                 writer.writeData(result.c_str(), result.length(), key, thread_idx);
             }
-            delete[] buffer;
         }
         writer.close();
     }

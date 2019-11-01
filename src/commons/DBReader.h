@@ -13,19 +13,55 @@
 #include "Sequence.h"
 #include "Parameters.h"
 #include "FileUtil.h"
+#include "Debug.h"
 
 #define ZSTD_STATIC_LINKING_ONLY // ZSTD_findDecompressedSize
-#include <zstd/lib/zstd.h>
+#include <zstd.h>
+
+struct DBFiles {
+    enum Files {
+        DATA              = (1ull << 0),
+        DATA_INDEX        = (1ull << 1),
+        DATA_DBTYPE       = (1ull << 2),
+        HEADER            = (1ull << 3),
+        HEADER_INDEX      = (1ull << 4),
+        HEADER_DBTYPE     = (1ull << 5),
+        LOOKUP            = (1ull << 6),
+        SOURCE            = (1ull << 7),
+        TAX_MAPPING       = (1ull << 8),
+        TAX_NAMES         = (1ull << 9),
+        TAX_NODES         = (1ull << 10),
+        TAX_MERGED        = (1ull << 11),
+        CA3M_DATA         = (1ull << 12),
+        CA3M_INDEX        = (1ull << 13),
+        CA3M_SEQ          = (1ull << 14),
+        CA3M_SEQ_IDX      = (1ull << 15),
+        CA3M_HDR          = (1ull << 16),
+        CA3M_HDR_IDX      = (1ull << 17),
+
+
+        GENERIC           = DATA | DATA_INDEX | DATA_DBTYPE,
+        HEADERS           = HEADER | HEADER_INDEX | HEADER_DBTYPE,
+        TAXONOMY          = TAX_MAPPING | TAX_NAMES | TAX_NODES | TAX_MERGED,
+        SEQUENCE_DB       = GENERIC | HEADERS | TAXONOMY | LOOKUP | SOURCE,
+        SEQUENCE_ANCILLARY= SEQUENCE_DB & (~GENERIC),
+
+        ALL               = (size_t) -1,
+    };
+};
 
 template <typename T>
 class DBReader {
-
 public:
     struct Index {
         T id;
         size_t offset;
+        unsigned int length;
         static bool compareById(const Index& x, const Index& y){
             return (x.id <= y.id);
+        }
+        static bool compareByOffset(const Index& x, const Index& y){
+            return (x.offset <= y.offset);
         }
     };
 
@@ -34,19 +70,19 @@ public:
         T id;
         std::string entryName;
         unsigned int fileNumber;
-        LookupEntry(){}
-        LookupEntry(T id) {
-            this->id = id;
-        }
+
         static bool compareById(const LookupEntry& x, const LookupEntry& y){
             return (x.id <= y.id);
+        }
+        static bool compareByAccession(const LookupEntry& x, const LookupEntry& y){
+            return x.entryName.compare(y.entryName);
         }
     };
 
     // = USE_DATA|USE_INDEX
     DBReader(const char* dataFileName, const char* indexFileName, int threads, int mode);
 
-    DBReader(Index* index, unsigned int *seqLens, size_t size, size_t aaDbSize, T lastKey,
+    DBReader(Index* index, size_t size, size_t aaDbSize, T lastKey,
              int dbType, unsigned int maxSeqLen, int threads);
 
     void setDataFile(const char* dataFileName);
@@ -64,6 +100,7 @@ public:
     size_t getAminoAcidDBSize();
 
     size_t getDataSize() { return dataSize; }
+    void setDataSize(size_t newSize) { dataSize = newSize; }
 
     char* getData(size_t id, int thrIdx);
 
@@ -79,14 +116,46 @@ public:
 
     size_t getSize();
 
-    size_t getLookupSize();
-
+    unsigned int getMaxSeqLen(){return maxSeqLen;}
 
     T getDbKey(size_t id);
 
-    unsigned int * getSeqLens();
 
-    size_t getSeqLens(size_t id);
+    size_t getSeqLen(size_t id){
+        if (id >= size){
+            Debug(Debug::ERROR) << "Invalid database read for id=" << id << ", database index=" << indexFileName << "\n";
+            Debug(Debug::ERROR) << "getSeqLen: local id (" << id << ") >= db size (" << size << ")\n";
+            EXIT(EXIT_FAILURE);
+        }
+        unsigned int length;
+        if (local2id != NULL) {
+            length=index[local2id[id]].length;
+        }else{
+            length=index[id].length;
+        }
+
+        if(Parameters::isEqualDbtype(dbtype, Parameters::DBTYPE_HMM_PROFILE ) ||
+           Parameters::isEqualDbtype(dbtype, Parameters::DBTYPE_PROFILE_STATE_PROFILE ) ){
+            // -1 null byte
+            return (std::max(length, 1u) - 1u) / Sequence::PROFILE_READIN_SIZE;
+        }else{
+            // -2 newline and null byte
+            return (std::max(length, 2u) - 2u);
+        }
+    }
+
+    size_t getEntryLen(size_t id){
+        if (id >= size){
+            Debug(Debug::ERROR) << "Invalid database read for id=" << id << ", database index=" << indexFileName << "\n";
+            Debug(Debug::ERROR) << "getEntryLen: local id (" << id << ") >= db size (" << size << ")\n";
+            EXIT(EXIT_FAILURE);
+        }
+        if (local2id != NULL) {
+            return index[local2id[id]].length;
+        }else{
+            return index[id].length;
+        }
+    }
 
     size_t maxCount(char c);
 
@@ -99,9 +168,14 @@ public:
     size_t getId (T dbKey);
 
     // does a binary search in the lookup and returns index of the entry
-    size_t getLookupId(T dbKey);
+    size_t getLookupSize();
+    size_t getLookupIdByKey(T dbKey);
+    size_t getLookupIdByAccession(const std::string& accession);
+    T getLookupKey(size_t id);
     std::string getLookupEntryName(size_t id);
     unsigned int getLookupFileNumber(size_t id);
+    size_t lookupEntryToBuffer(char* buffer, const LookupEntry& entry);
+    LookupEntry* getLookup() { return lookup; };
 
     static const int NOSORT = 0;
     static const int SORT_BY_LENGTH = 1;
@@ -111,13 +185,15 @@ public:
     static const int SHUFFLE        = 5;
     static const int HARDNOSORT = 6; // do not even sort by ids.
     static const int SORT_BY_ID_OFFSET = 7;
+    static const int SORT_BY_OFFSET = 8; // only offset sorting saves memory and does not support random access
 
 
-    static const int USE_INDEX    = 0;
-    static const int USE_DATA     = 1;
-    static const int USE_WRITABLE = 2;
-    static const int USE_FREAD    = 4;
-    static const int USE_LOOKUP   = 8;
+    static const unsigned int USE_INDEX      = 0;
+    static const unsigned int USE_DATA       = 1;
+    static const unsigned int USE_WRITABLE   = 2;
+    static const unsigned int USE_FREAD      = 4;
+    static const unsigned int USE_LOOKUP     = 8;
+    static const unsigned int USE_LOOKUP_REV = 16;
 
 
     // compressed
@@ -136,34 +212,25 @@ public:
         return dataSizeOffset[fileIdx+1]-dataSizeOffset[fileIdx];
     }
 
+    std::vector<std::string> getDataFileNames(){
+        return dataFileNames;
+    }
 
     size_t getTotalDataSize(){
         return totalDataSize;
     }
 
-    static void removeDb(std::string  databaseName){
-        std::vector<std::string> files = FileUtil::findDatafiles(databaseName.c_str());
-        for (size_t i = 0; i < files.size(); ++i) {
-            FileUtil::remove(files[i].c_str());
-        }
-        std::string index = databaseName + ".index";
-        if (FileUtil::fileExists(index.c_str())) {
-            FileUtil::remove(index.c_str());
-        }
-        std::string dbTypeFile = databaseName + ".dbtype";
-        if (FileUtil::fileExists(dbTypeFile.c_str())) {
-            FileUtil::remove(dbTypeFile.c_str());
+    static void moveDatafiles(const std::vector<std::string>& files, const std::string& destination);
 
-        }
-        std::string lookupFile = databaseName + ".lookup";
-        if (FileUtil::fileExists(lookupFile.c_str())) {
-            FileUtil::remove(lookupFile.c_str());
-        }
-    }
+    static void moveDb(const std::string &srcDbName, const std::string &dstDbName);
+
+    static void removeDb(const std::string &databaseName);
+
+    static void softlinkDb(const std::string &databaseName, const std::string &outDb, DBFiles::Files dbFilesFlags = DBFiles::ALL);
 
     char *mmapData(FILE *file, size_t *dataSize);
 
-    bool readIndex(char *data, size_t dataSize, Index *index, unsigned int *entryLength);
+    bool readIndex(char *data, size_t indexDataSize, Index *index, size_t & dataSize);
 
     void readLookup(char *data, size_t dataSize, LookupEntry *lookup);
 
@@ -186,12 +253,15 @@ public:
     }
 
     Index* getIndex(size_t id) {
-        return index + local2id[id];
+        if (local2id != NULL) {
+            return index + local2id[id];
+        }
+        return index + id;
     }
-    
+
 
     void printMagicNumber();
-    
+
     T getLastKey();
 
     static size_t indexMemorySize(const DBReader<unsigned int> &idx);
@@ -200,43 +270,23 @@ public:
 
     static DBReader<unsigned int> *unserialize(const char* data, int threads);
 
-    static int parseDbType(const char *name);
-
     int getDbtype(){
         return dbtype;
     }
 
     const char* getDbTypeName() const {
-        return getDbTypeName(dbtype);
+        return Parameters::getDbTypeName(dbtype);
     }
 
-    static const char* getDbTypeName(int dbtype) {
-        switch (dbtype & 0x7FFFFFFF) {
-            case Parameters::DBTYPE_AMINO_ACIDS: return "Aminoacid";
-            case Parameters::DBTYPE_NUCLEOTIDES: return "Nucleotide";
-            case Parameters::DBTYPE_HMM_PROFILE: return "Profile";
-            case Parameters::DBTYPE_PROFILE_STATE_SEQ: return "Profile state";
-            case Parameters::DBTYPE_PROFILE_STATE_PROFILE: return "Profile profile";
-            case Parameters::DBTYPE_ALIGNMENT_RES: return "Alignment";
-            case Parameters::DBTYPE_CLUSTER_RES: return "Clustering";
-            case Parameters::DBTYPE_PREFILTER_RES: return "Prefilter";
-            case Parameters::DBTYPE_TAXONOMICAL_RESULT: return "Taxonomy";
-            case Parameters::DBTYPE_INDEX_DB: return "Index";
-            case Parameters::DBTYPE_CA3M_DB: return "CA3M";
-            case Parameters::DBTYPE_MSA_DB: return "MSA";
-            case Parameters::DBTYPE_GENERIC_DB: return "Generic";
-            case Parameters::DBTYPE_PREFILTER_REV_RES: return "Bi-directional prefilter";
-            case Parameters::DBTYPE_OFFSETDB: return "Offsetted headers";
-            default: return "Unknown";
-        }
-    }
 
-    struct compareIndexLengthPairById {
-        bool operator() (const std::pair<Index, unsigned  int>& lhs, const std::pair<Index, unsigned  int>& rhs) const{
-            return (lhs.first.id < rhs.first.id);
+    struct sortIndecesById {
+        sortIndecesById(const Index * ind) : _ind(ind) {}
+        bool operator() (unsigned int i, unsigned int j) const { 
+            return (_ind[i].id < _ind[j].id); 
         }
+        const Index * _ind;
     };
-	
+
     struct compareIndexLengthPairByIdKeepTrack {
         bool operator() (const std::pair<Index, std::pair<size_t, unsigned int> >& lhs, const std::pair<Index, std::pair<size_t, unsigned int> >& rhs) const{
             return (lhs.first.id < rhs.first.id);
@@ -294,10 +344,11 @@ public:
 
     void setSequentialAdvice();
 
+    void decomposeDomainByAminoAcid(size_t worldRank, size_t worldSize, size_t *startEntry, size_t *numEntries);
+
 private:
 
     void checkClosed();
-
 
     int threads;
 
@@ -337,7 +388,6 @@ private:
     LookupEntry * lookup;
     bool sortedByOffset;
 
-    unsigned int * seqLens;
     unsigned int * id2local;
     unsigned int * local2id;
 

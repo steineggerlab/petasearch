@@ -42,7 +42,7 @@ int doRescorealldiagonal(Parameters &par, DBReader<unsigned int> &qdbr, DBWriter
     EvalueComputation * evaluer;
     int8_t * tinySubMat;
     if (Parameters::isEqualDbtype(querySeqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.scoringMatrixFile.c_str(), 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
         evaluer = new EvalueComputation(tdbr->getAminoAcidDBSize(), subMat);
         tinySubMat = new int8_t[subMat->alphabetSize*subMat->alphabetSize];
         for (int i = 0; i < subMat->alphabetSize; i++) {
@@ -51,7 +51,7 @@ int doRescorealldiagonal(Parameters &par, DBReader<unsigned int> &qdbr, DBWriter
             }
         }
     } else if(Parameters::isEqualDbtype(targetSeqType, Parameters::DBTYPE_PROFILE_STATE_SEQ) ){
-        SubstitutionMatrix sMat(par.scoringMatrixFile.c_str(), 2.0, 0.0);
+        SubstitutionMatrix sMat(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
         evaluer = new EvalueComputation(tdbr->getAminoAcidDBSize(), &sMat);
         subMat = new SubstitutionMatrixProfileStates(sMat.matrixName, sMat.probMatrix, sMat.pBack,
                                                      sMat.subMatrixPseudoCounts, 2.0, 0.0, 219);
@@ -63,7 +63,7 @@ int doRescorealldiagonal(Parameters &par, DBReader<unsigned int> &qdbr, DBWriter
         }
     } else {
         // keep score bias at 0.0 (improved ROC)
-        subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
+        subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
         evaluer = new EvalueComputation(tdbr->getAminoAcidDBSize(), subMat);
         tinySubMat = new int8_t[subMat->alphabetSize*subMat->alphabetSize];
         for (int i = 0; i < subMat->alphabetSize; i++) {
@@ -96,7 +96,9 @@ int doRescorealldiagonal(Parameters &par, DBReader<unsigned int> &qdbr, DBWriter
             progress.updateProgress();
             char *querySeqData = qdbr.getData(id, thread_idx);
             size_t queryKey = qdbr.getDbKey(id);
-            qSeq.mapSequence(id, queryKey, querySeqData);
+            unsigned int querySeqLen = qdbr.getSeqLen(id);
+
+            qSeq.mapSequence(id, queryKey, querySeqData, querySeqLen);
 //            qSeq.printProfileStatePSSM();
             if(Parameters::isEqualDbtype(qSeq.getSeqType(), Parameters::DBTYPE_HMM_PROFILE) ||
                Parameters::isEqualDbtype(qSeq.getSeqType(), Parameters::DBTYPE_PROFILE_STATE_PROFILE)){
@@ -109,7 +111,8 @@ int doRescorealldiagonal(Parameters &par, DBReader<unsigned int> &qdbr, DBWriter
                 unsigned int targetKey = tdbr->getDbKey(tId);
                 const bool isIdentity = (queryKey == targetKey && (par.includeIdentity || sameDB))? true : false;
                 char * targetSeq = tdbr->getData(tId, thread_idx);
-                tSeq.mapSequence(tId, targetKey, targetSeq);
+                unsigned int targetSeqLen = tdbr->getSeqLen(tId);
+                tSeq.mapSequence(tId, targetKey, targetSeq, targetSeqLen);
 //                tSeq.print();
                 float queryLength = qSeq.L;
                 float targetLength = tSeq.L;
@@ -159,7 +162,7 @@ int doRescorealldiagonal(Parameters &par, DBReader<unsigned int> &qdbr, DBWriter
 int ungappedprefilter(int argc, const char **argv, const Command &command) {
     MMseqsMPI::init(argc, argv);
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 3);
+    par.parseParameters(argc, argv, command, true, 0, 0);
     DBReader<unsigned int> qdbr(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX);
     qdbr.open(DBReader<unsigned int>::NOSORT);
     if (par.preloadMode != Parameters::PRELOAD_MODE_MMAP) {
@@ -171,8 +174,7 @@ int ungappedprefilter(int argc, const char **argv, const Command &command) {
     size_t dbFrom = 0;
     size_t dbSize = 0;
 
-    Util::decomposeDomainByAminoAcid(qdbr.getDataSize(), qdbr.getSeqLens(), qdbr.getSize(),
-                                     MMseqsMPI::rank, MMseqsMPI::numProc, &dbFrom, &dbSize);
+    qdbr.decomposeDomainByAminoAcid(MMseqsMPI::rank, MMseqsMPI::numProc, &dbFrom, &dbSize);
     std::pair<std::string, std::string> tmpOutput = Util::createTmpFileNames(par.db3, par.db3Index, MMseqsMPI::rank);
     DBWriter resultWriter(tmpOutput.first.c_str(), tmpOutput.second.c_str(), par.threads,  par.compressed, Parameters::DBTYPE_PREFILTER_RES);
     resultWriter.open();

@@ -12,6 +12,8 @@
 #include "Util.h"
 #include "Parameters.h"
 
+#include <map>
+
 #ifdef OPENMP
 #include <omp.h>
 #endif
@@ -115,7 +117,7 @@ void dosubstractresult(std::string leftDb, std::string rightDb, std::string outD
 
 int subtractdbs(int argc, const char **argv, const Command& command) {
     Parameters& par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 3, false);
+    par.parseParameters(argc, argv, command, true, 0, 0);
     par.evalProfile = (par.evalThr < par.evalProfile) ? par.evalThr : par.evalProfile;
     std::vector<MMseqsParameter*>* params = command.params;
     par.printParameters(command.cmd, argc, argv, *params);

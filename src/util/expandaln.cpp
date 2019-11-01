@@ -88,7 +88,7 @@ static bool compareHitsByKeyEvalScore(const Matcher::result_t &first, const Matc
 
 int expandaln(int argc, const char **argv, const Command& command) {
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 5);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     DBReader<unsigned int> queryReader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     queryReader.open(DBReader<unsigned int>::NOSORT);
@@ -135,7 +135,7 @@ int expandaln(int argc, const char **argv, const Command& command) {
     writer.open();
 
     BacktraceTranslator translator;
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0, par.scoreBias);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0, par.scoreBias);
     EvalueComputation evaluer(targetReader.getAminoAcidDBSize(), &subMat, par.gapOpen, par.gapExtend);
     Debug::Progress progress(resultReader->getSize());
 
@@ -148,7 +148,7 @@ int expandaln(int argc, const char **argv, const Command& command) {
 #endif
         Sequence qSeq(par.maxSeqLen, queryDbType, &subMat, 0, false, par.compBiasCorrection);
         Sequence tSeq(par.maxSeqLen, targetDbType, &subMat, 0, false, false);
-        float *compositionBias = new float[par.maxSeqLen]();
+        float *compositionBias = new float[par.maxSeqLen + 1]();
 
         std::vector<Matcher::result_t> expanded;
         expanded.reserve(300);
@@ -159,7 +159,7 @@ int expandaln(int argc, const char **argv, const Command& command) {
         char buffer[1024];
 
         Matcher::result_t resultAC;
-        resultAC.backtrace.reserve(par.maxSeqLen);
+        resultAC.backtrace.reserve(par.maxSeqLen + 1);
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader->getSize(); ++i) {
@@ -167,7 +167,8 @@ int expandaln(int argc, const char **argv, const Command& command) {
             unsigned int queryKey = resultReader->getDbKey(i);
 
             size_t querySeqId = queryReader.getId(queryKey);
-            qSeq.mapSequence(querySeqId, queryKey, queryReader.getData(querySeqId, thread_idx));
+            qSeq.mapSequence(querySeqId, queryKey, queryReader.getData(querySeqId, thread_idx),
+                             queryReader.getSeqLen(querySeqId));
 
             if(par.compBiasCorrection == true && Parameters::isEqualDbtype(queryDbType,Parameters::DBTYPE_AMINO_ACIDS)){
                 SubstitutionMatrix::calcLocalAaBiasCorrection(&subMat, qSeq.int_sequence, qSeq.L, compositionBias);
@@ -186,14 +187,14 @@ int expandaln(int argc, const char **argv, const Command& command) {
 
                 unsigned int targetKey = resultAB.dbKey;
                 size_t targetId = expansionReader.getId(targetKey);
-
                 size_t targetSeqId = targetReader.getId(targetKey);
-                tSeq.mapSequence(targetSeqId, targetKey, targetReader.getData(targetSeqId, thread_idx));
+                tSeq.mapSequence(targetSeqId, targetKey, targetReader.getData(targetSeqId, thread_idx),
+                                 targetReader.getSeqLen(targetSeqId));
 
                 if (ca3mSequenceReader != NULL) {
                     unsigned int key;
                     CompressedA3M::extractMatcherResults(key, expanded, expansionReader.getData(targetId, thread_idx),
-                                                         expansionReader.getSeqLens(targetId), *ca3mSequenceReader, false);
+                                                         expansionReader.getEntryLen(targetId), *ca3mSequenceReader, false);
                 } else {
                     Matcher::readAlignmentResults(expanded, expansionReader.getData(targetId, thread_idx), false);
                 }

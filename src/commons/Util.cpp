@@ -1,6 +1,5 @@
 #include "Util.h"
 #include "Debug.h"
-#include "kseq.h"
 #include "FileUtil.h"
 #include "BaseMatrix.h"
 #include "SubstitutionMatrix.h"
@@ -16,16 +15,14 @@
 #endif
 
 #include "simd.h"
-
-#include <fstream>
-#include <algorithm>
 #include "MemoryMapped.h"
+
+#include <algorithm>
+#include <sys/mman.h>
 
 #ifdef OPENMP
 #include <omp.h>
 #endif
-
-KSEQ_INIT(int, read)
 
 int Util::readMapping(std::string mappingFilename, std::vector<std::pair<unsigned int, unsigned int>> & mapping){
     MemoryMapped indexData(mappingFilename, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
@@ -81,84 +78,6 @@ void Util::decomposeDomain(size_t domain_size, size_t world_rank,
         *subdomain_size += domain_size % world_size;
     }
 }
-
-std::map<std::string, size_t> Util::readMapping(const char *fastaFile) {
-    std::map<std::string, size_t> map;
-    FILE *fasta_file = FileUtil::openFileOrDie(fastaFile, "r", true);
-    kseq_t *seq = kseq_init(fileno(fasta_file));
-    size_t i = 0;
-    while (kseq_read(seq) >= 0) {
-        std::string key = Util::parseFastaHeader(seq->name.s);
-        if (map.find(key) == map.end()) {
-            map[key] = i;
-            i++;
-        } else {
-            Debug(Debug::ERROR) << "Duplicated key " << key << " in function readMapping.\n";
-            EXIT(EXIT_FAILURE);
-        }
-    }
-    kseq_destroy(seq);
-    fclose(fasta_file);
-    return map;
-}
-
-
-
-template <typename T>
-void Util::decomposeDomainByAminoAcid(size_t dbSize, T entrySizes, size_t dbEntries,
-                                      size_t worldRank, size_t worldSize, size_t *startEntry, size_t *numEntries){
-    if (worldSize > dbSize) {
-        // Assume the domain numEntries is greater than the world numEntries.
-        Debug(Debug::ERROR) << "World Size: " << worldSize << " dbSize: " << dbSize << "\n";
-        EXIT(EXIT_FAILURE);
-    }
-
-    if (worldSize == 1) {
-        *startEntry = 0;
-        *numEntries = dbEntries;
-        return;
-    }
-
-    if (dbEntries <= worldSize) {
-        *startEntry = worldRank < dbEntries ? worldRank : 0;
-        *numEntries = worldRank < dbEntries ? 1 : 0;
-        return;
-    }
-
-    size_t chunkSize = ceil(static_cast<double>(dbSize) / static_cast<double>(worldSize));
-
-    size_t *entriesPerWorker = (size_t*)calloc(worldSize, sizeof(size_t));
-
-    size_t currentRank = 0;
-    size_t sumCharsAssignedToCurrRank = 0;
-    for (size_t i = 0; i < dbEntries; ++i) {
-        if (sumCharsAssignedToCurrRank >= chunkSize) {
-            sumCharsAssignedToCurrRank = 0;
-            currentRank++;
-        }
-        sumCharsAssignedToCurrRank += entrySizes[i];
-        entriesPerWorker[currentRank] += 1;
-    }
-
-    *startEntry = 0;
-    *numEntries = entriesPerWorker[worldRank];
-    for (size_t j = 0; j < worldRank; ++j) {
-        *startEntry += entriesPerWorker[j];
-    }
-
-    free(entriesPerWorker);
-}
-
-template
-void Util::decomposeDomainByAminoAcid<unsigned int*>(size_t aaSize, unsigned int *seqSizes,
-                                                     size_t count, size_t worldRank, size_t worldSize,
-                                                     size_t *start, size_t *size);
-
-template
-void Util::decomposeDomainByAminoAcid<size_t*>(size_t aaSize, size_t *seqSizes,
-                                               size_t count, size_t worldRank, size_t worldSize,
-                                               size_t *start, size_t *size);
-
 
 
 // http://jgamble.ripco.net/cgi-bin/nw.cgi?inputs=8&algorithm=batcher&output=svg
@@ -435,55 +354,44 @@ uint64_t Util::getL2CacheSize() {
 }
 
 char Util::touchMemory(const char *memory, size_t size) {
-    int threadCnt = 1;
-
-#ifdef OPENMP
-    const int totalThreadCnt = omp_get_max_threads();
-    if (totalThreadCnt > 4) {
-        threadCnt = 4;
+#ifdef HAVE_POSIX_MADVISE
+    if (posix_madvise ((void*)memory, size, POSIX_MADV_WILLNEED) != 0){
+        Debug(Debug::ERROR) << "posix_madvise returned an error (touchMemory)\n";
     }
 #endif
-
+    if(size > Util::getTotalSystemMemory()){
+        Debug(Debug::WARNING) << "Can not touch " << size << " into main memory\n";
+        return 0;
+    }
     size_t pageSize = getPageSize();
 //    Debug::Progress progress(size/pageSize);
+    size_t fourTimesPageSize = 4*pageSize;
+    char buffer1 = 0;
+    char buffer2 = 0;
+    char buffer3 = 0;
+    char buffer4 = 0;
 
-    char **buffer = new char *[threadCnt];
-    for (int i = 0; i < threadCnt; i++) {
-        buffer[i] = new char[pageSize];
+    // touch first page
+    if(size > 0){
+       buffer1 += *(memory);
     }
 
-#pragma omp parallel num_threads(threadCnt)
-    {
-        int threadIdx = 0;
-#ifdef OPENMP
-        threadIdx = omp_get_thread_num();
-#endif
-
-#pragma omp for schedule(dynamic)
-        for (size_t pos = 0; pos < size; pos += pageSize) {
-            size_t currentPageSize = size - pos;
-            if (currentPageSize > pageSize) {
-                currentPageSize = pageSize;
-            }
-            memcpy(buffer[threadIdx], memory + pos, currentPageSize);
-//            progress.updateProgress();
-        }
+    // load always four pages to reduce data dependency
+    for (size_t pos = 0; (pos + fourTimesPageSize) < size; pos += 4*pageSize) {
+        buffer1 += *(memory + pos);
+        buffer2 += *(memory + pos + 2*pageSize);
+        buffer3 += *(memory + pos + 3*pageSize);
+        buffer4 += *(memory + pos + 4*pageSize);
     }
 
-    char retVal = 0;
-    for (int i = 0; i < threadCnt; ++i) {
-        retVal += buffer[i][0];
-        delete[] buffer[i];
-    }
-    delete[] buffer;
-    return retVal;
+    return buffer1+buffer2+buffer3+buffer4;
 }
 
-size_t Util::ompCountLines(const char* data, size_t dataSize) {
+size_t Util::ompCountLines(const char* data, size_t dataSize, unsigned int MAYBE_UNUSED(threads)) {
     size_t cnt = 0;
 #ifdef OPENMP
     int threadCnt = 1;
-    const int totalThreadCnt = omp_get_max_threads();
+    const int totalThreadCnt = threads;
     if (totalThreadCnt > 4) {
         threadCnt = 4;
     }
@@ -547,62 +455,6 @@ size_t Util::ompCountLines(const char* data, size_t dataSize) {
 //                3.77,3.64,1.71,2.62,3.00,3.63,2.83,1.32,2.18,2.92
 //        };
 
-
-std::map<unsigned int, std::string> Util::readLookup(const std::string& file, const bool removeSplit) {
-    std::map<unsigned int, std::string> mapping;
-    if (file.length() > 0) {
-        std::ifstream mappingStream(file);
-        if (mappingStream.fail()) {
-            Debug(Debug::ERROR) << "File " << file << " not found!\n";
-            EXIT(EXIT_FAILURE);
-        }
-
-        std::string line;
-        while (std::getline(mappingStream, line)) {
-            std::vector<std::string> split = Util::split(line, "\t");
-            unsigned int id = strtoul(split[0].c_str(), NULL, 10);
-
-            std::string& name = split[1];
-
-            size_t pos;
-            if (removeSplit && (pos = name.find_last_of('_')) != std::string::npos) {
-                name = name.substr(0, pos);
-            }
-
-            mapping.emplace(id, name);
-        }
-    }
-
-    return mapping;
-}
-
-std::map<std::string, unsigned int> Util::readLookupReverse(const std::string& file, const bool removeSplit) {
-    std::map<std::string, unsigned int> mapping;
-    if (file.length() > 0) {
-        std::ifstream mappingStream(file);
-        if (mappingStream.fail()) {
-            Debug(Debug::ERROR) << "File " << file << " not found!\n";
-            EXIT(EXIT_FAILURE);
-        }
-
-        std::string line;
-        while (std::getline(mappingStream, line)) {
-            std::vector<std::string> split = Util::split(line, "\t");
-            unsigned int id = strtoul(split[0].c_str(), NULL, 10);
-            std::string& name = split[1];
-
-            size_t pos;
-            if (removeSplit && (pos = name.find_last_of('_')) != std::string::npos) {
-                name = name.substr(0, pos);
-            }
-
-            mapping.emplace(name, id);
-        }
-    }
-
-    return mapping;
-}
-
 int Util::omp_thread_count() {
     int n = 0;
 #pragma omp parallel reduction(+:n)
@@ -628,6 +480,8 @@ bool Util::canBeCovered(const float covThr, const int covMode, float queryLength
             return ((targetLength / queryLength) >= covThr) && (targetLength / queryLength) <= 1.0;
         case Parameters::COV_MODE_LENGTH_TARGET:
             return ((queryLength / targetLength) >= covThr) && (queryLength / targetLength) <= 1.0;
+        case Parameters::COV_MODE_LENGTH_SHORTER:
+            return (std::min(targetLength, queryLength) / std::max(targetLength, queryLength)) >= covThr;
         default:
             return true;
     }
@@ -643,6 +497,7 @@ bool Util::hasCoverage(float covThr, int covMode, float queryCov, float targetCo
             return (targetCov >= covThr);
         case Parameters::COV_MODE_LENGTH_QUERY:
         case Parameters::COV_MODE_LENGTH_TARGET:
+        case Parameters::COV_MODE_LENGTH_SHORTER:
             return true;
         default:
             return true;
@@ -733,26 +588,6 @@ uint64_t Util::revComplement(const uint64_t kmer, const int k) {
     return (((uint64_t)_mm_cvtsi128_si64(x)) >> (uint64_t)(64-2*k));
 
 }
-
-
-
-float Util::averageValueOnAminoAcids(const std::unordered_map<char, float> &values, const char *seq) {
-    const char *seqPointer = seq;
-    float ret = values.at('0') + values.at('1'); // C ter and N ter values
-    std::unordered_map<char, float>::const_iterator k;
-
-    while (*seqPointer != '\0' && *seqPointer != '\n') {
-        if ((k = values.find(tolower(*seqPointer))) != values.end()) {
-            ret += k->second;
-        }
-
-        seqPointer++;
-    }
-
-    size_t seqLen = seqPointer - seq;
-    return ret / std::max(static_cast<size_t>(1), seqLen);
-}
-
 
 template<> std::string SSTR(char x) { return std::string(1, x); }
 template<> std::string SSTR(const std::string &x) { return x; }

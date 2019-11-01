@@ -9,7 +9,7 @@
 
 int doCompression(int argc, const char **argv, const Command& command, bool shouldCompress) {
     Parameters& par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 2);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::NOSORT);
@@ -28,7 +28,6 @@ int doCompression(int argc, const char **argv, const Command& command, bool shou
     writer.open();
     Debug::Progress progress(reader.getSize());
 
-    unsigned int* seqLens = reader.getSeqLens();
 #pragma omp parallel
     {
         unsigned int thread_idx = 0;
@@ -39,7 +38,7 @@ int doCompression(int argc, const char **argv, const Command& command, bool shou
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
             progress.updateProgress();
-            writer.writeData(reader.getData(i, thread_idx), std::max(seqLens[i], 1u) - 1u, reader.getDbKey(i), thread_idx);
+            writer.writeData(reader.getData(i, thread_idx), std::max(static_cast<unsigned int>(reader.getEntryLen(i)), 1u) - 1u, reader.getDbKey(i), thread_idx);
         }
     }
     writer.close();

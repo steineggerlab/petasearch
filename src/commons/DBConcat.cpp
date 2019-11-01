@@ -74,10 +74,10 @@ void DBConcat::concat(bool write) {
 
             if (write) {
                 char *data = dbA.getData(id, thread_idx);
-                size_t dataSizeA = dbA.getSeqLens(id) - 1;
+                size_t dataSizeA = dbA.getEntryLen(id) - 1;
                 if(takeLargerEntry == true) {
                     size_t idB = dbB.getId(newKey);
-                    size_t dataSizeB = dbB.getSeqLens(idB)-1;
+                    size_t dataSizeB = dbB.getEntryLen(idB)-1;
                     if(dataSizeA >= dataSizeB){
                         concatWriter->writeData(data, dataSizeA, newKey, thread_idx);
                     }
@@ -112,10 +112,10 @@ void DBConcat::concat(bool write) {
 
             if (write) {
                 char *data = dbB.getData(id, thread_idx);
-                size_t dataSizeB = dbB.getSeqLens(id) - 1;
+                size_t dataSizeB = dbB.getEntryLen(id) - 1;
                 if(takeLargerEntry){
                     size_t idB = dbA.getId(newKey);
-                    size_t dataSizeA = dbA.getSeqLens(idB)-1;
+                    size_t dataSizeA = dbA.getEntryLen(idB)-1;
                     if(dataSizeB > dataSizeA) {
                         concatWriter->writeData(data, dataSizeB, newKey, thread_idx);
                     }
@@ -134,7 +134,7 @@ void DBConcat::concat(bool write) {
     std::stable_sort(keysB, keysB + indexSizeB, compareFirstEntry());
 
     if (write) {
-        concatWriter->close();
+        concatWriter->close(true);
         delete concatWriter;
     }
     dbA.close();
@@ -173,7 +173,7 @@ void setDbConcatDefault(Parameters *par) {
 int concatdbs(int argc, const char **argv, const Command& command) {
     Parameters& par = Parameters::getInstance();
     setDbConcatDefault(&par);
-    par.parseParameters(argc, argv, command, 3);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     int datamode = DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX;
     DBConcat outDB(par.db1.c_str(), par.db1Index.c_str(),

@@ -55,7 +55,7 @@ int main (int, const char**) {
     const size_t kmer_size=6;
 
     Parameters& par = Parameters::getInstance();
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0, 0);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0, 0);
     std::cout << "Subustitution matrix:\n";
     SubstitutionMatrix::print(subMat.subMatrix,subMat.int2aa,subMat.alphabetSize);
     std::cout << "\n";
@@ -85,11 +85,11 @@ int main (int, const char**) {
     size_t cells = 0;
     std::vector<std::string> sequences = readData("/Users/mad/Documents/databases/rfam/Rfam.fasta");
     for(size_t seq_i = 0; seq_i < sequences.size(); seq_i++){
-        query->mapSequence(1,1,sequences[seq_i].c_str());
+        query->mapSequence(1,1,sequences[seq_i].c_str(), sequences[seq_i].size());
         aligner.ssw_init(query, tinySubMat, &subMat, subMat.alphabetSize, 2);
 
         for(size_t seq_j = 0; seq_j < sequences.size(); seq_j++) {
-            dbSeq->mapSequence(2, 2, sequences[seq_j].c_str());
+            dbSeq->mapSequence(2, 2, sequences[seq_j].c_str(),  sequences[seq_j].size());
             int32_t maskLen = query->L / 2;
             EvalueComputation evalueComputation(100000, &subMat, gap_open, gap_extend);
             s_align alignment = aligner.ssw_align(dbSeq->int_sequence, dbSeq->L, gap_open, gap_extend, 0, 10000, &evalueComputation, 0, 0.0, maskLen);

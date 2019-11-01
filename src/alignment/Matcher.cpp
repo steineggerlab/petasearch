@@ -7,30 +7,25 @@
 
 
 Matcher::Matcher(int querySeqType, int maxSeqLen, BaseMatrix *m, EvalueComputation * evaluer,
-                 bool aaBiasCorrection, int gapOpen, int gapExtend){
-    this->m = m;
-    this->tinySubMat = NULL;
-    this->gapOpen = gapOpen;
-    this->gapExtend = gapExtend;
+                 bool aaBiasCorrection, int gapOpen, int gapExtend)
+                 : gapOpen(gapOpen), gapExtend(gapExtend), m(m), evaluer(evaluer), tinySubMat(NULL) {
     if(Parameters::isEqualDbtype(querySeqType, Parameters::DBTYPE_PROFILE_STATE_PROFILE) == false ) {
         setSubstitutionMatrix(m);
     }
 
-    this->maxSeqLen = maxSeqLen;
-    nuclaligner=NULL;
-    aligner=NULL;
-    if(Parameters::isEqualDbtype(querySeqType, Parameters::DBTYPE_NUCLEOTIDES)){
-        nuclaligner = new  BandedNucleotideAligner(m, maxSeqLen, gapOpen, gapExtend);
-    }else{
+    if (Parameters::isEqualDbtype(querySeqType, Parameters::DBTYPE_NUCLEOTIDES)) {
+        nuclaligner = new BandedNucleotideAligner(m, maxSeqLen, gapOpen, gapExtend);
+        aligner = NULL;
+    } else {
+        nuclaligner = NULL;
         aligner = new SmithWaterman(maxSeqLen, m->alphabetSize, aaBiasCorrection);
     }
-    this->evaluer = evaluer;
     //std::cout << "lambda=" << lambdaLog2 << " logKLog2=" << logKLog2 << std::endl;
 }
 
 
 void Matcher::setSubstitutionMatrix(BaseMatrix *m){
-    this->tinySubMat = new int8_t[m->alphabetSize*m->alphabetSize];
+    tinySubMat = new int8_t[m->alphabetSize*m->alphabetSize];
     for (int i = 0; i < m->alphabetSize; i++) {
         for (int j = 0; j < m->alphabetSize; j++) {
             tinySubMat[i*m->alphabetSize + j] = m->subMatrix[i][j];
@@ -64,10 +59,11 @@ void Matcher::initQuery(Sequence* query){
 
 
 Matcher::result_t Matcher::getSWResult(Sequence* dbSeq, const int diagonal, bool isReverse, const int covMode, const float covThr,
-                                       const double evalThr, unsigned int alignmentMode, unsigned int seqIdMode,
-                                       bool isIdentity){
+                                       const double evalThr, unsigned int alignmentMode, unsigned int seqIdMode, bool isIdentity,
+                                       bool wrappedScoring){
     // calculation of the score and traceback of the alignment
     int32_t maskLen = currentQuery->L / 2;
+    int origQueryLen = wrappedScoring? currentQuery->L / 2 : currentQuery->L ;
 
     // calcuate stop score
 //    const double qL = static_cast<double>(currentQuery->L);
@@ -89,7 +85,7 @@ Matcher::result_t Matcher::getSWResult(Sequence* dbSeq, const int diagonal, bool
                                 << "Please check your database.\n";
             EXIT(EXIT_FAILURE);
         }
-        alignment = nuclaligner->align(dbSeq, diagonal, isReverse, backtrace, aaIds, evaluer);
+        alignment = nuclaligner->align(dbSeq, diagonal, isReverse, backtrace, aaIds, evaluer, wrappedScoring);
         alignmentMode = Matcher::SCORE_COV_SEQID;
     }else{ if(isIdentity==false){
             alignment = aligner->ssw_align(dbSeq->int_sequence, dbSeq->L, gapOpen, gapExtend, alignmentMode, evalThr, evaluer, covMode, covThr, maskLen);
@@ -127,7 +123,7 @@ Matcher::result_t Matcher::getSWResult(Sequence* dbSeq, const int diagonal, bool
                     }
                 }
             } else {
-                for (int32_t c = 0; c < currentQuery->L; ++c) {
+                for (int32_t c = 0; c < origQueryLen; ++c) {
                     aaIds++;
                     backtrace.append("M");
                 }
@@ -160,7 +156,7 @@ Matcher::result_t Matcher::getSWResult(Sequence* dbSeq, const int diagonal, bool
             // OVERWRITE alnLength with gapped value
             alnLength = backtrace.size();
         }
-        seqId = Util::computeSeqId(seqIdMode, aaIds, currentQuery->L, dbSeq->L, alnLength);
+        seqId = Util::computeSeqId(seqIdMode, aaIds, origQueryLen, dbSeq->L, alnLength);
 
     }else if( alignmentMode == Matcher::SCORE_COV){
         // "20%   30%   40%   50%   60%   70%   80%   90%   99%"
@@ -182,9 +178,9 @@ Matcher::result_t Matcher::getSWResult(Sequence* dbSeq, const int diagonal, bool
 
     result_t result;
     if(isReverse){
-        result = result_t(dbSeq->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength, qStartPos, qEndPos, currentQuery->L, dbEndPos, dbStartPos, dbSeq->L, backtrace);
+        result = result_t(dbSeq->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength, qStartPos, qEndPos, origQueryLen, dbEndPos, dbStartPos, dbSeq->L, backtrace);
     }else{
-        result = result_t(dbSeq->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength, qStartPos, qEndPos, currentQuery->L, dbStartPos, dbEndPos, dbSeq->L, backtrace);
+        result = result_t(dbSeq->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength, qStartPos, qEndPos, origQueryLen, dbStartPos, dbEndPos, dbSeq->L, backtrace);
     }
 
 

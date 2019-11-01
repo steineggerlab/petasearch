@@ -38,6 +38,7 @@ set(util_source_files
         util/prefixid.cpp
         util/profile2cs.cpp
         util/profile2pssm.cpp
+        util/profile2seq.cpp
         util/result2flat.cpp
         util/result2msa.cpp
         util/result2rbh.cpp
@@ -47,12 +48,12 @@ set(util_source_files
         util/result2stats.cpp
         util/reverseseq.cpp
         util/rmdb.cpp
-        util/shellcompletion.cpp
         util/extractframes.cpp
         util/sortresult.cpp
         util/splitdb.cpp
         util/splitsequence.cpp
         util/subtractdbs.cpp
+        util/summarizealis.cpp
         util/summarizeheaders.cpp
         util/summarizeresult.cpp
         util/summarizetabs.cpp

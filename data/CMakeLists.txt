@@ -3,6 +3,7 @@ include(MMseqsResourceCompiler)
 set(COMPILED_RESOURCES
         easysearch.sh
         easycluster.sh
+        easytaxonomy.sh
         blastp.sh
         blastpgp.sh
         map.sh
@@ -18,15 +19,14 @@ set(COMPILED_RESOURCES
         taxonomy.sh
         multihitdb.sh
         multihitsearch.sh
-        summarizeresultsbyset.sh
         enrich.sh
         blastn.sh
         VTML80.out
         nucleotide.out
         blosum62.out
         PAM30.out
-        CovSeqidQscPercMinDiag.out
-        CovSeqidQscPercMinDiagTargetCov.out
+        CovSeqidQscPercMinDiag.lib
+        CovSeqidQscPercMinDiagTargetCov.lib
         ExpOpt3_8_polished.cs32.lib
         Library255_may17.lib
         libPure_blosum62_255.lib
@@ -35,6 +35,7 @@ set(COMPILED_RESOURCES
         searchslicedtargetprofile.sh
         cs219.lib
         linsearch.sh
+        krona_prelude.html
         )
 
 set(GENERATED_OUTPUT_HEADERS "")

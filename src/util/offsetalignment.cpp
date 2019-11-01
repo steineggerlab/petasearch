@@ -8,6 +8,7 @@
 #include "AlignmentSymmetry.h"
 #include "Timer.h"
 #include "IndexReader.h"
+#include "FileUtil.h"
 
 #ifdef OPENMP
 #include <omp.h>
@@ -16,7 +17,7 @@
 
 void chainAlignmentHits(std::vector<Matcher::result_t> &results, std::vector<Matcher::result_t> &tmp) {
     if(results.size() > 1){
-        std::stable_sort(results.begin(), results.end(), Matcher::compareHitsByPos);
+        std::stable_sort(results.begin(), results.end(), Matcher::compareHitsByPosAndStrand);
         int prevDiagonal = INT_MAX;
         Matcher::result_t  currRegion;
         currRegion.dbKey = UINT_MAX;
@@ -158,17 +159,17 @@ void updateLengths(std::vector<Matcher::result_t> &results, unsigned int qSource
         }
         if (tSourceDbr != NULL) {
             size_t targetId = tSourceDbr->sequenceReader->getId(res.dbKey);
-            res.dbLen = std::max(tSourceDbr->sequenceReader->getSeqLens(targetId), static_cast<size_t>(2)) - 2;
+            res.dbLen = tSourceDbr->sequenceReader->getSeqLen(targetId);
         }
     }
 }
 
 int offsetalignment(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 6);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     const bool touch = par.preloadMode != Parameters::PRELOAD_MODE_MMAP;
-    int queryDbType = DBReader<unsigned int>::parseDbType(par.db1.c_str());
+    int queryDbType = FileUtil::parseDbType(par.db1.c_str());
     if(Parameters::isEqualDbtype(queryDbType, Parameters::DBTYPE_INDEX_DB)){
         DBReader<unsigned int> idxdbr(par.db1.c_str(), par.db1Index.c_str(), 1, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
         idxdbr.open(DBReader<unsigned int>::NOSORT);
@@ -176,7 +177,7 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
         queryDbType=data.srcSeqType;
         idxdbr.close();
     }
-    int targetDbType = DBReader<unsigned int>::parseDbType(par.db3.c_str());
+    int targetDbType = FileUtil::parseDbType(par.db3.c_str());
     if(Parameters::isEqualDbtype(targetDbType, Parameters::DBTYPE_INDEX_DB)){
         DBReader<unsigned int> idxdbr(par.db3.c_str(), par.db3Index.c_str(), 1, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
         idxdbr.open(DBReader<unsigned int>::NOSORT);
@@ -363,7 +364,7 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
                 }
                 if (qSourceDbr != NULL) {
                     size_t queryId = qSourceDbr->sequenceReader->getId(queryKey);
-                    qLen = std::max(qSourceDbr->sequenceReader->getSeqLens(queryId), static_cast<size_t>(2)) - 2;
+                    qLen = qSourceDbr->sequenceReader->getSeqLen(queryId);
                 }
                 unsigned int *orfKeys = &contigLookup[contigOffsets[i]];
                 size_t orfCount = contigOffsets[i + 1] - contigOffsets[i];
@@ -401,7 +402,7 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
                 queryKey = alnDbr.getDbKey(i);
                 if (qSourceDbr != NULL) {
                     size_t queryId = qSourceDbr->sequenceReader->getId(queryKey);
-                    qLen = std::max(qSourceDbr->sequenceReader->getSeqLens(queryId), static_cast<size_t>(2)) - 2;
+                    qLen = qSourceDbr->sequenceReader->getSeqLen(queryId);
                 }
                 char *data = alnDbr.getData(i, thread_idx);
                 updateOffset(data, results, NULL, *tOrfDbr, true, isNuclNuclSearch, thread_idx);

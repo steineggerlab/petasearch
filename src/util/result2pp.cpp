@@ -49,7 +49,7 @@ int computeProfileProfile(Parameters &par,const std::string &outpath,
     resultReader->open(DBReader<unsigned int>::LINEAR_ACCCESS);
     DBWriter resultWriter(outpath.c_str(), (outpath + ".index").c_str(), par.threads, par.compressed, Parameters::DBTYPE_HMM_PROFILE);
     resultWriter.open();
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0f, 0.0f);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0f, 0.0f);
 
 //#pragma omp parallel
     {
@@ -57,10 +57,10 @@ int computeProfileProfile(Parameters &par,const std::string &outpath,
                               par.compBiasCorrection,false);
         Sequence targetProfile(par.maxSeqLen, tDbr->getDbtype(), &subMat, 0, false,
                                par.compBiasCorrection,false);
-        float * outProfile=new float[par.maxSeqLen * Sequence::PROFILE_AA_SIZE];
-        float * neffM=new float[par.maxSeqLen];
+        float * outProfile = new float[(par.maxSeqLen + 1) * Sequence::PROFILE_AA_SIZE];
+        float * neffM = new float[par.maxSeqLen + 1];
         std::string result;
-        result.reserve(par.maxSeqLen * Sequence::PROFILE_READIN_SIZE * sizeof(char));
+        result.reserve((par.maxSeqLen + 1) * Sequence::PROFILE_READIN_SIZE);
 
         const char *entry[255];
         Debug::Progress progress(dbSize-dbFrom);
@@ -77,11 +77,8 @@ int computeProfileProfile(Parameters &par,const std::string &outpath,
             // Get the sequence from the queryDB
             unsigned int queryKey = resultReader->getDbKey(id);
             char *queryData = qDbr->getDataByDBKey(queryKey, thread_idx);
-            queryProfile.mapSequence(id, queryKey, queryData);
-            
-
+            queryProfile.mapSequence(id, queryKey, queryData, resultReader->getSeqLen(queryKey));
             const float * qProfile =  queryProfile.getProfile();
-
 	    /*
             const size_t profile_row_size = queryProfile.profile_row_size;
             // init outProfile with query Probs
@@ -120,7 +117,7 @@ int computeProfileProfile(Parameters &par,const std::string &outpath,
                     Matcher::result_t res = Matcher::parseAlignmentRecord(results);
                     const size_t edgeId = tDbr->getId(key);
                     char *dbSeqData = tDbr->getData(edgeId, thread_idx);
-                    targetProfile.mapSequence(0, key, dbSeqData);
+                    targetProfile.mapSequence(0, key, dbSeqData, tDbr->getSeqLen(edgeId));
                     const float * tProfile = targetProfile.getProfile();
                     size_t qPos = res.qStartPos;
                     size_t tPos = res.dbStartPos;
@@ -294,8 +291,7 @@ int computeProfileProfile(Parameters &par,const unsigned int mpiRank, const unsi
 
     size_t dbFrom = 0;
     size_t dbSize = 0;
-    Util::decomposeDomainByAminoAcid(qDbr->getDataSize(), qDbr->getSeqLens(), qDbr->getSize(),
-                                     mpiRank, mpiNumProc, &dbFrom, &dbSize);
+    qDbr->decomposeDomainByAminoAcid(mpiRank, mpiNumProc, &dbFrom, &dbSize);
     qDbr->close();
     delete qDbr;
 
@@ -328,7 +324,7 @@ int computeProfileProfile(Parameters &par,const unsigned int mpiRank, const unsi
 
 int result2pp(int argc, const char **argv, const Command& command) {
     Parameters& par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 4,false);
+    par.parseParameters(argc, argv, command, true, 0, 0);
     par.evalProfile = (par.evalThr < par.evalProfile) ? par.evalThr : par.evalProfile;
     std::vector<MMseqsParameter*>* params = command.params;
     par.printParameters(command.cmd, argc, argv, *params);

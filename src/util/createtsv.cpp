@@ -17,12 +17,10 @@
 
 int createtsv(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 3, true, Parameters::PARSE_VARIADIC);
+    par.parseParameters(argc, argv, command, true, Parameters::PARSE_VARIADIC, 0);
 
-
-
-    bool queryNucs = Parameters::isEqualDbtype(DBReader<unsigned int>::parseDbType(par.db1.c_str()), Parameters::DBTYPE_NUCLEOTIDES);
-    bool targetNucs = Parameters::isEqualDbtype(DBReader<unsigned int>::parseDbType(par.db2.c_str()), Parameters::DBTYPE_NUCLEOTIDES);
+    bool queryNucs = Parameters::isEqualDbtype(FileUtil::parseDbType(par.db1.c_str()), Parameters::DBTYPE_NUCLEOTIDES);
+    bool targetNucs = Parameters::isEqualDbtype(FileUtil::parseDbType(par.db2.c_str()), Parameters::DBTYPE_NUCLEOTIDES);
     const bool touch = (par.preloadMode != Parameters::PRELOAD_MODE_MMAP);
     int queryHeaderType = (queryNucs) ? IndexReader::SRC_HEADERS : IndexReader::HEADERS;
     queryHeaderType = (par.idxSeqSrc == 0) ? queryHeaderType :  (par.idxSeqSrc == 1) ?  IndexReader::HEADERS : IndexReader::SRC_HEADERS;
@@ -32,13 +30,13 @@ int createtsv(int argc, const char **argv, const Command &command) {
     DBReader<unsigned int> * targetDB = NULL;
     bool sameDB = (par.db2.compare(par.db1) == 0);
     const bool hasTargetDB = par.filenames.size() > 3;
-    unsigned int* qHeaderLength = qDbrHeader.sequenceReader->getSeqLens();
-    unsigned int* tHeaderLength = NULL;
+    DBReader<unsigned int>::Index * qHeaderIndex = qDbrHeader.sequenceReader->getIndex();
+    DBReader<unsigned int>::Index * tHeaderIndex = NULL;
 
     if (hasTargetDB) {
         if (sameDB) {
             tDbrHeader = &qDbrHeader;
-            tHeaderLength = qHeaderLength;
+            tHeaderIndex = qHeaderIndex;
             targetDB = queryDB;
         } else {
 
@@ -46,7 +44,7 @@ int createtsv(int argc, const char **argv, const Command &command) {
             targetHeaderType = (par.idxSeqSrc == 0) ? targetHeaderType :  (par.idxSeqSrc == 1) ?  IndexReader::HEADERS : IndexReader::SRC_HEADERS;
 
             tDbrHeader = new IndexReader(par.db2, par.threads, targetHeaderType, touch);
-            tHeaderLength = tDbrHeader->sequenceReader->getSeqLens();
+            tHeaderIndex = tDbrHeader->sequenceReader->getIndex();
             targetDB = tDbrHeader->sequenceReader;
         }
     }
@@ -96,7 +94,7 @@ int createtsv(int argc, const char **argv, const Command &command) {
             std::string queryHeader;
             if (par.fullHeader) {
                 queryHeader = "\"";
-                queryHeader.append(headerData, qHeaderLength[queryIndex] - 2);
+                queryHeader.append(headerData, qHeaderIndex[queryIndex].length - 2);
                 queryHeader.append("\"");
             } else {
                 queryHeader = Util::parseFastaHeader(headerData);
@@ -127,7 +125,7 @@ int createtsv(int argc, const char **argv, const Command &command) {
                     }
                     if (par.fullHeader) {
                         targetAccession = "\"";
-                        targetAccession.append(targetData, tHeaderLength[targetIndex] - 2);
+                        targetAccession.append(targetData, tHeaderIndex[targetIndex].length - 2);
                         targetAccession.append("\"");
                     } else {
                         targetAccession = Util::parseFastaHeader(targetData);

@@ -9,7 +9,7 @@
 #endif
 
 
-int addid(const std::string &db1, const std::string &db1Index, const std::string &db2, const std::string &db2Index, 
+int addid(const std::string &db1, const std::string &db1Index, const std::string &db2, const std::string &db2Index,
 const bool tsvOut, const std::string &mappingFile, const std::string &userStrToAdd, const bool isPrefix, const int threads, const int compressed) {
     DBReader<unsigned int> reader(db1.c_str(), db1Index.c_str(), threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
@@ -23,9 +23,13 @@ const bool tsvOut, const std::string &mappingFile, const std::string &userStrToA
 
     size_t entries = reader.getSize();
     Debug::Progress progress(entries);
+    bool doMapping = false;
+    DBReader<unsigned int> * lookupReader=NULL;
+    if(mappingFile.size() > 0){
+        lookupReader = new DBReader<unsigned int>(mappingFile.c_str(), mappingFile.c_str(), 1, DBReader<unsigned int>::USE_LOOKUP);
+        doMapping = true;
+    }
 
-    Debug(Debug::INFO) << "Start adding to database.\n";
-    std::map<unsigned int, std::string> mapping = Util::readLookup(mappingFile);
 #pragma omp parallel
     {
         unsigned int thread_idx = 0;
@@ -46,8 +50,13 @@ const bool tsvOut, const std::string &mappingFile, const std::string &userStrToA
                 std::string strToAdd = "";
                 if (userStrToAdd != "") {
                     strToAdd = userStrToAdd;
-                } else if (mappingFile.length() > 0) {
-                    strToAdd = mapping[key];
+                } else if (doMapping) {
+                    size_t lookupId = lookupReader->getLookupIdByKey(key);
+                    if (lookupId == SIZE_MAX) {
+                        Debug(Debug::ERROR) << "Could not find key " << key << " in lookup\n";
+                        EXIT(EXIT_FAILURE);
+                    }
+                    strToAdd = lookupReader->getLookupEntryName(lookupId);
                 } else {
                     strToAdd = SSTR(key);
                 }
@@ -64,20 +73,25 @@ const bool tsvOut, const std::string &mappingFile, const std::string &userStrToA
         }
     }
     writer.close(tsvOut);
+    if (tsvOut) {
+        FileUtil::remove(writer.getIndexFileName());
+    }
     reader.close();
-
+    if(doMapping){
+        delete lookupReader;
+    }
     return EXIT_SUCCESS;
 }
 
 int prefixid(int argc, const char **argv, const Command& command) {
     Parameters& par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 2);
+    par.parseParameters(argc, argv, command, true, 0, 0);
     return(addid(par.db1, par.db1Index, par.db2, par.db2Index, par.tsvOut, par.mappingFile, par.prefix, true, par.threads, par.compressed));
 }
 
 int suffixid(int argc, const char **argv, const Command& command) {
     Parameters& par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 2);
+    par.parseParameters(argc, argv, command, true, 0, 0);
     return(addid(par.db1, par.db1Index, par.db2, par.db2Index, par.tsvOut, par.mappingFile, par.prefix, false, par.threads, par.compressed));
 }
 

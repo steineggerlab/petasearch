@@ -1,6 +1,5 @@
 #include "result2stats.h"
 
-#include "Alignment.h"
 #include "AminoAcidLookupTables.h"
 
 #include "Debug.h"
@@ -8,8 +7,6 @@
 #include "FileUtil.h"
 #include "itoa.h"
 #include "Parameters.h"
-
-#include <cstdlib>
 
 #ifdef OPENMP
 #include <omp.h>
@@ -55,11 +52,14 @@ int MapStatString(const std::string &str) {
 StatsComputer::StatsComputer(const Parameters &par)
         : stat(MapStatString(par.stat)),
           queryDb(par.db1), queryDbIndex(par.db1Index),
-          targetDb(par.db2), targetDbIndex(par.db2Index) {
+          targetDb(par.db2), targetDbIndex(par.db2Index), tsvOut(par.tsvOut) {
     resultReader = new DBReader<unsigned int>(par.db3.c_str(), par.db3Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     resultReader->open(DBReader<unsigned int>::LINEAR_ACCCESS);
     this->threads = par.threads;
-    statWriter = new DBWriter(par.db4.c_str(), par.db4Index.c_str(), (unsigned int) par.threads, par.compressed, Parameters::DBTYPE_GENERIC_DB);
+
+    const bool shouldCompress = tsvOut == false && par.compressed == true;
+    const int dbType = tsvOut == true ? Parameters::DBTYPE_OMIT_FILE : Parameters::DBTYPE_GENERIC_DB;
+    statWriter = new DBWriter(par.db4.c_str(), par.db4Index.c_str(), (unsigned int) par.threads, shouldCompress, dbType);
     statWriter->open();
 }
 
@@ -111,7 +111,10 @@ int StatsComputer::run() {
 }
 
 StatsComputer::~StatsComputer() {
-    statWriter->close();
+    statWriter->close(tsvOut);
+    if (tsvOut) {
+        FileUtil::remove(statWriter->getIndexFileName());
+    }
     resultReader->close();
     delete statWriter;
     delete resultReader;
@@ -143,7 +146,7 @@ int StatsComputer::countNumberOfLines() {
 
             lineCountString = SSTR(lineCount) + "\n";
 
-            statWriter->writeData(lineCountString.c_str(), lineCountString.length(), resultReader->getDbKey(id), thread_idx);
+            statWriter->writeData(lineCountString.c_str(), lineCountString.length(), resultReader->getDbKey(id), thread_idx, !tsvOut);
         }
     }
     return 0;
@@ -227,15 +230,33 @@ int StatsComputer::sumValue() {
     return 0;
 }
 
+float averageValueOnAminoAcids(const std::unordered_map<char, float> &values, const char *seq) {
+    const char *seqPointer = seq;
+    float ret = values.at('0') + values.at('1'); // C ter and N ter values
+    std::unordered_map<char, float>::const_iterator k;
+
+    while (*seqPointer != '\0' && *seqPointer != '\n') {
+        if ((k = values.find(tolower(*seqPointer))) != values.end()) {
+            ret += k->second;
+        }
+
+        seqPointer++;
+    }
+
+    size_t seqLen = seqPointer - seq;
+    return ret / std::max(static_cast<size_t>(1), seqLen);
+}
+
+
 float doolittle(const char *seq) {
     static Doolittle doolitle;
-    return Util::averageValueOnAminoAcids(doolitle.values, seq);
+    return averageValueOnAminoAcids(doolitle.values, seq);
 }
 
 
 float charges(const char *seq) {
     static Charges charges;
-    return Util::averageValueOnAminoAcids(charges.values, seq);
+    return averageValueOnAminoAcids(charges.values, seq);
 }
 
 std::string firstline(const char *seq) {
@@ -311,7 +332,7 @@ int StatsComputer::sequenceWise(typename PerSequence<T>::type call, bool onlyRes
 
 int result2stats(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 4);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     StatsComputer computeStats(par);
     return computeStats.run();

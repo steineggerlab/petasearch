@@ -6,8 +6,8 @@
 #include "DBReader.h"
 #include "DBWriter.h"
 #include "QueryMatcher.h"
-#include "CovSeqidQscPercMinDiag.out.h"
-#include "CovSeqidQscPercMinDiagTargetCov.out.h"
+#include "CovSeqidQscPercMinDiag.lib.h"
+#include "CovSeqidQscPercMinDiagTargetCov.lib.h"
 #include "QueryMatcher.h"
 #include "NucleotideMatrix.h"
 #include "IndexReader.h"
@@ -66,6 +66,14 @@ int doRescorediagonal(Parameters &par,
         qdbr = qDbrIdx->sequenceReader;
         querySeqType = qdbr->getDbtype();
     }
+    if (par.wrappedScoring)
+    {
+        if(!Parameters::isEqualDbtype(querySeqType, Parameters::DBTYPE_NUCLEOTIDES)){
+            Debug(Debug::ERROR) << "Wrapped scoring is only supported for nucleotides.\n";
+            EXIT(EXIT_FAILURE);
+        }
+    }
+
 
     if(resultReader.isSortedByOffset() && qdbr->isSortedByOffset()){
         qdbr->setSequentialAdvice();
@@ -73,10 +81,10 @@ int doRescorediagonal(Parameters &par,
 
     BaseMatrix *subMat;
     if (Parameters::isEqualDbtype(querySeqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.scoringMatrixFile.c_str(), 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
     } else {
         // keep score bias at 0.0 (improved ROC)
-        subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
+        subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
     }
 
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
@@ -90,16 +98,12 @@ int doRescorediagonal(Parameters &par,
         }
 
         std::string libraryString = (par.covMode == Parameters::COV_MODE_BIDIRECTIONAL)
-                                    ? std::string((const char*)CovSeqidQscPercMinDiag_out, CovSeqidQscPercMinDiag_out_len)
-                                    : std::string((const char*)CovSeqidQscPercMinDiagTargetCov_out, CovSeqidQscPercMinDiagTargetCov_out_len);
+                                    ? std::string((const char*)CovSeqidQscPercMinDiag_lib, CovSeqidQscPercMinDiag_lib_len)
+                                    : std::string((const char*)CovSeqidQscPercMinDiagTargetCov_lib, CovSeqidQscPercMinDiagTargetCov_lib_len);
         scorePerColThr = parsePrecisionLib(libraryString, par.seqIdThr, par.covThr, 0.99);
     }
     bool reversePrefilterResult = (Parameters::isEqualDbtype(resultReader.getDbtype(), Parameters::DBTYPE_PREFILTER_REV_RES));
     EvalueComputation evaluer(tdbr->getAminoAcidDBSize(), subMat);
-    DistanceCalculator globalAliStat;
-    if (par.globalAlignment) {
-        globalAliStat.prepareGlobalAliParam(*subMat);
-    }
 
     size_t totalMemory = Util::getTotalSystemMemory();
     size_t flushSize = 100000000;
@@ -129,7 +133,7 @@ int doRescorediagonal(Parameters &par,
             std::vector<hit_t> shortResults;
             shortResults.reserve(300);
             char *queryRevSeq = NULL;
-            int queryRevSeqLen = par.maxSeqLen;
+            int queryRevSeqLen = par.maxSeqLen + 1;
             if (reversePrefilterResult == true) {
                 queryRevSeq = new char[queryRevSeqLen];
             }
@@ -139,13 +143,24 @@ int doRescorediagonal(Parameters &par,
 
                 char *data = resultReader.getData(id, thread_idx);
                 size_t queryKey = resultReader.getDbKey(id);
+
                 char *querySeq = NULL;
+                std::string queryToWrap; // needed only for wrapped end-start scoring
                 unsigned int queryId = UINT_MAX;
-                int queryLen = -1;
+                int queryLen = -1, origQueryLen = -1;
                 if(*data !=  '\0'){
                     queryId = qdbr->getId(queryKey);
                     querySeq = qdbr->getData(queryId, thread_idx);
-                    queryLen = std::max(0, static_cast<int>(qdbr->getSeqLens(queryId)) - 2);
+                    queryLen = static_cast<int>(qdbr->getSeqLen(queryId));
+                    origQueryLen = queryLen;
+
+                    if (par.wrappedScoring){
+                        queryToWrap = std::string(querySeq,queryLen);
+                        queryToWrap = queryToWrap + queryToWrap;
+                        querySeq = (char*)(queryToWrap).c_str();
+                        queryLen = origQueryLen*2;
+                    }
+
                     if(queryLen > queryRevSeqLen){
                         delete [] queryRevSeq;
                         queryRevSeq = new char[queryLen];
@@ -164,7 +179,6 @@ int doRescorediagonal(Parameters &par,
                         querySeq = (char *) queryBuffer.c_str();
                     }
                 }
-
 //                if(par.rescoreMode != Parameters::RESCORE_MODE_HAMMING){
 //                    query.mapSequence(id, queryId, querySeq);
 //                    queryLen = query.L;
@@ -186,16 +200,30 @@ int doRescorediagonal(Parameters &par,
                     unsigned int targetId = tdbr->getId(results[entryIdx].seqId);
                     const bool isIdentity = (queryId == targetId && (par.includeIdentity || sameQTDB)) ? true : false;
                     char *targetSeq = tdbr->getData(targetId, thread_idx);
-                    int dbLen = std::max(0, static_cast<int>(tdbr->getSeqLens(targetId)) - 2);
+                    int dbLen = static_cast<int>(tdbr->getSeqLen(targetId));
 
-                    float queryLength = static_cast<float>(queryLen);
+                    float queryLength = static_cast<float>(origQueryLen);
                     float targetLength = static_cast<float>(dbLen);
                     if (Util::canBeCovered(par.covThr, par.covMode, queryLength, targetLength) == false) {
                         continue;
                     }
-                    DistanceCalculator::LocalAlignment alignment = DistanceCalculator::computeUngappedAlignment(
-                                                                                      querySeqToAlign, queryLen, targetSeq, targetLength,
-                                                                                      results[entryIdx].diagonal, fastMatrix.matrix, par.rescoreMode);
+                    DistanceCalculator::LocalAlignment alignment;
+                    if (par.wrappedScoring) {
+                        if (dbLen > origQueryLen) {
+                            Debug(Debug::WARNING) << "WARNING: target sequence " << targetId
+                                                  << " is skipped, no valid wrapped scoring possible\n";
+                            continue;
+                        }
+
+                        alignment = DistanceCalculator::computeUngappedWrappedAlignment(
+                                querySeqToAlign, queryLen, targetSeq, targetLength,
+                                results[entryIdx].diagonal, fastMatrix.matrix, par.rescoreMode);
+                    }
+                    else {
+                        alignment = DistanceCalculator::computeUngappedAlignment(
+                                querySeqToAlign, queryLen, targetSeq, targetLength,
+                                results[entryIdx].diagonal, fastMatrix.matrix, par.rescoreMode);
+                    }
                     unsigned int distanceToDiagonal = alignment.distToDiagonal;
                     int diagonalLen = alignment.diagonalLen;
                     int distance = alignment.score;
@@ -205,69 +233,66 @@ int doRescorediagonal(Parameters &par,
                     int bitScore = 0;
                     int alnLen = 0;
                     float targetCov = static_cast<float>(diagonalLen) / static_cast<float>(dbLen);
-                    float queryCov = static_cast<float>(diagonalLen) / static_cast<float>(queryLen);
+                    float queryCov = static_cast<float>(diagonalLen) / static_cast<float>(origQueryLen);
 
                     Matcher::result_t result;
                     if (par.rescoreMode == Parameters::RESCORE_MODE_HAMMING) {
                         int idCnt = (static_cast<float>(distance));
-                        seqId = Util::computeSeqId(par.seqIdMode, idCnt, queryLen, dbLen, diagonalLen);
+                        seqId = Util::computeSeqId(par.seqIdMode, idCnt, origQueryLen, dbLen, diagonalLen);
                         alnLen = diagonalLen;
                     } else if (par.rescoreMode == Parameters::RESCORE_MODE_SUBSTITUTION ||
-                               par.rescoreMode == Parameters::RESCORE_MODE_ALIGNMENT) {
-                        //seqId = exp(static_cast<float>(distance) / static_cast<float>(diagonalLen));
-                        if (par.globalAlignment) {
-                            // FIXME: value is never written to file
-                            seqId = globalAliStat.getPvalGlobalAli((float) distance, diagonalLen);
-                        } else {
-                            evalue = evaluer.computeEvalue(distance, queryLen);
-                            bitScore = static_cast<int>(evaluer.computeBitScore(distance) + 0.5);
+                               par.rescoreMode == Parameters::RESCORE_MODE_ALIGNMENT ||
+                               par.rescoreMode == Parameters::RESCORE_MODE_GLOBAL_ALIGNMENT ||
+                               par.rescoreMode == Parameters::RESCORE_MODE_WINDOW_QUALITY_ALIGNMENT) {
+                        evalue = evaluer.computeEvalue(distance, origQueryLen);
+                        bitScore = static_cast<int>(evaluer.computeBitScore(distance) + 0.5);
 
-                            if (par.rescoreMode == Parameters::RESCORE_MODE_ALIGNMENT) {
-                                alnLen = (alignment.endPos - alignment.startPos) + 1;
-                                int qStartPos, qEndPos, dbStartPos, dbEndPos;
-                                // -1 since diagonal is computed from sequence Len which starts by 1
-                                if (diagonal >= 0) {
-                                    qStartPos = alignment.startPos + distanceToDiagonal;
-                                    qEndPos = alignment.endPos + distanceToDiagonal;
-                                    dbStartPos = alignment.startPos;
-                                    dbEndPos = alignment.endPos;
-                                } else {
-                                    qStartPos = alignment.startPos;
-                                    qEndPos = alignment.endPos;
-                                    dbStartPos = alignment.startPos + distanceToDiagonal;
-                                    dbEndPos = alignment.endPos + distanceToDiagonal;
-                                }
+                        if (par.rescoreMode == Parameters::RESCORE_MODE_ALIGNMENT||
+                            par.rescoreMode == Parameters::RESCORE_MODE_GLOBAL_ALIGNMENT ||
+                            par.rescoreMode == Parameters::RESCORE_MODE_WINDOW_QUALITY_ALIGNMENT) {
+                            alnLen = (alignment.endPos - alignment.startPos) + 1;
+                            int qStartPos, qEndPos, dbStartPos, dbEndPos;
+                            // -1 since diagonal is computed from sequence Len which starts by 1
+                            if (diagonal >= 0) {
+                                qStartPos = alignment.startPos + distanceToDiagonal;
+                                qEndPos = alignment.endPos + distanceToDiagonal;
+                                dbStartPos = alignment.startPos;
+                                dbEndPos = alignment.endPos;
+                            } else {
+                                qStartPos = alignment.startPos;
+                                qEndPos = alignment.endPos;
+                                dbStartPos = alignment.startPos + distanceToDiagonal;
+                                dbEndPos = alignment.endPos + distanceToDiagonal;
+                            }
 //                                int qAlnLen = std::max(qEndPos - qStartPos, static_cast<int>(1));
 //                                int dbAlnLen = std::max(dbEndPos - dbStartPos, static_cast<int>(1));
 //                                seqId = (alignment.score1 / static_cast<float>(std::max(qAlnLength, dbAlnLength)))  * 0.1656 + 0.1141;
 
-                                // compute seq.id if hit fulfills e-value but not by seqId criteria
-                                if (evalue <= par.evalThr || isIdentity) {
-                                    int idCnt = 0;
-                                    for (int i = qStartPos; i <= qEndPos; i++) {
-                                        idCnt += (querySeqToAlign[i] == targetSeq[dbStartPos + (i - qStartPos)]) ? 1 : 0;
-                                    }
-                                    seqId = Util::computeSeqId(par.seqIdMode, idCnt, queryLen, dbLen, alnLen);
+                            // compute seq.id if hit fulfills e-value but not by seqId criteria
+                            if (evalue <= par.evalThr || isIdentity) {
+                                int idCnt = 0;
+                                for (int i = qStartPos; i <= qEndPos; i++) {
+                                    char qLetter = querySeqToAlign[i] & static_cast<unsigned char>(~0x20);
+                                    char tLetter = targetSeq[dbStartPos + (i - qStartPos)] & static_cast<unsigned char>(~0x20);
+                                    idCnt += (qLetter == tLetter) ? 1 : 0;
                                 }
-
-                                char *end = Itoa::i32toa_sse2(alnLen, buffer);
-                                size_t len = end - buffer;
-                                std::string backtrace = "";
-                                if(par.addBacktrace){
-                                    backtrace=std::string(buffer, len - 1);
-                                    backtrace.push_back('M');
-                                }
-                                queryCov = SmithWaterman::computeCov(qStartPos, qEndPos, queryLen);
-                                targetCov = SmithWaterman::computeCov(dbStartPos, dbEndPos, dbLen);
-                                if(isReverse){
-                                    qStartPos = queryLen - qStartPos - 1;
-                                    qEndPos = queryLen - qEndPos - 1;
-                                }
-                                result = Matcher::result_t(results[entryIdx].seqId, bitScore, queryCov, targetCov,
-                                                           seqId, evalue, alnLen,
-                                                           qStartPos, qEndPos, queryLen, dbStartPos, dbEndPos, dbLen,
-                                                           backtrace);
+                                seqId = Util::computeSeqId(par.seqIdMode, idCnt, origQueryLen, dbLen, alnLen);
                             }
+                            char *end = Itoa::i32toa_sse2(alnLen, buffer);
+                            size_t len = end - buffer;
+                            std::string backtrace = "";
+                            if (par.addBacktrace) {
+                                backtrace=std::string(buffer, len - 1);
+                                backtrace.push_back('M');
+                            }
+                            queryCov = SmithWaterman::computeCov(qStartPos, qEndPos, origQueryLen);
+                            targetCov = SmithWaterman::computeCov(dbStartPos, dbEndPos, dbLen);
+                            if (isReverse) {
+                                qStartPos = queryLen - qStartPos - 1;
+                                qEndPos = queryLen - qEndPos - 1;
+                            }
+                            result = Matcher::result_t(results[entryIdx].seqId, bitScore, queryCov, targetCov, seqId, evalue, alnLen,
+                                                       qStartPos, qEndPos, origQueryLen, dbStartPos, dbEndPos, dbLen, backtrace);
                         }
                     }
 
@@ -283,7 +308,9 @@ int doRescorediagonal(Parameters &par,
                     // --filter-hits
                     bool hasToFilter = (par.filterHits == true && currScorePerCol >= scorePerColThr);
                     if (isIdentity || hasToFilter || (hasAlnLen && hasCov && hasSeqId && hasEvalue)) {
-                        if (par.rescoreMode == Parameters::RESCORE_MODE_ALIGNMENT) {
+                        if (par.rescoreMode == Parameters::RESCORE_MODE_ALIGNMENT||
+                            par.rescoreMode == Parameters::RESCORE_MODE_GLOBAL_ALIGNMENT ||
+                            par.rescoreMode == Parameters::RESCORE_MODE_WINDOW_QUALITY_ALIGNMENT) {
                             alnResults.emplace_back(result);
                         } else if (par.rescoreMode == Parameters::RESCORE_MODE_SUBSTITUTION) {
                             hit_t hit;
@@ -350,21 +377,27 @@ int doRescorediagonal(Parameters &par,
 int rescorediagonal(int argc, const char **argv, const Command &command) {
     MMseqsMPI::init(argc, argv);
     Parameters &par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 4);
+    par.parseParameters(argc, argv, command, true, 0, 0);
+
+    if (par.wrappedScoring && par.rescoreMode != Parameters::RESCORE_MODE_HAMMING) {
+        Debug(Debug::ERROR) << "ERROR: wrapped scoring is only allowed with RESCORE_MODE_HAMMING\n";
+        return EXIT_FAILURE;
+    }
 
 
     DBReader<unsigned int> resultReader(par.db3.c_str(), par.db3Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     resultReader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
     int dbtype = Parameters::DBTYPE_PREFILTER_RES;
-    if(par.rescoreMode == Parameters::RESCORE_MODE_ALIGNMENT){
+    if(par.rescoreMode == Parameters::RESCORE_MODE_ALIGNMENT ||
+       par.rescoreMode == Parameters::RESCORE_MODE_GLOBAL_ALIGNMENT ||
+       par.rescoreMode == Parameters::RESCORE_MODE_WINDOW_QUALITY_ALIGNMENT){
         dbtype = Parameters::DBTYPE_ALIGNMENT_RES;
     }
 #ifdef HAVE_MPI
     size_t dbFrom = 0;
     size_t dbSize = 0;
 
-    Util::decomposeDomainByAminoAcid(resultReader.getDataSize(), resultReader.getSeqLens(), resultReader.getSize(),
-                                     MMseqsMPI::rank, MMseqsMPI::numProc, &dbFrom, &dbSize);
+    resultReader.decomposeDomainByAminoAcid(MMseqsMPI::rank, MMseqsMPI::numProc, &dbFrom, &dbSize);
     std::string outfile = par.db4;
     std::string outfileIndex = par.db4Index;
     std::pair<std::string, std::string> tmpOutput = Util::createTmpFileNames(outfile, outfileIndex, MMseqsMPI::rank);

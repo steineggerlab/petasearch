@@ -128,7 +128,7 @@ public:
 
     // run SSE2 parallelized Smith-Waterman alignment calculation and traceback
     result_t getSWResult(Sequence* dbSeq, const int diagonal, bool isReverse, const int covMode, const float covThr, const double evalThr,
-                         unsigned int alignmentMode, unsigned int seqIdMode, bool isIdentical);
+                         unsigned int alignmentMode, unsigned int seqIdMode, bool isIdentical, bool wrappedScoring=false);
 
     // need for sorting the results
     static bool compareHits (const result_t &first, const result_t &second){
@@ -151,9 +151,19 @@ public:
             return false;
         return false;
     }
+    static bool compareHitByPos(const result_t &first, const result_t &second){
 
+        int firstQStartPos  = std::min( first.qStartPos, first.qEndPos);
+        int secondQStartPos = std::min( second.qStartPos, second.qEndPos);
+        if(secondQStartPos < firstQStartPos )
+            return false;
+        if(firstQStartPos < secondQStartPos)
+            return true;
+        return false;
+
+    }
     // need for sorting the results
-    static bool compareHitsByPos (const result_t &first, const result_t &second){
+    static bool compareHitsByPosAndStrand (const result_t &first, const result_t &second){
         //return (first.eval < second.eval);
         if(second.dbKey < first.dbKey)
             return false;
@@ -186,7 +196,6 @@ public:
         if(firstDbStart < secondDbStart)
             return true;
         return false;
-
     }
 
     // map new query into memory (create queryProfile, ...)
@@ -214,9 +223,6 @@ private:
     int gapOpen;
     // costs to extend a gap
     int gapExtend;
-
-    // calculate the query queryProfile for SIMD registers processing 8 elements
-    int maxSeqLen;
 
     // holds values of the current active query
     Sequence * currentQuery;

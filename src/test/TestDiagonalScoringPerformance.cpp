@@ -15,11 +15,8 @@
 KSEQ_INIT(int, read)
 
 #include "Clustering.h"
-#include "SetElement.h"
-
 #include "DBReader.h"
 #include "DBWriter.h"
-
 #include "Parameters.h"
 
 const char* binary_name = "test_diagonalscoringperformance";
@@ -27,21 +24,20 @@ const char* binary_name = "test_diagonalscoringperformance";
 int main (int, const char**) {
     size_t kmer_size = 6;
     Parameters& par = Parameters::getInstance();
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(),
-                              8.0, 0.0);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 8.0, 0.0);
     SubstitutionMatrix::print(subMat.subMatrix,subMat.int2aa,subMat.alphabetSize);
 
     std::string S1 = "AYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQFEVVHSLAKWKRQTLGQHDFSAGEGLYTHMKALRPDEDRLSPLHSVYVDQWDWERVMGDGERQFSTLKSTVEAIWAGIKATEAAVSEEFGLAPFLPDQIHFVHSQELLSRYPDLDAKGRERAIAKDLGAVFLVGIGGKLSDGHRHDVRAPDYDDWSTPSELGHAGLNGDILVWNPVLEDAFELSSMGIRVDADTLKHQLALTGDEDRLELEWHQALLRGEMPQTIGGGIGQSRLTMLLLQLPHIGQVQAGVWPAAVRESVPSLL";
     const char* S1char = S1.c_str();
 //    std::cout << S1char << "\n\n";
     Sequence s1(10000,  0, &subMat, kmer_size, true, false);
-    s1.mapSequence(0,0,S1char);
+    s1.mapSequence(0,0,S1char, S1.size());
 
     std::string S2 = "MLKIRYSSAFKKDLKPFQHDKSAISVINTVLKLLATGKPLPREYKEHSLKGDYIGYLECHGKPDLLLIYKRTEQEVFLYRVGSHAKLF";
     const char* S2char = S2.c_str();
 //    std::cout << S2char << "\n\n";
     Sequence s2(10000,  0, &subMat, kmer_size, true, false);
-    s2.mapSequence(0,0,S2char);
+    s2.mapSequence(0,0,S2char, S2.size());
 
     FILE *fasta_file = FileUtil::openFileOrDie("/Users/mad/Documents/databases/mmseqs_benchmark/benchmarks/clustering_benchmark/db/db_full.fas", "r", true);
     kseq_t *seq = kseq_init(fileno(fasta_file));
@@ -61,7 +57,7 @@ int main (int, const char**) {
         fasta_file = FileUtil::openFileOrDie("/Users/mad/Documents/databases/mmseqs_benchmark/benchmarks/clustering_benchmark/db/db_full.fas", "r", true);
         kseq_rewind(seq);
         while (kseq_read(seq) >= 0) {
-            dbSeq.mapSequence(id,id,seq->seq.s);
+            dbSeq.mapSequence(id,id,seq->seq.s, seq->seq.l);
             maxLen = std::max(seq->seq.l, maxLen);
 //        if(id == 202423){
 //            std::cout << seq->seq.s << std::endl;

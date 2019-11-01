@@ -12,7 +12,7 @@
 
 int createseqfiledb(int argc, const char **argv, const Command& command) {
     Parameters& par = Parameters::getInstance();
-    par.parseParameters(argc, argv, command, 3);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     DBReader<unsigned int> clusters(par.db2.c_str(), par.db2Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     clusters.open(DBReader<unsigned int>::LINEAR_ACCCESS);
@@ -28,7 +28,6 @@ int createseqfiledb(int argc, const char **argv, const Command& command) {
     DBWriter msaOut(par.db3.c_str(), par.db3Index.c_str(), static_cast<unsigned int>(par.threads), par.compressed, Parameters::DBTYPE_GENERIC_DB);
     msaOut.open();
 
-    unsigned int* dataLengths = clusters.getSeqLens();
     const size_t numClusters = clusters.getSize();
 #pragma omp parallel
     {
@@ -41,7 +40,7 @@ int createseqfiledb(int argc, const char **argv, const Command& command) {
             std::ostringstream fastaStream;
             char* data = clusters.getData(i, thread_idx);
 
-            size_t entries = Util::countLines(data, dataLengths[i] - 1);
+            size_t entries = Util::countLines(data, clusters.getEntryLen(i) - 1);
             if (entries < (unsigned int) par.minSequences || entries > (unsigned int) par.maxSequences) {
                 continue;
             }

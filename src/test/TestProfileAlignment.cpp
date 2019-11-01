@@ -24,7 +24,7 @@ int main (int, const char**) {
     const size_t kmer_size=6;
 
     Parameters& par = Parameters::getInstance();
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0, 0);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0, 0);
     std::cout << "Subustitution matrix:";
     SubstitutionMatrix::print(subMat.subMatrix,subMat.int2aa,subMat.alphabetSize);
     //   BaseMatrix::print(subMat.subMatrix, subMat.alphabetSize);
@@ -780,13 +780,13 @@ int main (int, const char**) {
     //const char* sequence = profile.c_str();
 //    std::cout << sequence << "";
     Sequence* s = new Sequence(10000, Parameters::DBTYPE_HMM_PROFILE, &subMat, kmer_size, true, true);
-    s->mapSequence(0,0,data);
+    s->mapSequence(0,0,data, strlen(data));
     s->printProfile();
     Sequence* dbSeq = new Sequence(10000, Parameters::DBTYPE_AMINO_ACIDS, &subMat, kmer_size, true, true);
     //dbSeq->mapSequence(1,"lala2",ref_seq);
     const char* sequence2 = "LFILNIISMNKQTKVKGYLLLLLVISSLFISLVGHGYTANKVSAPNPAKEYPQDNLSVIDMKNLPGTQIKSMVKDELQQFLEEQGFRRLKNKSLVDLRRIWLGFMYEDFFYTMHKKTDLPISVIYAFFIIEATNAGIESKLMAKALNPGGIKYRGTGKKMKAMDDCY";
 
-    dbSeq->mapSequence(1,1,sequence2);
+    dbSeq->mapSequence(1,1,sequence2, strlen(sequence2));
     SmithWaterman aligner(15000, subMat.alphabetSize, false);
     int8_t * tinySubMat = new int8_t[subMat.alphabetSize*subMat.alphabetSize];
 

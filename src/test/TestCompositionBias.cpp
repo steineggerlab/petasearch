@@ -51,13 +51,13 @@ int main (int, const char**) {
     const size_t kmer_size = 6;
 
     Parameters& par = Parameters::getInstance();
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 8.0, 0);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 8.0, 0);
     std::cout << "Substitution matrix:";
     SubstitutionMatrix::print(subMat.subMatrix, subMat.int2aa, subMat.alphabetSize);
 
     const char *ref = "MDDVKIERLKRLNEDVLEDLIEVYMRGYEGLEEYGGEGRDYARDYIKWCWKKAPDGFFVAKVGDRIVGFIVCDRDWYSRYEGKIVGAIHEFVVDKGWQGKGIGKKLLTKCLEFLGKYNDTIELWVGEKNFGAMRLYEKFGFKKVGKSGIWIRMVRRQLS";
     Sequence refSeq(10000, 0, &subMat, kmer_size, false, true);
-    refSeq.mapSequence(0, 0, ref);
+    refSeq.mapSequence(0, 0, ref, strlen(ref));
 
 
     calcLocalAaBiasCorrection(&refSeq, &subMat);

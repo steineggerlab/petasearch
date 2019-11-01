@@ -20,7 +20,7 @@ int main (int, const char**) {
 
     const size_t kmer_size=6;
 
-    SubstitutionMatrix subMat(par.scoringMatrixFile.c_str(), 2.0, 0);
+    SubstitutionMatrix subMat(par.scoringMatrixFile.aminoacids, 2.0, 0);
     std::cout << "Subustitution matrix:\n";
     SubstitutionMatrix::print(subMat.subMatrix,subMat.int2aa,subMat.alphabetSize);
     //   BaseMatrix::print(subMat.subMatrix, subMat.alphabetSize);
@@ -35,27 +35,27 @@ int main (int, const char**) {
     const char* S1char = S1.c_str();
     std::cout << S1char << "\n\n";
     Sequence s1(10000, 0, &subMat, kmer_size, true, true);
-    s1.mapSequence(0,0,S1char);
+    s1.mapSequence(0,0,S1char, S1.size());
     std::string S2 = "PQFSLWKRPVVTAYIEGQPVEVLLDTGADDSIVAGIELGNNIVGGIGGFINTLEYKNVEIEVLNKKVRATIMTGDTPINIFGRNILTALGMSLNL";
     const char* S2char = S2.c_str();
     std::cout << S2char << "\n\n";
     Sequence s2(10000,  0, &subMat, kmer_size, true, true);
-    s2.mapSequence(1,1,S2char);
+    s2.mapSequence(1,1,S2char, S2.size());
     std::string S3 = "PQFHLWKRPVVTAGQPVEVLLDTGADDSIVTGIELGPHYTPKIVGGIGGFINTKEYKNVEVEVLGKRIKGTIMTGDTPINIFGRNLLTALGMSLNF";
     const char* S3char = S3.c_str();
     std::cout << S3char << "\n\n";
     Sequence s3(10000,  0, &subMat, kmer_size, true, true);
-    s3.mapSequence(2,2, S3char);
+    s3.mapSequence(2,2, S3char, S3.size());
     std::string S4 = "LAMTMEHKDRPLVRVILTNTGSHPVKQRSVYITALLDTGADDTVISEEDWPTDWPVMEAANPQIHGIGGGIPVRKSRDMIELGVINRDGSLERPLLLFPLVAMTPVNILGRDCLQGLGLRLTNL";
     const char* S4char = S4.c_str();
     std::cout << S4char << "\n\n";
     Sequence s4(10000,  0, &subMat, kmer_size, true, true);
-    s4.mapSequence(3,3, S4char);
+    s4.mapSequence(3,3, S4char, S4.size());
     std::string S5 = "PQFSLWKRPVVTAYIEGQPVEVLLDTGADDSIVAGIELGNNYSPKIVGGIGGFINTLEYKNVEIEVLNKKVRATIMTGDTPINIFGRNILTALGMSLNL";
     const char* S5char = S5.c_str();
     std::cout << S5char << "\n\n";
     Sequence s5(10000,  0, &subMat, kmer_size, true, true);
-    s5.mapSequence(4,4, S5char);
+    s5.mapSequence(4,4, S5char, S5.size());
 
     std::vector<Sequence *> seqSet;
     seqSet.push_back(&s2);

@@ -11,15 +11,23 @@
 
 void setEasyClusterDefaults(Parameters *p) {
     p->spacedKmer = true;
+    p->removeTmpFiles = true;
     p->covThr = 0.8;
     p->evalThr = 0.001;
     p->alignmentMode = Parameters::ALIGNMENT_MODE_SCORE_COV_SEQID;
     p->maxResListLen = 20;
 }
+void setEasyClusterMustPassAlong(Parameters *p) {
+    p->PARAM_SPACED_KMER_MODE.wasSet = true;
+    p->PARAM_REMOVE_TMP_FILES.wasSet = true;
+    p->PARAM_C.wasSet = true;
+    p->PARAM_E.wasSet = true;
+    p->PARAM_ALIGNMENT_MODE.wasSet = true;
+    p->PARAM_MAX_SEQS.wasSet = true;
+}
 
 int easycluster(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
-    setEasyClusterDefaults(&par);
     par.overrideParameterDescription((Command &)command, par.PARAM_ADD_BACKTRACE.uniqid, NULL, NULL, par.PARAM_ADD_BACKTRACE.category | MMseqsParameter::COMMAND_EXPERT);
     par.overrideParameterDescription((Command &)command, par.PARAM_ALT_ALIGNMENT.uniqid, NULL, NULL, par.PARAM_ALT_ALIGNMENT.category | MMseqsParameter::COMMAND_EXPERT);
     par.overrideParameterDescription((Command &)command, par.PARAM_RESCORE_MODE.uniqid, NULL, NULL, par.PARAM_RESCORE_MODE.category | MMseqsParameter::COMMAND_EXPERT);
@@ -35,34 +43,23 @@ int easycluster(int argc, const char **argv, const Command &command) {
                                      par.PARAM_THREADS.category & ~MMseqsParameter::COMMAND_EXPERT);
     par.overrideParameterDescription((Command &) command, par.PARAM_V.uniqid, NULL, NULL,
                                      par.PARAM_V.category & ~MMseqsParameter::COMMAND_EXPERT);
-    par.parseParameters(argc, argv, command, 3);
 
-    if (FileUtil::directoryExists(par.db3.c_str()) == false) {
-        Debug(Debug::INFO) << "Tmp " << par.db4 << " folder does not exist or is not a directory.\n";
-        if (FileUtil::makeDir(par.db3.c_str()) == false) {
-            Debug(Debug::ERROR) << "Can not create tmp folder " << par.db3 << ".\n";
-            EXIT(EXIT_FAILURE);
-        } else {
-            Debug(Debug::INFO) << "Created dir " << par.db3 << "\n";
-        }
-    }
+    setEasyClusterDefaults(&par);
+    par.parseParameters(argc, argv, command, true, Parameters::PARSE_VARIADIC, 0);
+    setEasyClusterMustPassAlong(&par);
 
+    std::string tmpDir = par.filenames.back();
     std::string hash = SSTR(par.hashParameter(par.filenames, *command.params));
-    if(par.reuseLatest){
-        hash = FileUtil::getHashFromSymLink(par.db3+"/latest");
+    if (par.reuseLatest) {
+        hash = FileUtil::getHashFromSymLink(tmpDir + "/latest");
     }
-    std::string tmpDir = par.db3+"/"+hash;
-    if (FileUtil::directoryExists(tmpDir.c_str()) == false) {
-        if (FileUtil::makeDir(tmpDir.c_str()) == false) {
-            Debug(Debug::ERROR) << "Can not create sub tmp folder " << tmpDir << ".\n";
-            EXIT(EXIT_FAILURE);
-        }
-    }
+    tmpDir = FileUtil::createTemporaryDirectory(tmpDir, hash);
     par.filenames.pop_back();
-    par.filenames.push_back(tmpDir);
-    FileUtil::symlinkAlias(tmpDir, "latest");
 
     CommandCaller cmd;
+    cmd.addVariable("TMP_PATH", tmpDir.c_str());
+    cmd.addVariable("RESULTS", par.filenames.back().c_str());
+    par.filenames.pop_back();
     cmd.addVariable("REMOVE_TMP", par.removeTmpFiles ? "TRUE" : NULL);
 
     cmd.addVariable("RUNNER", par.runner.c_str());

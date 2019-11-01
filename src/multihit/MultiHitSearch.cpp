@@ -7,15 +7,22 @@
 #include "multihitsearch.sh.h"
 
 void setMultiHitSearchWorkflowDefaults(Parameters *p) {
-    p->sensitivity = 7;
-    p->covThr = 0.7;
+    p->sensitivity = 5.7;
+    // TODO: Check query cov maybe?
+    // p->covThr = 0.7;
     p->evalThr = 100;
 
     // TODO: Needs to be more than the count of target sets (10x?)
     p->maxSequences = 1500;
-    p->scoreBias = 0.3;
 
-    p->simpleBestHit = false;
+    // TODO: Why??
+    //p->scoreBias = 0.3;
+    
+    p->simpleBestHit = true;
+    // TODO: add a minimum alignment length cutoff, 4 residue alignments dont seem useful
+
+    // Set alignment mode
+    p->alignmentMode = Parameters::ALIGNMENT_MODE_SCORE_COV; 
 }
 
 int multihitsearch(int argc, const char **argv, const Command &command) {
@@ -43,7 +50,7 @@ int multihitsearch(int argc, const char **argv, const Command &command) {
     par.overrideParameterDescription((Command &) command, par.PARAM_V.uniqid, NULL, NULL,
                                      par.PARAM_V.category & ~MMseqsParameter::COMMAND_EXPERT);
 
-    par.parseParameters(argc, argv, command, 4, true);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     if (FileUtil::directoryExists(par.db4.c_str()) == false) {
         Debug(Debug::INFO) << "Tmp " << par.db4 << " folder does not exist or is not a directory.\n";

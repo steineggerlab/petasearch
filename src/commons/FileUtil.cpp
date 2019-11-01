@@ -1,10 +1,13 @@
 #include "FileUtil.h"
 #include "Util.h"
 #include "Debug.h"
-#include "MemoryMapped.h"
+
+#include <cstddef>
+#include <cstring>
+#include <climits>
+#include <algorithm>
 #include <sys/stat.h>
 #include <stdio.h>
-#include <fstream>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/statvfs.h>
@@ -183,6 +186,9 @@ void FileUtil::symlinkAlias(const std::string &file, const std::string &alias) {
 }
 
 void FileUtil::symlinkAbs(const std::string &target, const std::string &link) {
+    if(FileUtil::fileExists(link.c_str())){
+        FileUtil::remove(link.c_str());
+    }
     char *t = realpath(target.c_str(), NULL);
     if (t == NULL) {
         Debug(Debug::ERROR) << "Could not get realpath of " << target << "!\n";
@@ -293,7 +299,7 @@ std::vector<std::string> FileUtil::findDatafiles(const char * datafiles){
 
 void FileUtil::remove(const char * file ) {
     if (std::remove(file) != 0){
-        Debug(Debug::ERROR) << "Could delete " << file << "!\n";
+        Debug(Debug::ERROR) << "Could not delete " << file << "!\n";
         EXIT(EXIT_FAILURE);
     }
 }
@@ -328,3 +334,51 @@ void FileUtil::move(const char * src, const char * dst) {
     }
 }
 
+int FileUtil::parseDbType(const char *name) {
+    std::string dbTypeFile = std::string(name) + ".dbtype";
+    if (FileUtil::fileExists(dbTypeFile.c_str()) == false) {
+        return Parameters::DBTYPE_GENERIC_DB;
+    }
+
+    size_t fileSize = FileUtil::getFileSize(dbTypeFile);
+    if (fileSize != sizeof(int)) {
+        Debug(Debug::ERROR) << "File size of " << dbTypeFile << " seems to be wrong!\n";
+        Debug(Debug::ERROR) << "It should have 4 bytes but it has " <<  fileSize << " bytes.";
+        EXIT(EXIT_FAILURE);
+    }
+    FILE *file = fopen(dbTypeFile.c_str(), "r");
+    if (file == NULL) {
+        Debug(Debug::ERROR) << "Could not open data file " << dbTypeFile << "!\n";
+        EXIT(EXIT_FAILURE);
+    }
+    int dbtype;
+    size_t result = fread(&dbtype, 1, fileSize, file);
+    if (result != fileSize) {
+        Debug(Debug::ERROR) << "Could not read " << dbTypeFile << "!\n";
+        EXIT(EXIT_FAILURE);
+    }
+    fclose(file);
+    return dbtype;
+}
+
+std::string FileUtil::createTemporaryDirectory(const std::string& basePath, const std::string& subDirectory) {
+    std::string tmpDir(basePath);
+    if (FileUtil::directoryExists(tmpDir.c_str()) == false) {
+        Debug(Debug::INFO) << "Path " << tmpDir << " does not exist or is not a directory.\n";
+        if (FileUtil::makeDir(tmpDir.c_str()) == false) {
+            Debug(Debug::ERROR) << "Cannot create temporary folder " << tmpDir << ".\n";
+            EXIT(EXIT_FAILURE);
+        } else {
+            Debug(Debug::INFO) << "Created directory " << tmpDir << "\n";
+        }
+    }
+    tmpDir += "/" + subDirectory;
+    if (FileUtil::directoryExists(tmpDir.c_str()) == false) {
+        if (FileUtil::makeDir(tmpDir.c_str()) == false) {
+            Debug(Debug::ERROR) << "Cannot create temporary subfolder " << tmpDir << ".\n";
+            EXIT(EXIT_FAILURE);
+        }
+    }
+    FileUtil::symlinkAlias(tmpDir, "latest");
+    return tmpDir;
+}
