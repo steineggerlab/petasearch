@@ -43,7 +43,8 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     LocalParameters& par = LocalParameters::getLocalInstance();
     par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
-    par.parseParameters(argc, argv, command, 2, true);
+    //TODO check if correct
+    par.parseParameters(argc, argv, command, true, 0, 0);
     Timer timer;
     Debug(Debug::INFO)<<"Preparing input database\n";
 
@@ -53,9 +54,9 @@ int createkmertable(int argc, const char ** argv, const Command& command){
     BaseMatrix * subMat;
     int seqType = reader.getDbtype();
     if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.scoringMatrixFile.c_str(), 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
     } else {
-        subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
+        subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
     }
     Debug(Debug::INFO)<<"input prepared, Time spent: " << timer.lap() << "\n";
     int result = EXIT_FAILURE;
@@ -103,7 +104,8 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
         for (size_t i = 0; i < reader->getSize(); ++i) {
             progress.updateProgress();
             char *data = reader->getData(i, thread_idx);
-            s.mapSequence(i, 0, data);
+            unsigned int seqLen = reader->getSeqLen(i);
+            s.mapSequence(i, 0, data, seqLen);
             short kmerPosInSequence = 0;
             const int xIndex = s.subMat->aa2int[(int) 'X'];
             while (s.hasNextKmer()) {
@@ -115,7 +117,7 @@ int createTargetTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatr
                  
                 localBuffer[localTableIndex].sequenceID = i;
                 localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
-                localBuffer[localTableIndex].sequenceLength = reader->getSeqLens(i) - 2;
+                localBuffer[localTableIndex].sequenceLength = reader->getSeqLen(i);
                 ++localTableIndex;
                 if(localTableIndex>=BUFFERSIZE){
                     size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
@@ -176,7 +178,8 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
         for (size_t i = 0; i < reader->getSize(); ++i) {
             progress.updateProgress();
             char *data = reader->getData(i, thread_idx);
-            s.mapSequence(i, 0, data);
+            unsigned int seqLen = reader->getSeqLen(i);
+            s.mapSequence(i, 0, data, seqLen);
             short kmerPosInSequence = 0;
             // bool hadKmer = false;
             while (s.hasNextKmer()) {
@@ -221,7 +224,7 @@ int createQueryTable(Parameters& par, DBReader<unsigned int> *reader,  BaseMatri
 size_t countKmer(DBReader<unsigned int> *reader, Parameters & par){
     size_t kmerCount = 0;
     for (size_t i = 0; i < reader->getSize(); i++) {
-        size_t currentSequenceLength = reader->getSeqLens(i) - 2;
+        size_t currentSequenceLength = reader->getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
         kmerCount += currentSequenceLength >= (unsigned int )par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
     }

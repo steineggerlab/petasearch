@@ -25,8 +25,7 @@ int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second)
 int computeAlignments(int argc, const char **argv, const Command& command){
     LocalParameters& par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
-    par.parseParameters(argc, argv, command, 3, false);
-    Timer timer;
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     // need query reader in par.db1
     // query target prev_result new_result is the order
@@ -47,9 +46,9 @@ int computeAlignments(int argc, const char **argv, const Command& command){
     BaseMatrix * subMat;
     int seqType = targetSequenceReader.getDbtype();
     if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.scoringMatrixFile.c_str(), 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
     } else {
-        subMat = new SubstitutionMatrix(par.scoringMatrixFile.c_str(), 2.0, 0.0);
+        subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
     }
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
     EvalueComputation evaluer(targetSequenceReader.getAminoAcidDBSize(), subMat);
@@ -86,7 +85,7 @@ int computeAlignments(int argc, const char **argv, const Command& command){
             size_t sequenceId = targetSequenceReader.getId(currentKey);
             const char *sequence = targetSequenceReader.getData(sequenceId, thread_idx);
             unsigned int targetLen = targetSequenceReader.getSeqLens(sequenceId);
-            currentSequence.mapSequence(sequenceId, currentKey, sequence);
+            currentSequence.mapSequence(sequenceId, currentKey, sequence, targetLen);
             
             // TODO: this might be wasted if no single hit hit the target
             matcher.initQuery(&currentSequence);
@@ -97,8 +96,7 @@ int computeAlignments(int argc, const char **argv, const Command& command){
             // nextSequence.mapSequence(nextTargetID,0,nextData);//TODO ändern: prefetch instruction
 
             QueryTableEntry* blckpntr = (QueryTableEntry*) resultReader.getData(i, thread_idx);
-            // change this after merge to getEntryLength
-            size_t targetBlockCount = resultReader.getSeqLens(i) / sizeof(QueryTableEntry);
+            size_t targetBlockCount = resultReader.getEntryLen(i) / sizeof(QueryTableEntry);
             unsigned int lastQueryId;
             //calculate diags for each query block in the target block
             for (size_t j = 0; j < targetBlockCount;) {
@@ -166,7 +164,7 @@ int computeAlignments(int argc, const char **argv, const Command& command){
                 }
 
                 unsigned int qKey = querySequenceReader.getDbKey(queryBlockstartPos->querySequenceId);
-                querySequence.mapSequence(queryBlockstartPos->querySequenceId, qKey, querySequenceData);
+                querySequence.mapSequence(queryBlockstartPos->querySequenceId, qKey, querySequenceData, queryLen);
 
                 // we have to swap coverage mode etc
                 // replace 0 with actual best diagonal for nucleotide alignments

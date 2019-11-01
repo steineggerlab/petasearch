@@ -19,8 +19,7 @@ QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableE
 int compare2kmertables(int argc, const char **argv, const Command& command){
     LocalParameters& par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
-    par.parseParameters(argc, argv, command, 4, false);
-    Timer timer;
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     FILE* handleQueryKmerTable = fopen(par.db1.c_str(),"rb");
     int fdQueryTable = fileno(handleQueryKmerTable);
