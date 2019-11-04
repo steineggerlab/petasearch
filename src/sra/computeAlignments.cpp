@@ -84,7 +84,7 @@ int computeAlignments(int argc, const char **argv, const Command& command){
             //determine block size of current target sequence
             size_t sequenceId = targetSequenceReader.getId(currentKey);
             const char *sequence = targetSequenceReader.getData(sequenceId, thread_idx);
-            unsigned int targetLen = targetSequenceReader.getSeqLens(sequenceId);
+            unsigned int targetLen = targetSequenceReader.getSeqLen(sequenceId);
             currentSequence.mapSequence(sequenceId, currentKey, sequence, targetLen);
             
             // TODO: this might be wasted if no single hit hit the target
@@ -129,7 +129,7 @@ int computeAlignments(int argc, const char **argv, const Command& command){
 
                 int maxScore = INT_MIN;
                 const char* querySequenceData = querySequenceReader.getData(queryBlockstartPos->querySequenceId, thread_idx);
-                unsigned int queryLen = querySequenceReader.getSeqLens(queryBlockstartPos->querySequenceId);
+                unsigned int queryLen = querySequenceReader.getSeqLen(queryBlockstartPos->querySequenceId);
                 for (QueryTableEntry* k = queryBlockstartPos; k < currentPosInBlck; ++k) {
                     if (k > queryBlockstartPos && k->Result.diag == (k-1)->Result.diag) {
                         k->Result.score = (k-1)->Result.score;

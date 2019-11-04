@@ -314,7 +314,7 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry* entryToWrite, FILE* handle
 }
 
 void writeQueryTable(QueryTableEntry* queryTable, size_t kmerCount, std::string queryID){
-    std::string fileName = "queryTable_"+queryID;
+    std::string fileName = queryID+"_queryTable";
     Debug(Debug::INFO) << "Writing query table to file: " << fileName <<"\n";
     FILE* handleQueryTable = fopen(fileName.c_str(),"wb");
     fwrite(queryTable,sizeof(QueryTableEntry),kmerCount,handleQueryTable);
