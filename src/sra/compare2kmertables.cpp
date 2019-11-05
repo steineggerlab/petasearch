@@ -21,6 +21,7 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, true, 0, 0);
 
+    Debug(Debug::INFO)<<"mapping query and target files \n";
     FILE* handleQueryKmerTable = fopen(par.db1.c_str(),"rb");
     int fdQueryTable = fileno(handleQueryKmerTable);
     struct stat fileStatsQueryTable;
@@ -65,6 +66,7 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     gettimeofday(&startTime, NULL);
     
    
+    Debug(Debug::INFO)<<"start comparing \n";
 
     // cover the rare case that the first (real) target entry is larger than maxshort
 
@@ -75,18 +77,18 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     }
     currentKmer+= *currentTargetPos; 
 
-    while(__builtin_expect(currentTargetPos < endTargetPos,1)){
+    while(__builtin_expect(currentTargetPos < endTargetPos,1) && currentQueryPos< endQueryPos){
         if(currentKmer == currentQueryPos->Query.kmer){
             ++equalKmers;
             currentQueryPos->targetSequenceID = *currentIDPos;
             ++currentQueryPos;
-            while(currentQueryPos->Query.kmer == currentKmer && __builtin_expect(currentQueryPos<endQueryPos,1)){
+            while(__builtin_expect(currentQueryPos<endQueryPos,1) && currentQueryPos->Query.kmer == currentKmer){
                 currentQueryPos->targetSequenceID = *currentIDPos;
                 ++currentQueryPos;
             }
             ++currentTargetPos;
             ++currentIDPos;
-            while(__builtin_expect(*currentTargetPos == maxshort,0)){
+            while(__builtin_expect(*currentTargetPos == maxshort && currentTargetPos < endTargetPos,0)){
                 currentKmer+= maxshort;
                 ++currentTargetPos;
                 ++currentIDPos;
@@ -101,7 +103,7 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
          while(currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos){
             ++currentTargetPos;
             ++currentIDPos;
-            while(__builtin_expect(*currentTargetPos == maxshort,0)){
+            while(__builtin_expect(*currentTargetPos == maxshort && currentTargetPos < endTargetPos,0)){
                 currentKmer+= maxshort;
                 ++currentTargetPos;
                 ++currentIDPos;
