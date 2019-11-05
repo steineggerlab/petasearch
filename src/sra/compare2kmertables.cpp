@@ -14,7 +14,7 @@ QueryTableEntry *removeNotHittedSequences(QueryTableEntry * startPos, QueryTable
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 void writeResultTable(QueryTableEntry* startPos, QueryTableEntry* endPos, Parameters& par );
 int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
-QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable );
+QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters& par );
 
 int compare2kmertables(int argc, const char **argv, const Command& command){
     LocalParameters& par = LocalParameters::getLocalInstance();
@@ -112,42 +112,6 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
          }      
     }
 
-    // while(__builtin_expect(currentTargetPos < endTargetPos,1)){
-    //     if(currentKmer == currentQueryPos->Query.kmer){
-    //         ++equalKmers;
-    //         currentQueryPos->targetSequenceID = *currentIDPos;
-    //         ++currentQueryPos;
-    //         while(currentQueryPos->Query.kmer == currentKmer && __builtin_expect(currentQueryPos<=endQueryPos,1)){
-    //             currentQueryPos->targetSequenceID = *currentIDPos;
-    //             ++currentQueryPos;
-    //         }
-    //         ++currentTargetPos;
-    //         ++currentIDPos;
-    //         while(__builtin_expect( currentTargetPos <= endTargetPos && *currentTargetPos == maxshort,0)){
-    //             currentKmer+= maxshort;
-    //             ++currentTargetPos;
-    //             ++currentIDPos;
-    //         }
-    //         currentKmer+=*currentTargetPos;
-    //     }
-
-    //      while ( currentQueryPos->Query.kmer < currentKmer && __builtin_expect(currentQueryPos<endQueryPos,1) ){
-    //         ++currentQueryPos;
-    //      }
-
-    //      while(currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos){
-    //         ++currentTargetPos;
-    //         ++currentIDPos;
-    //         while(__builtin_expect(currentTargetPos <= endTargetPos && *currentTargetPos == maxshort ,0)){
-    //             currentKmer+= maxshort;
-    //             ++currentTargetPos;
-    //             ++currentIDPos;
-    //         }
-    //         currentKmer+= *currentTargetPos;
-    //      }      
-    // }
-
-
     gettimeofday(&endTime, NULL);
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
     Debug(Debug::INFO) << timediff<<" s; Rate "<<((fileSizeTargetTable+fileSizeQueryTable+fileSizeTargetIDTable)/1e+9)/timediff
@@ -158,22 +122,14 @@ int compare2kmertables(int argc, const char **argv, const Command& command){
     omptl::sort(startPosQueryTable,endQueryPos, resultTableSort);
 
     Debug(Debug::INFO) << "Removing Sequences with less than two hits \n";
-    // QueryTableEntry *truncatedResultEndPos = removeNotHittedSequences(startPosQueryTable,endQueryPos);
     QueryTableEntry* resultTable = (QueryTableEntry*) malloc(fileSizeQueryTable);
 
-    QueryTableEntry *truncatedResultEndPos = removeNotHittedSequences(startPosQueryTable,endQueryPos,resultTable);
+    QueryTableEntry *truncatedResultEndPos = removeNotHittedSequences(startPosQueryTable,endQueryPos,resultTable,par);
 
     Debug(Debug::INFO) << "Sorting Resulttable after target id  \n";
-    // omptl::sort(startPosQueryTable,truncatedResultEndPos,resultTableSort);
     omptl::sort(resultTable,truncatedResultEndPos,truncatedResultTableSort);
-     Debug(Debug::INFO) << "Writing result files \n";
+    Debug(Debug::INFO) << "Writing result files \n";
     writeResultTable(resultTable,truncatedResultEndPos,par);
-    // Debug(Debug::INFO) << "Truncating result table file: Removing " << endQueryPos-truncatedResultEndPos 
-    //     << " kmer-entries \n";
-    // if(ftruncate(fdQueryTable,(truncatedResultEndPos-startPosQueryTable) * sizeof(QueryTableEntry))){
-    //     Debug(Debug::ERROR) << "An error occurred while truncating the file. It should be truncated to the size of "
-    //         << (truncatedResultEndPos-startPosQueryTable) * sizeof(QueryTableEntry) << "bytes.\n";
-    // }
     
 
     munmap(startPosQueryTable, fileSizeQueryTable);
@@ -200,7 +156,7 @@ void writeResultTable(QueryTableEntry* startPos, QueryTableEntry* endPos, Parame
     writer->close();
 }
 
-QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable ){
+QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters& par ){
     QueryTableEntry *currentReadPos = startPos;
     QueryTableEntry *currentWritePos = resultTable;
     while(currentReadPos < endPos){
@@ -210,7 +166,7 @@ QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableE
             count++;
             ++currentReadPos;
         }
-        if(count > 1){
+        if(count >= par.requieredKmerMatches){
             memcpy(currentWritePos,currentReadPos - count,sizeof(QueryTableEntry) * count );
             currentWritePos+=count;
         }

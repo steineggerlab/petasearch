@@ -34,3 +34,4 @@ build/
 cmake-build-*/
 .vscode/
 tmp/
+SCRATCH/

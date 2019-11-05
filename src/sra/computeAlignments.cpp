@@ -12,8 +12,6 @@
 
 #include "omptl/omptl_algorithm"
 
-#include <sys/stat.h>
-#include <sys/mman.h>
 
 #ifdef OPENMP
 #include <omp.h>
@@ -135,7 +133,7 @@ int computeAlignments(int argc, const char **argv, const Command& command){
                         k->Result.score = (k-1)->Result.score;
                         continue;
                     }
-
+                    
                     DistanceCalculator::LocalAlignment aln = 
                         DistanceCalculator::computeUngappedAlignment(
                             // TODO check order of Q and T
