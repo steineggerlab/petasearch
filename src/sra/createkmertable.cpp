@@ -229,8 +229,8 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
         }
         delete[] localBuffer;
     }
-
-    Debug(Debug::INFO) << "kmers: " << tableIndex << " time: " << timer.lap() << "\n";
+    
+    Debug(Debug::INFO) << "\nkmers: " << tableIndex << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
 
     omptl::sort(queryTable, queryTable + tableIndex, queryTableSort);
@@ -309,8 +309,10 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     TargetTableEntry *posInTable = targetTable;
     size_t uniqueKmerCount = 0;
     size_t lastKmer = 0;
+    Debug::Progress progress(kmerCount);
     for (size_t i = 0; i < kmerCount; ++i, ++posInTable)
     {
+        progress.updateProgress();
         if (posInTable->kmerAsLong != entryToWrite->kmerAsLong)
         {
             writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable);

@@ -40,10 +40,10 @@ std::vector<struct Command> commands = {
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
                 "<i:querySequenceDB> <i:targetSequenceDB> <i:prevResultTable> <o:alignmentFile>",
                 CITATION_MMSEQS2,
-                {{"querySequenceDB",  DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
-                        {"targetSequenceDB",  DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
-                        {"prevResultTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb},
-                        {"alignmentFile",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}
+                {{"querySequenceDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                        {"targetSequenceDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                        {"prevResultTable", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb},
+                        {"alignmentFile", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}
                 }
         }
 };

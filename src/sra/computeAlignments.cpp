@@ -128,6 +128,7 @@ int computeAlignments(int argc, const char **argv, const Command &command)
                 }
 
                 // SUPER IMPORTANT DOCUMENT THIS
+                //only compute the alignment if we found at least 2 matches which are close to each other in the sequence --> increases sensitivity
                 if (shortestDiagDistance > 4)
                 {
                     continue;
