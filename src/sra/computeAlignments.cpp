@@ -22,7 +22,7 @@ int computeAlignments(int argc, const char **argv, const Command &command)
 {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
-    par.parseParameters(argc, argv, command, true, 0, 0);
+    par.parseParameters(argc, argv, command, true, 1, 0);
 
     // need query reader in par.db1
     // query target prev_result new_result is the order

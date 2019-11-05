@@ -34,7 +34,7 @@ std::vector<struct Command> commands = {
                         {"targetIDable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
                         {"resultTable",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
         },
-        {"computeAlignments", computeAlignments, &localPar.compare2kmertables, COMMAND_EXPERT,
+        {"computeAlignments", computeAlignments, &localPar.computeAlignments, COMMAND_EXPERT,
                 "",
                 NULL,
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
