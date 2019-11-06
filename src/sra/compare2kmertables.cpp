@@ -8,7 +8,6 @@
 #include "omptl/omptl_algorithm"
 #include "DBWriter.h"
 
-unsigned short maxshort = 65534;
 QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos);
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parameters &par);
@@ -65,10 +64,10 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
     Debug(Debug::INFO) << "start comparing \n";
 
-    // cover the rare case that the first (real) target entry is larger than maxshort
+    // cover the rare case that the first (real) target entry is larger than USHRT_MAX
 
-    while (currentTargetPos <= endTargetPos && *currentTargetPos == maxshort) {
-        currentKmer += maxshort;
+    while (currentTargetPos <= endTargetPos && *currentTargetPos == USHRT_MAX) {
+        currentKmer += USHRT_MAX;
         ++currentTargetPos;
         ++currentIDPos;
     }
@@ -85,8 +84,8 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
             }
             ++currentTargetPos;
             ++currentIDPos;
-            while (__builtin_expect(*currentTargetPos == maxshort && currentTargetPos < endTargetPos, 0)) {
-                currentKmer += maxshort;
+            while (__builtin_expect(*currentTargetPos == USHRT_MAX && currentTargetPos < endTargetPos, 0)) {
+                currentKmer += USHRT_MAX;
                 ++currentTargetPos;
                 ++currentIDPos;
             }
@@ -100,8 +99,8 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         while (currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos) {
             ++currentTargetPos;
             ++currentIDPos;
-            while (__builtin_expect(*currentTargetPos == maxshort && currentTargetPos < endTargetPos, 0)) {
-                currentKmer += maxshort;
+            while (__builtin_expect(*currentTargetPos == USHRT_MAX && currentTargetPos < endTargetPos, 0)) {
+                currentKmer += USHRT_MAX;
                 ++currentTargetPos;
                 ++currentIDPos;
             }
@@ -200,13 +199,13 @@ int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second)
 }
 
 int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
-    if (first.targetSequenceID < second.targetSequenceID){
+    if (first.targetSequenceID < second.targetSequenceID) {
         return true;
     }
     if (second.targetSequenceID < first.targetSequenceID) {
         return false;
     }
-    if (first.querySequenceId < second.querySequenceId){
+    if (first.querySequenceId < second.querySequenceId) {
         return true;
     }
     if (second.querySequenceId < first.querySequenceId) {

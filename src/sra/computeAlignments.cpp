@@ -23,7 +23,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, true, 1, 0);
 
-    // need query reader in par.db1
     // query target prev_result new_result is the order
 
     DBReader<unsigned int> querySequenceReader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);

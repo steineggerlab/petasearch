@@ -18,10 +18,9 @@
 #include <omp.h>
 #endif
 
-#define KMER_SIZE 9
-#define SPACED_KMER true
+
+
 #define BUFFERSIZE Util::getPageSize()
-long kmer2long(const int *index, size_t kmerSize, long **aminoAcidValueAtPosition);
 void writeQueryTable(QueryTableEntry *queryTable, size_t kmerCount, std::string queryID);
 void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::string blockID);
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
@@ -32,11 +31,12 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
 int createTargetTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix *subMat);
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable);
 
+size_t  diffLargerThenUShortMax = 0;
+size_t entryDiffLargerUShortMax =0;
+
 int createkmertable(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
-    par.kmerSize = KMER_SIZE;
     par.spacedKmer = false;
-    //TODO check if correct
     par.parseParameters(argc, argv, command, true, 0, 0);
     Timer timer;
     Debug(Debug::INFO) << "Preparing input database\n";
@@ -128,7 +128,7 @@ int createTargetTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatri
         delete[] localBuffer;
     }
 
-    Debug(Debug::INFO) << "kmers: " << tableIndex << " time: " << timer.lap() << "\n";
+    Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
     omptl::sort(targetTable, targetTable + tableIndex, targetTableSort);
     Debug(Debug::INFO) << timer.lap() << "\n";
@@ -143,7 +143,7 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
     size_t kmerCount = countKmer(reader, par);
     QueryTableEntry *queryTable = NULL;
     Debug(Debug::INFO) << "Number of sequences: " << reader->getSize() << "\n"
-                       << "Number of all overall kmers: " << kmerCount << "\n"
+                       << "Number of all overall k-mers: " << kmerCount << "\n"
                        << "Creating QueryTable. Requiring " << ((kmerCount + 1) * sizeof(QueryTableEntry)) / 1024 / 1024 << " MB of memory for it\n";
     size_t page_size = Util::getPageSize();
     queryTable = (QueryTableEntry *)mem_align(page_size, (kmerCount + 1) * sizeof(QueryTableEntry));
@@ -307,14 +307,20 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     fclose(handleKmerTable);
     fclose(handleIDTable);
     Debug(Debug::INFO) << "Wrote " << uniqueKmerCount << " unique k-mers.\n";
-    Debug(Debug::INFO) << uniqueKmerCount <<"\n";
+    Debug(Debug::INFO) << "For "<< entryDiffLargerUShortMax  << " entries the difference between the previous were larger than maxshort.\n";
+    Debug(Debug::INFO) << "Created " << diffLargerThenUShortMax << " extra unsigned short max entries to store the diff.\n";
 }
 
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable) {
     size_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
-    // unsigned short maxshort = 65534; //2^16 -2
+    bool first = true;
     unsigned short maxshort = USHRT_MAX;
-    while (kmerdiff > maxshort) {          
+    while (kmerdiff > maxshort) {
+        if(first) {
+            ++entryDiffLargerUShortMax;
+            first = false;
+        }
+        ++diffLargerThenUShortMax;
         fwrite(&(maxshort), sizeof(unsigned short), 1, handleKmerTable);
         fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
         kmerdiff -= maxshort;
