@@ -18,8 +18,7 @@
 
 int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second);
 
-int computeAlignments(int argc, const char **argv, const Command &command)
-{
+int computeAlignments(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, true, 1, 0);
@@ -41,12 +40,10 @@ int computeAlignments(int argc, const char **argv, const Command &command)
 
     BaseMatrix *subMat;
     int seqType = targetSequenceReader.getDbtype();
-    if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES))
-    {
+    if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
         subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
     }
-    else
-    {
+    else {
         subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
     }
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
@@ -75,8 +72,7 @@ int computeAlignments(int argc, const char **argv, const Command &command)
         data.reserve(1000);
 
 #pragma omp for schedule(dynamic, 10)
-        for (size_t i = 0; i < resultReader.getSize(); ++i)
-        {
+        for (size_t i = 0; i < resultReader.getSize(); ++i) {
             progress.updateProgress();
 
             unsigned int currentKey = resultReader.getDbKey(i);
@@ -99,19 +95,15 @@ int computeAlignments(int argc, const char **argv, const Command &command)
             size_t targetBlockCount = resultReader.getEntryLen(i) / sizeof(QueryTableEntry);
             unsigned int lastQueryId;
             //calculate diags for each query block in the target block
-            for (size_t j = 0; j < targetBlockCount;)
-            {
+            for (size_t j = 0; j < targetBlockCount;) {
                 QueryTableEntry *queryBlockstartPos = blckpntr + j;
                 QueryTableEntry *currentPosInBlck = queryBlockstartPos;
-                do
-                {
+                do {
                     lastQueryId = currentPosInBlck->querySequenceId;
                     int kmerPosInSequence = 0;
-                    while (currentSequence.hasNextKmer())
-                    {
+                    while (currentSequence.hasNextKmer()) {
                         const int *kmer = currentSequence.nextKmer();
-                        if (currentPosInBlck->Query.kmer == idx.int2index(kmer, 0, par.kmerSize))
-                        { //TODO test performance (cache invalidations)
+                        if (currentPosInBlck->Query.kmer == idx.int2index(kmer, 0, par.kmerSize)) { //TODO test performance (cache invalidations)
                             currentPosInBlck->Result.diag = currentPosInBlck->Query.kmerPosInQuery - kmerPosInSequence;
                             break;
                         }
@@ -122,25 +114,21 @@ int computeAlignments(int argc, const char **argv, const Command &command)
                 } while (j < targetBlockCount && lastQueryId == currentPosInBlck->querySequenceId);
                 std::sort(queryBlockstartPos, currentPosInBlck - 1, blockByDiagSort);
                 unsigned int shortestDiagDistance = UINT_MAX;
-                for (QueryTableEntry *k = queryBlockstartPos + 1; k < currentPosInBlck && shortestDiagDistance > 4; ++k)
-                {
+                for (QueryTableEntry *k = queryBlockstartPos + 1; k < currentPosInBlck && shortestDiagDistance > 4; ++k) {
                     shortestDiagDistance = std::min(shortestDiagDistance, k->Result.diag - (k - 1)->Result.diag);
                 }
 
                 // SUPER IMPORTANT DOCUMENT THIS
                 //only compute the alignment if we found at least 2 matches which are close to each other in the sequence --> increases sensitivity
-                if (shortestDiagDistance > 4)
-                {
+                if (shortestDiagDistance > 4) {
                     continue;
                 }
 
                 int maxScore = INT_MIN;
                 const char *querySequenceData = querySequenceReader.getData(queryBlockstartPos->querySequenceId, thread_idx);
                 unsigned int queryLen = querySequenceReader.getSeqLen(queryBlockstartPos->querySequenceId);
-                for (QueryTableEntry *k = queryBlockstartPos; k < currentPosInBlck; ++k)
-                {
-                    if (k > queryBlockstartPos && k->Result.diag == (k - 1)->Result.diag)
-                    {
+                for (QueryTableEntry *k = queryBlockstartPos; k < currentPosInBlck; ++k) {
+                    if (k > queryBlockstartPos && k->Result.diag == (k - 1)->Result.diag) {
                         k->Result.score = (k - 1)->Result.score;
                         continue;
                     }
@@ -157,8 +145,7 @@ int computeAlignments(int argc, const char **argv, const Command &command)
                     // different than wiki, explain swap afterwards
                     double eval = evaluer.computeEvalue(aln.score, queryLen);
                     // this is bad for nucleotide petasearch, we need to know the best diagonal
-                    if (eval <= par.evalThr)
-                    {
+                    if (eval <= par.evalThr) {
                         maxScore = aln.score;
                         break;
                     }
@@ -167,8 +154,7 @@ int computeAlignments(int argc, const char **argv, const Command &command)
                     // }
                 }
 
-                if (maxScore == INT_MIN)
-                {
+                if (maxScore == INT_MIN) {
                     writer.writeData("", 0, currentKey, thread_idx);
                     continue;
                 }
@@ -182,8 +168,7 @@ int computeAlignments(int argc, const char **argv, const Command &command)
                 results.emplace_back(res);
             }
             std::sort(results.begin(), results.end(), Matcher::compareHits);
-            for (size_t j = 0; j < results.size(); ++j)
-            {
+            for (size_t j = 0; j < results.size(); ++j) {
                 size_t len = Matcher::resultToBuffer(buffer, results[j], false, false);
                 data.append(buffer, len);
             }
@@ -203,11 +188,12 @@ int computeAlignments(int argc, const char **argv, const Command &command)
     return EXIT_SUCCESS;
 }
 
-int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second)
-{
-    if (first.Result.diag < second.Result.diag)
+int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second) {
+    if (first.Result.diag < second.Result.diag){
         return true;
-    if (second.Result.diag < first.Result.diag)
+    }
+    if (second.Result.diag < first.Result.diag){
         return false;
+    }
     return false;
 }

@@ -15,8 +15,7 @@ void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parame
 int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par);
 
-int compare2kmertables(int argc, const char **argv, const Command &command)
-{
+int compare2kmertables(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, true, 0, 0);
@@ -43,16 +42,13 @@ int compare2kmertables(int argc, const char **argv, const Command &command)
     QueryTableEntry *startPosQueryTable = (QueryTableEntry *)mmap(NULL, fileSizeQueryTable, PROT_READ | PROT_WRITE, MAP_PRIVATE, fdQueryTable, 0);
     unsigned short *startPosTargetTable = (unsigned short *)mmap(NULL, fileSizeTargetTable, PROT_READ, MAP_PRIVATE, fdTargetTable, 0);
     unsigned int *startPosIDTable = (unsigned int *)mmap(NULL, fileSizeTargetIDTable, PROT_READ, MAP_PRIVATE, fdTargetIDTable, 0);
-    if (posix_madvise(startPosQueryTable, fileSizeQueryTable, POSIX_MADV_SEQUENTIAL | POSIX_MADV_WILLNEED) != 0)
-    {
+    if (posix_madvise(startPosQueryTable, fileSizeQueryTable, POSIX_MADV_SEQUENTIAL | POSIX_MADV_WILLNEED) != 0) {
         Debug(Debug::ERROR) << "posix_madvise returned an error for the query k-mer table\n";
     }
-    if (posix_madvise(startPosTargetTable, fileSizeTargetTable, POSIX_MADV_SEQUENTIAL | POSIX_MADV_WILLNEED) != 0)
-    {
+    if (posix_madvise(startPosTargetTable, fileSizeTargetTable, POSIX_MADV_SEQUENTIAL | POSIX_MADV_WILLNEED) != 0) {
         Debug(Debug::ERROR) << "posix_madvise returned an error for the target k-mer table\n";
     }
-    if (posix_madvise(startPosIDTable, fileSizeTargetIDTable, POSIX_MADV_SEQUENTIAL | POSIX_MADV_WILLNEED) != 0)
-    {
+    if (posix_madvise(startPosIDTable, fileSizeTargetIDTable, POSIX_MADV_SEQUENTIAL | POSIX_MADV_WILLNEED) != 0) {
         Debug(Debug::ERROR) << "posix_madvise returned an error for the target id table\n";
     }
 
@@ -71,30 +67,25 @@ int compare2kmertables(int argc, const char **argv, const Command &command)
 
     // cover the rare case that the first (real) target entry is larger than maxshort
 
-    while (currentTargetPos <= endTargetPos && *currentTargetPos == maxshort)
-    {
+    while (currentTargetPos <= endTargetPos && *currentTargetPos == maxshort) {
         currentKmer += maxshort;
         ++currentTargetPos;
         ++currentIDPos;
     }
     currentKmer += *currentTargetPos;
 
-    while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos)
-    {
-        if (currentKmer == currentQueryPos->Query.kmer)
-        {
+    while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
+        if (currentKmer == currentQueryPos->Query.kmer) {
             ++equalKmers;
             currentQueryPos->targetSequenceID = *currentIDPos;
             ++currentQueryPos;
-            while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer == currentKmer)
-            {
+            while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer == currentKmer){
                 currentQueryPos->targetSequenceID = *currentIDPos;
                 ++currentQueryPos;
             }
             ++currentTargetPos;
             ++currentIDPos;
-            while (__builtin_expect(*currentTargetPos == maxshort && currentTargetPos < endTargetPos, 0))
-            {
+            while (__builtin_expect(*currentTargetPos == maxshort && currentTargetPos < endTargetPos, 0)) {
                 currentKmer += maxshort;
                 ++currentTargetPos;
                 ++currentIDPos;
@@ -102,17 +93,14 @@ int compare2kmertables(int argc, const char **argv, const Command &command)
             currentKmer += *currentTargetPos;
         }
 
-        while (currentQueryPos->Query.kmer < currentKmer && __builtin_expect(currentQueryPos < endQueryPos, 1))
-        {
+        while (currentQueryPos->Query.kmer < currentKmer && __builtin_expect(currentQueryPos < endQueryPos, 1)) {
             ++currentQueryPos;
         }
 
-        while (currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos)
-        {
+        while (currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos) {
             ++currentTargetPos;
             ++currentIDPos;
-            while (__builtin_expect(*currentTargetPos == maxshort && currentTargetPos < endTargetPos, 0))
-            {
+            while (__builtin_expect(*currentTargetPos == maxshort && currentTargetPos < endTargetPos, 0)) {
                 currentKmer += maxshort;
                 ++currentTargetPos;
                 ++currentIDPos;
@@ -151,15 +139,12 @@ int compare2kmertables(int argc, const char **argv, const Command &command)
     return 0;
 }
 
-void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parameters &par)
-{
+void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parameters &par) {
     DBWriter *writer = new DBWriter(par.db4.c_str(), par.db4Index.c_str(), 1, par.compressed, Parameters::DBTYPE_GENERIC_DB);
     writer->open();
-    for (QueryTableEntry *currentPos = startPos; currentPos < endPos; ++currentPos)
-    {
+    for (QueryTableEntry *currentPos = startPos; currentPos < endPos; ++currentPos) {
         size_t blocksize = 0;
-        while (currentPos < endPos && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID)
-        {
+        while (currentPos < endPos && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
             ++blocksize;
             ++currentPos;
         }
@@ -168,20 +153,16 @@ void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parame
     writer->close();
 }
 
-QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par)
-{
+QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
     QueryTableEntry *currentReadPos = startPos;
     QueryTableEntry *currentWritePos = resultTable;
-    while (currentReadPos < endPos)
-    {
+    while (currentReadPos < endPos) {
         size_t count = 0;
-        while (currentReadPos < endPos && (currentReadPos + 1)->targetSequenceID == currentReadPos->targetSequenceID && currentReadPos->querySequenceId == (currentReadPos + 1)->querySequenceId)
-        {
+        while (currentReadPos < endPos && (currentReadPos + 1)->targetSequenceID == currentReadPos->targetSequenceID && currentReadPos->querySequenceId == (currentReadPos + 1)->querySequenceId) {
             count++;
             ++currentReadPos;
         }
-        if (count >= par.requieredKmerMatches)
-        {
+        if (count >= par.requieredKmerMatches) {
             memcpy(currentWritePos, currentReadPos - count, sizeof(QueryTableEntry) * count);
             currentWritePos += count;
         }
@@ -190,44 +171,58 @@ QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableE
     return currentWritePos;
 }
 
-int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second)
-{
-    if (first.querySequenceId < second.querySequenceId)
+int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
+    if (first.querySequenceId < second.querySequenceId) {
         return true;
-    if (second.querySequenceId < first.querySequenceId)
+    }
+    if (second.querySequenceId < first.querySequenceId) {
         return false;
-    if (first.targetSequenceID < second.targetSequenceID)
+    }
+    if (first.targetSequenceID < second.targetSequenceID) {
         return true;
-    if (second.targetSequenceID < first.targetSequenceID)
+    }
+    if (second.targetSequenceID < first.targetSequenceID) {
         return false;
-    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery)
+    }
+    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery) {
         return true;
-    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery)
+    }
+    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery) {
         return false;
-    if (first.Query.kmer < second.Query.kmer)
+    }
+    if (first.Query.kmer < second.Query.kmer) {
         return true;
-    if (second.Query.kmer < first.Query.kmer)
+    }
+    if (second.Query.kmer < first.Query.kmer) {
         return false;
+    }
     return false;
 }
 
-int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second)
-{
-    if (first.targetSequenceID < second.targetSequenceID)
+int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
+    if (first.targetSequenceID < second.targetSequenceID){
         return true;
-    if (second.targetSequenceID < first.targetSequenceID)
+    }
+    if (second.targetSequenceID < first.targetSequenceID) {
         return false;
-    if (first.querySequenceId < second.querySequenceId)
+    }
+    if (first.querySequenceId < second.querySequenceId){
         return true;
-    if (second.querySequenceId < first.querySequenceId)
+    }
+    if (second.querySequenceId < first.querySequenceId) {
         return false;
-    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery)
+    }
+    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery) {
         return true;
-    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery)
+    }
+    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery) {
         return false;
-    if (first.Query.kmer < second.Query.kmer)
+    }
+    if (first.Query.kmer < second.Query.kmer) {
         return true;
-    if (second.Query.kmer < first.Query.kmer)
+    }
+    if (second.Query.kmer < first.Query.kmer) {
         return false;
+    }
     return false;
 }
