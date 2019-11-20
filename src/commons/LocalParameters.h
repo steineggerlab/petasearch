@@ -31,7 +31,7 @@ public:
     int createTargetTable;
 
     PARAMETER(PARAM_REQ_KMER_MATCHES)
-    unsigned int requieredKmerMatches;
+    unsigned int requiredKmerMatches;
 
 private:
     LocalParameters() : 
@@ -39,7 +39,7 @@ private:
 
         PARAM_REVERSE_FRAGMENTS(PARAM_REVERSE_FRAGMENTS_ID,"--reverse-fragments", "Reverse AA Fragments", "reverse AA fragments to compute under null [0,1]", typeid(int), (void *) &reverseFragments, "^[0-1]{1}$"),
         PARAM_CREATE_TARGET_TABLE(PARAM_CREATE_TARGET_TABLE_ID,"--createTargetTable","creating target table ?","create target table (1) or query table (0) (default: 1) [0,1]",typeid(int), (void *) &createTargetTable,"^[0-1]{1}$"),
-        PARAM_REQ_KMER_MATCHES(PARAM_REQ_KMER_MATCHES_ID,"--req-kmer-matches","required k-mer matches per query and target sequence pair","amount of required k-mer matches per query/target pair to increase specifity of matches [0-4]",typeid(int), (void*) &requieredKmerMatches,"^[0-4]{1}$")
+        PARAM_REQ_KMER_MATCHES(PARAM_REQ_KMER_MATCHES_ID, "--req-kmer-matches", "required k-mer matches per query and target sequence pair", "amount of required k-mer matches per query/target pair to increase specifity of matches [0-4]", typeid(int), (void*) &requiredKmerMatches, "^[0-4]{1}$")
         {
             predictexonsworkflow.push_back(&PARAM_REVERSE_FRAGMENTS);
 
@@ -71,7 +71,7 @@ private:
             //default value 1 means to create the target table
             createTargetTable = 1;
 
-            requieredKmerMatches = 2;
+            requiredKmerMatches = 2;
         }
     LocalParameters(LocalParameters const&);
     ~LocalParameters() {};

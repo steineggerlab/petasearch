@@ -8,11 +8,10 @@
 #include "omptl/omptl_algorithm"
 #include "DBWriter.h"
 
-QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos);
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parameters &par);
 int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
-QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par);
+QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par);
 
 int compare2kmertables(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
@@ -54,7 +53,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     QueryTableEntry *currentQueryPos = startPosQueryTable;
     QueryTableEntry *endQueryPos = startPosQueryTable + fileSizeQueryTable / sizeof(QueryTableEntry);
     unsigned short *currentTargetPos = startPosTargetTable;
-    unsigned short *endTargetPos = startPosTargetTable + fileSizeTargetTable / sizeof(short);
+    unsigned short *endTargetPos = startPosTargetTable + fileSizeTargetTable / sizeof(unsigned short);
     unsigned int *currentIDPos = startPosIDTable;
     size_t equalKmers = 0;
     size_t currentKmer = 0;
@@ -112,18 +111,17 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     double timediff = (endTime.tv_sec - startTime.tv_sec) + 1e-6 * (endTime.tv_usec - startTime.tv_usec);
     Debug(Debug::INFO) << timediff << " s; Rate " << ((fileSizeTargetTable + fileSizeQueryTable + fileSizeTargetIDTable) / 1e+9) / timediff
                        << " GB/s \n";
-    Debug(Debug::INFO) << "number of equal Kmers: " << equalKmers << "\n";
+    Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
-    Debug(Debug::INFO) << "Sorting Resulttable "
-                       << "\n";
+    Debug(Debug::INFO) << "Sorting result table\n";
     omptl::sort(startPosQueryTable, endQueryPos, resultTableSort);
 
-    Debug(Debug::INFO) << "Removing Sequences with less than two hits \n";
+    Debug(Debug::INFO) << "Removing sequences with less than two hits \n";
     QueryTableEntry *resultTable = (QueryTableEntry *)malloc(fileSizeQueryTable);
 
-    QueryTableEntry *truncatedResultEndPos = removeNotHittedSequences(startPosQueryTable, endQueryPos, resultTable, par);
+    QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
 
-    Debug(Debug::INFO) << "Sorting Resulttable after target id  \n";
+    Debug(Debug::INFO) << "Sorting result table after target id  \n";
     omptl::sort(resultTable, truncatedResultEndPos, truncatedResultTableSort);
     Debug(Debug::INFO) << "Writing result files \n";
     writeResultTable(resultTable, truncatedResultEndPos, par);
@@ -142,26 +140,29 @@ void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parame
     DBWriter *writer = new DBWriter(par.db4.c_str(), par.db4Index.c_str(), 1, par.compressed, Parameters::DBTYPE_GENERIC_DB);
     writer->open();
     for (QueryTableEntry *currentPos = startPos; currentPos < endPos; ++currentPos) {
-        size_t blocksize = 0;
+        size_t blockSize = 0;
         while (currentPos < endPos && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
-            ++blocksize;
+            ++blockSize;
             ++currentPos;
         }
-        writer->writeData((char *)(currentPos - blocksize), blocksize * sizeof(QueryTableEntry), currentPos->targetSequenceID, 0U, false);
+        writer->writeData((char *)(currentPos - blockSize), blockSize * sizeof(QueryTableEntry), currentPos->targetSequenceID, 0U, false);
     }
     writer->close();
 }
 
-QueryTableEntry *removeNotHittedSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
+QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
     QueryTableEntry *currentReadPos = startPos;
     QueryTableEntry *currentWritePos = resultTable;
     while (currentReadPos < endPos) {
         size_t count = 0;
-        while (currentReadPos < endPos && (currentReadPos + 1)->targetSequenceID == currentReadPos->targetSequenceID && currentReadPos->querySequenceId == (currentReadPos + 1)->querySequenceId) {
+        while (currentReadPos < endPos
+                && currentReadPos->targetSequenceID != 0
+                && currentReadPos->targetSequenceID == (currentReadPos + 1)->targetSequenceID
+                && currentReadPos->querySequenceId  == (currentReadPos + 1)->querySequenceId) {
             count++;
             ++currentReadPos;
         }
-        if (count >= par.requieredKmerMatches) {
+        if (count >= par.requiredKmerMatches) {
             memcpy(currentWritePos, currentReadPos - count, sizeof(QueryTableEntry) * count);
             currentWritePos += count;
         }

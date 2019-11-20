@@ -5,8 +5,8 @@
 //#include "MemoryMapped.h"
 #include <sys/mman.h>
 
-int main (){
-    FILE* handle = fopen("../test_k-merTable", "rb");
+int main (int argc, char *argv[]){
+    FILE* handle = fopen(argv[1], "rb");
     int fd=fileno(handle);
     struct stat fileStat;
     fstat(fd, &fileStat);

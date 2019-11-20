@@ -155,7 +155,7 @@ int createdb(int argc, const char **argv, const Command& command) {
 
             }
             for (size_t split = 0; split < splitCnt; split++) {
-                unsigned int id = par.identifierOffset + entries_num;
+                unsigned int id = entries_num;
                 if (par.dbType == 0) {
                     // check for the first 10 sequences if they are nucleotide sequences
                     if (count < 10 || (count % 100) == 0) {
@@ -266,8 +266,8 @@ int createdb(int argc, const char **argv, const Command& command) {
     }
 
     // fix ids
-    DBWriter::createRenumberedDB(dataFile, indexFile, "", DBReader<unsigned int>::LINEAR_ACCCESS);
-    DBWriter::createRenumberedDB(hdrDataFile, hdrIndexFile, "", DBReader<unsigned int>::LINEAR_ACCCESS);
+    DBWriter::createRenumberedDB(dataFile, indexFile, "", DBReader<unsigned int>::LINEAR_ACCCESS, par.identifierOffset);
+    DBWriter::createRenumberedDB(hdrDataFile, hdrIndexFile, "", DBReader<unsigned int>::LINEAR_ACCCESS, par.identifierOffset);
 
     DBReader<unsigned int> readerHeader(hdrDataFile.c_str(), hdrIndexFile.c_str(), 1, DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX);
     readerHeader.open(DBReader<unsigned int>::NOSORT);

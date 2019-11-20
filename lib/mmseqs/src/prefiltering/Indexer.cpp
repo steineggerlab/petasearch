@@ -35,7 +35,7 @@ void Indexer::reset(){
 void Indexer::printKmer(size_t kmerIdx, int kmerSize, char* int2aa){
     index2int(workspace, kmerIdx, kmerSize);
     for (int j = 0; j < kmerSize; j++)
-        Debug(Debug::INFO) << int2aa[workspace[j]];
+        Debug(Debug::ERROR) << int2aa[workspace[j]];
 }
 
 void Indexer::printKmer(const int* kmer, int kmerSize, char* int2aa){
