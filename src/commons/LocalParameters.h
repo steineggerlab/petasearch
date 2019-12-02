@@ -72,6 +72,10 @@ private:
             createTargetTable = 1;
 
             requiredKmerMatches = 2;
+
+            kmerSize = 9;
+
+
         }
     LocalParameters(LocalParameters const&);
     ~LocalParameters() {};

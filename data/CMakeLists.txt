@@ -1,6 +1,7 @@
 include(MMseqsResourceCompiler)
 
 set(COMPILED_RESOURCES
+        petasearch.sh
         )
 
 set(GENERATED_OUTPUT_HEADERS "")
