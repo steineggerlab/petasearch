@@ -156,7 +156,7 @@ QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntr
     while (currentReadPos < endPos) {
         size_t count = 0;
         while (currentReadPos < endPos
-                && currentReadPos->targetSequenceID != 0
+                && currentReadPos->targetSequenceID != UINT_MAX
                 && currentReadPos->targetSequenceID == (currentReadPos + 1)->targetSequenceID
                 && currentReadPos->querySequenceId  == (currentReadPos + 1)->querySequenceId) {
             count++;

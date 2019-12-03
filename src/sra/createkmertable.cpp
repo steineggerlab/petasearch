@@ -131,7 +131,7 @@ int createTargetTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatri
     free(targetTable);
     return EXIT_SUCCESS;
 }
-//TODO:  targetsequence id with unsigned int max initalisieren und in compare anpassen
+
 int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix *subMat) {
     Timer timer;
     size_t kmerCount = countKmer(reader, par.kmerSize);
@@ -177,7 +177,7 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
                 }
 
                 localBuffer[localTableIndex].querySequenceId = i;
-                localBuffer[localTableIndex].targetSequenceID = 0;
+                localBuffer[localTableIndex].targetSequenceID = UINT_MAX;
                 localBuffer[localTableIndex].Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
                 localBuffer[localTableIndex].Query.kmerPosInQuery = kmerPosInSequence;
                 ++localTableIndex;
