@@ -74,7 +74,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
-            progress.updateProgress();
+//            progress.updateProgress();
 
             size_t targetId = resultReader.getDbKey(i);
             unsigned int targetKey = targetSequenceReader.getDbKey(targetId);
@@ -107,10 +107,10 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 //                    Debug(Debug::ERROR) << "\n";
                     while (targetSeq.hasNextKmer()) {
                         const int *kmer = targetSeq.nextKmer();
-//                        idx.printKmer(idx.int2index(kmer, 0, par.kmerSize), par.kmerSize, subMat->int2aa);
-//                        Debug(Debug::ERROR) << "\n";
                         if (queryBlockEnd->Query.kmer ==
                             idx.int2index(kmer, 0, par.kmerSize)) { //TODO test performance (cache invalidations)
+//                        idx.printKmer(idx.int2index(kmer, 0, par.kmerSize), par.kmerSize, subMat->int2aa);
+//                        Debug(Debug::INFO) << "\n";
 //                            Debug(Debug::ERROR) << "!!!!!";
                             queryBlockEnd->Result.diag =
                                     queryBlockEnd->Query.kmerPosInQuery - targetSeq.getCurrentPosition();
