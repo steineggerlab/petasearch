@@ -22,38 +22,38 @@ notExists() {
 
 Q_DB="$1"
 T_DB="$2"
-TMP_PATH="$4"
 Q_TABLE="query"
 T_TABLE="target"
 C_RES="compResults.out"
 SA_RES="swappedAlis.out"
 FINAL_RES="$3"
+TMP_PATH="$4"
 
 #create query table
 if [ ! -e "${TMP_PATH}/${Q_TABLE}_queryTable" ]; then
     # shellcheck disable=SC2086
-    "$MMSEQS" createkmertable "${Q_DB}" "${TMP_PATH}/${Q_TABLE}" --createTargetTable 0 ${CREATE_QTABLE_PAR} \
+    "$MMSEQS" createkmertable "${Q_DB}" "${TMP_PATH}/${Q_TABLE}" ${CREATE_QTABLE_PAR} \
         || fail "creating query table failed"
 fi
 
 #create target table
 if [ ! -e "${TMP_PATH}/${Q_TABLE}_k-merTable" ]; then
     # shellcheck disable=SC2086
-    "$MMSEQS" createkmertable "${T_DB}" "${TMP_PATH}/${T_TABLE}" --createTargetTable 1 ${CREATE_TTABLE_PAR} \
+    "$MMSEQS" createkmertable "${T_DB}" "${TMP_PATH}/${T_TABLE}" ${CREATE_TTABLE_PAR} \
         || fail "creating target table failed"
 fi
 
 # compare both k-mer tables
 if [ ! -e "${TMP_PATH}/${C_RES}"  ]; then
-    echo "Comparing query and target table"
-    "$MMSEQS" compare2kmertables "${TMP_PATH}/${Q_TABLE}_queryTable" "${TMP_PATH}/${T_TABLE}_k-merTable" "${TMP_PATH}/${T_TABLE}_IDTable" "${TMP_PATH}/${C_RES}" \
+    # shellcheck disable=SC2086
+    "$MMSEQS" compare2kmertables "${TMP_PATH}/${Q_TABLE}_queryTable" "${TMP_PATH}/${T_TABLE}_k-merTable" "${TMP_PATH}/${T_TABLE}_IDTable" "${TMP_PATH}/${C_RES}" ${COMP_KMER_TABLES_PAR} \
         || fail "comparing both k-mer tables failed"
 fi
 
 # compute the alignment for significant matches
 if [ ! -e "${TMP_PATH}/${SA_RES}"  ]; then
     # shellcheck disable=SC2086
-    "$MMSEQS" computeAlignments "${Q_DB}" "${T_DB}" "${TMP_PATH}/${C_RES}" "${TMP_PATH}/${SA_RES}"  ${COMP_ALI_PAR} \
+    "$MMSEQS" computeAlignments "${Q_DB}" "${T_DB}" "${TMP_PATH}/${C_RES}" "${TMP_PATH}/${SA_RES}" ${COMP_ALI_PAR} \
         || fail "computing the alignment for matched sequences failed"
 
 fi
@@ -61,10 +61,9 @@ fi
 # swap the alignments
 if [ ! -e "${FINAL_RES}"  ]; then
     # shellcheck disable=SC2086
-    "$MMSEQS" swapresults "${T_DB}" "${Q_DB}" "${TMP_PATH}/${SA_RES}" "${FINAL_RES}"  \
+    "$MMSEQS" swapresults "${T_DB}" "${Q_DB}" "${TMP_PATH}/${SA_RES}" "${FINAL_RES}" ${SWAP_PAR} \
         || fail "swapping the alignments failed"
 fi
-
 
 # clear up tmp files
 if [ -n "$REMOVE_TMP" ]; then

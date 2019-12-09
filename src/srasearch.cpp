@@ -1,5 +1,4 @@
 #include "Command.h"
-#include "CommandDeclarations.h"
 #include "LocalCommandDeclarations.h"
 #include "LocalParameters.h"
 
@@ -14,8 +13,20 @@ bool hide_base_commands = true;
 LocalParameters& localPar = LocalParameters::getLocalInstance();
 
 std::vector<struct Command> commands = {
+        {"petasearch", petasearch, &localPar.petasearchworkflow, COMMAND_MAIN,
+                 "",
+                 NULL,
+                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
+                 "<i:queryDB> <i:targetDB> <i:resultDB> <o:tmp>",
+                 CITATION_MMSEQS2,
+                 {{"queryDb",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
+                  {"targetDb",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
+                  {"resultDb",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile},
+                  {"tmp",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory}}
+
+            },
         {"createkmertable", createkmertable, &localPar.createkmertable, COMMAND_EXPERT,
-                "Extracts a table containing all (quniqe) k-mers",
+                "Extracts a table containing all (unique) k-mers",
                 "Extract a unique k-mer table and  table with the corresponding sequence ids or a table containing sequence id, an empty field for the target id, the position of the k-mer in the sequence and the k-mer. The mode is set by the createTarget flag.",
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
                 "<i:sequenceDB> <o:kmerTableFile>",
