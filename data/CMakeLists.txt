@@ -2,6 +2,7 @@ include(MMseqsResourceCompiler)
 
 set(COMPILED_RESOURCES
         petasearch.sh
+        easypetasearch.sh
         )
 
 set(GENERATED_OUTPUT_HEADERS "")

@@ -208,7 +208,9 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
         queryTable.insert(queryTable.end(), localTable.begin(), localTable.end());
     }
 
-    Debug(Debug::INFO) << "\nk-mers: " << queryTable.size() << " time: " << timer.lap() << "\n";
+    Debug(Debug::INFO) << "\nk-mers: " << queryTable.size()
+        <<"\nRequired Memory: " << queryTable.size()  * sizeof(QueryTableEntry) / 1024 / 1024 << " MB \n"
+        << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
 
     omptl::sort(queryTable.begin(), queryTable.end(), queryTableSort);

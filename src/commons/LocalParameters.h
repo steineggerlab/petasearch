@@ -20,6 +20,7 @@ public:
     std::vector<MMseqsParameter*> compare2kmertables;
     std::vector<MMseqsParameter*> computeAlignments;
     std::vector<MMseqsParameter*> petasearchworkflow;
+    std::vector<MMseqsParameter*> easypetasearchworkflow;
 
     PARAMETER(PARAM_CREATE_TARGET_TABLE)
     int createTargetTable;
@@ -35,6 +36,7 @@ private:
             createkmertable.push_back(&PARAM_SEED_SUB_MAT);
             createkmertable.push_back(&PARAM_EXACT_KMER_MATCHING);
             createkmertable.push_back(&PARAM_K);
+            createkmertable.push_back(&PARAM_K_SCORE);
             createkmertable.push_back(&PARAM_SPACED_KMER_MODE);
             createkmertable.push_back(&PARAM_CREATE_TARGET_TABLE);
             createkmertable.push_back(&PARAM_MAX_SEQ_LEN);
@@ -62,6 +64,8 @@ private:
             petasearchworkflow = combineList(createkmertable, compare2kmertables);
             petasearchworkflow = combineList(petasearchworkflow, computeAlignments);
             petasearchworkflow = combineList(petasearchworkflow, swapresult);
+
+            easypetasearchworkflow = combineList(petasearchworkflow,convertalignments);
 
             //default value 1 means to create the target table
             createTargetTable = 1;
