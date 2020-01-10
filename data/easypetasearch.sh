@@ -19,6 +19,8 @@ notExists() {
 [ ! -f "$2.dbtype" ] && echo "$2.dbtype not found!" && exit 1;
 [ ! -d "$4" ] && echo "tmp directory $4 not found! Creating it." && mkdir -p "$4";
 
+TMP_PATH="$4"
+
 if [ ! -e "${TMP_PATH}/res" ]; then
   # shellcheck disable=SC2086
   "$MMSEQS" petasearch "$1" "$2" "${TMP_PATH}/res" "${TMP_PATH}/tmp" ${PETASEARCH_PAR} \
