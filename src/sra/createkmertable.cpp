@@ -174,7 +174,6 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
             char *data = reader->getData(i, thread_idx);
             unsigned int seqLen = reader->getSeqLen(i);
             sequence.mapSequence(i, 0, data, seqLen);
-            short kmerPosInSequence = 0;
 
             while (sequence.hasNextKmer()) {
                 const int *kmer = sequence.nextKmer();
@@ -187,7 +186,7 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
                     entry.querySequenceId = i;
                     entry.targetSequenceID = UINT_MAX;
                     entry.Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
-                    entry.Query.kmerPosInQuery = kmerPosInSequence;
+                    entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
                     localTable.emplace_back(entry);
                 } else {
                     std::pair<size_t*, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
@@ -202,11 +201,10 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
                         entry.querySequenceId = i;
                         entry.targetSequenceID = UINT_MAX;
                         entry.Query.kmer = similarKmerList.first[j];
-                        entry.Query.kmerPosInQuery = kmerPosInSequence;
+                        entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
                         localTable.emplace_back(entry);
                     }
                 }
-                ++kmerPosInSequence;
             }
         }
 
