@@ -9,7 +9,6 @@
 #include "DBWriter.h"
 
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
-void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parameters &par);
 int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par);
 
@@ -31,7 +30,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     fstat(fdTargetTable, &fileStatsTargetTable);
     size_t fileSizeTargetTable = fileStatsTargetTable.st_size;
 
-    FILE *handleTargetIDTable = fopen(par.db3.c_str(), "rb");
+    FILE *handleTargetIDTable = fopen(std::string(par.db2 + "_ids").c_str(), "rb");
     int fdTargetIDTable = fileno(handleTargetIDTable);
     struct stat fileStatsTargetIDTable;
     fstat(fdTargetIDTable, &fileStatsTargetIDTable);
@@ -123,31 +122,59 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
     Debug(Debug::INFO) << "Sorting result table after target id  \n";
     omptl::sort(resultTable, truncatedResultEndPos, truncatedResultTableSort);
-    Debug(Debug::INFO) << "Writing result files \n";
-    writeResultTable(resultTable, truncatedResultEndPos, par);
 
+    Debug(Debug::INFO) << "Writing result files \n";
+    DBWriter writer(par.db3.c_str(), par.db3Index.c_str(), 1, par.compressed, Parameters::DBTYPE_GENERIC_DB);
+    writer.open();
+
+//    std::string result;
+//    result.reserve(1024);
+
+//    DBReader<unsigned int> queryReader(par.db4.c_str(), par.db4Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX);
+//    DBReader<unsigned int> targetReader(par.db5.c_str(), par.db5Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX);
+//    queryReader.open(DBReader<unsigned  int>::LINEAR_ACCCESS);
+//    queryReader.readMmapedDataInMemory();
+//    targetReader.open(DBReader<unsigned  int>::LINEAR_ACCCESS);
+//    targetReader.readMmapedDataInMemory();
+
+    QueryTableEntry *startPos = resultTable;
+    QueryTableEntry *endPos = truncatedResultEndPos;
+    for (QueryTableEntry *currentPos = startPos; currentPos < endPos; ++currentPos) {
+        if (true) {
+            size_t blockSize = 0;
+            while (currentPos < endPos && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
+                ++blockSize;
+                ++currentPos;
+            }
+            writer.writeData((char *) (currentPos - blockSize), blockSize * sizeof(QueryTableEntry), currentPos->targetSequenceID, 0U, false);
+        } else {
+            //getDBKey anstatt id dann ins alignment module reinstecken
+//            while (currentPos < endPos && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
+//                if (currentPos > startPos && currentPos->querySequenceId == (currentPos-1)->querySequenceId) {
+//                    ++currentPos;
+//                    continue;
+//                }
+//                result.append(SSTR(queryReader.getDbKey(currentPos->querySequenceId)));
+//                result.append(SSTR(currentPos->querySequenceId));
+//                result.append(1, '\n');
+//                ++currentPos;
+//            }
+//            writer.writeData(result.c_str(), result.size(), targetReader.getDbKey(currentPos->targetSequenceID), 0U);
+//            writer.writeData(result.c_str(), result.size(), currentPos->targetSequenceID, 0U);
+//            result.clear();
+        }
+    }
+    writer.close();
     munmap(startPosQueryTable, fileSizeQueryTable);
     munmap(startPosTargetTable, fileSizeTargetTable);
     munmap(startPosIDTable, fileSizeTargetIDTable);
     fclose(handleQueryKmerTable);
     fclose(handleTargetKmerTable);
     fclose(handleTargetIDTable);
+//    targetReader.close();
+//    queryReader.close();
 
-    return 0;
-}
-
-void writeResultTable(QueryTableEntry *startPos, QueryTableEntry *endPos, Parameters &par) {
-    DBWriter *writer = new DBWriter(par.db4.c_str(), par.db4Index.c_str(), 1, par.compressed, Parameters::DBTYPE_GENERIC_DB);
-    writer->open();
-    for (QueryTableEntry *currentPos = startPos; currentPos < endPos; ++currentPos) {
-        size_t blockSize = 0;
-        while (currentPos < endPos && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
-            ++blockSize;
-            ++currentPos;
-        }
-        writer->writeData((char *)(currentPos - blockSize), blockSize * sizeof(QueryTableEntry), currentPos->targetSequenceID, 0U, false);
-    }
-    writer->close();
+    return EXIT_SUCCESS;
 }
 
 QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {

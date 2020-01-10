@@ -41,21 +41,20 @@ std::vector<struct Command> commands = {
                 "Extracts a table containing all (unique) k-mers",
                 "Extract a unique k-mer table and  table with the corresponding sequence ids or a table containing sequence id, an empty field for the target id, the position of the k-mer in the sequence and the k-mer. The mode is set by the createTarget flag.",
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
-                "<i:sequenceDB> <o:kmerTableFile>",
+                "<i:sequenceDB> <o:kmerTable>",
                 CITATION_MMSEQS2,
                 {{"sequenceDB",  DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
-                        {"kmerTableFile",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
+                        {"kmerTable",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
         },
         {"compare2kmertables", compare2kmertables, &localPar.compare2kmertables, COMMAND_EXPERT,
                 "",
                 NULL,
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
-                "<i:queryKmerTable> <i:targetKmerTable> <i:targetIDTable> <o:resultTable>",
+                "<i:queryKmerTable> <i:targetKmerTable> <o:resultTable>",
                 CITATION_MMSEQS2, 
                 {{"queryKmerTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
                         {"targetKmerTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
-                        {"targetIDable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
-                        {"resultTable",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
+                        {"resultTable",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::flatfile}}
         },
         {"computeAlignments", computeAlignments, &localPar.computeAlignments, COMMAND_EXPERT,
                 "",

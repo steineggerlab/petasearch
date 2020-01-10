@@ -30,17 +30,9 @@ int easypetasearch(int argc, const char **argv, const Command &command) {
     par.filenames.push_back(tmpDir);
 
     CommandCaller cmd;
-//    cmd.addVariable("RUNNER", par.runner.c_str());
 
-    par.createTargetTable = 0;
-    cmd.addVariable("CREATE_QTABLE_PAR", par.createParameterString(par.createkmertable).c_str());
-    par.createTargetTable = 1;
-    cmd.addVariable("CREATE_TTABLE_PAR", par.createParameterString(par.createkmertable).c_str());
-    cmd.addVariable("COMP_KMER_TABLES_PAR", par.createParameterString(par.compare2kmertables).c_str());
-    cmd.addVariable("COMP_ALI_PAR", par.createParameterString(par.computeAlignments).c_str());
-    par.evalThr = 100000;
-    cmd.addVariable("SWAP_PAR", par.createParameterString(par.swapresult).c_str());
-    cmd.addVariable("CONV_PAR",par.createParameterString(par.convertalignments).c_str());
+    cmd.addVariable("PETASEARCH_PAR", par.createParameterString(par.petasearchworkflow).c_str());
+    cmd.addVariable("CONVERTALIS_PAR",par.createParameterString(par.convertalignments).c_str());
 
     std::string program = tmpDir + "/easypetasearch.sh";
     FileUtil::writeFile(program, easypetasearch_sh, easypetasearch_sh_len);

@@ -191,6 +191,12 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
                     localTable.emplace_back(entry);
                 } else {
                     std::pair<size_t*, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
+//                    size_t *end = similarKmerList.first+similarKmerList.second;
+//                    size_t  * originalkmer = std::find(similarKmerList.first, end ,idx.int2index(kmer, 0, par.kmerSize));
+//                    if(originalkmer == end && similarKmerList.second != 0){
+//                        Debug(Debug::ERROR) << "original k-mer not in List\n";
+//                        exit(-1);
+//                    }
                     for (size_t j = 0; j < similarKmerList.second; ++j) {
                         QueryTableEntry entry;
                         entry.querySequenceId = i;
@@ -288,8 +294,8 @@ int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &secon
 }
 
 void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::string blockID) {
-    std::string kmerTableFileName = blockID + "_k-merTable";
-    std::string idTableFileName = blockID + "_IDTable";
+    std::string kmerTableFileName = blockID;
+    std::string idTableFileName = blockID + "_ids";
     Debug(Debug::INFO) << "Writing k-mer target table to file: " << kmerTableFileName << "\n";
     Debug(Debug::INFO) << "Writing target ID table to file:  " << idTableFileName << "\n";
     FILE *handleKmerTable = fopen(kmerTableFileName.c_str(), "wb");
@@ -339,9 +345,8 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handle
 }
 
 void writeQueryTable(const std::vector<QueryTableEntry>& queryTable, const std::string& queryID) {
-    std::string fileName = queryID + "_queryTable";
-    Debug(Debug::INFO) << "Writing query table to file: " << fileName << "\n";
-    FILE *handleQueryTable = fopen(fileName.c_str(), "wb");
+    Debug(Debug::INFO) << "Writing query table to file: " << queryID << "\n";
+    FILE *handleQueryTable = fopen(queryID.c_str(), "wb");
     // C++11 ??
     fwrite(queryTable.data(), sizeof(QueryTableEntry), queryTable.size(), handleQueryTable);
     fclose(handleQueryTable);

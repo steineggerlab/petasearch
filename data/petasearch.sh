@@ -22,22 +22,22 @@ notExists() {
 
 Q_DB="$1"
 T_DB="$2"
-Q_TABLE="query"
-T_TABLE="target"
+Q_TABLE="queryTable"
+T_TABLE="targetTable"
 C_RES="compResults.out"
 SA_RES="swappedAlis.out"
 FINAL_RES="$3"
 TMP_PATH="$4"
 
 #create query table
-if [ ! -e "${TMP_PATH}/${Q_TABLE}_queryTable" ]; then
+if [ ! -e "${TMP_PATH}/${Q_TABLE}" ]; then
     # shellcheck disable=SC2086
     "$MMSEQS" createkmertable "${Q_DB}" "${TMP_PATH}/${Q_TABLE}" ${CREATE_QTABLE_PAR} \
         || fail "creating query table failed"
 fi
 
 #create target table
-if [ ! -e "${TMP_PATH}/${Q_TABLE}_k-merTable" ]; then
+if [ ! -e "${TMP_PATH}/${T_TABLE}" ]; then
     # shellcheck disable=SC2086
     "$MMSEQS" createkmertable "${T_DB}" "${TMP_PATH}/${T_TABLE}" ${CREATE_TTABLE_PAR} \
         || fail "creating target table failed"
@@ -46,7 +46,7 @@ fi
 # compare both k-mer tables
 if [ ! -e "${TMP_PATH}/${C_RES}"  ]; then
     # shellcheck disable=SC2086
-    "$MMSEQS" compare2kmertables "${TMP_PATH}/${Q_TABLE}_queryTable" "${TMP_PATH}/${T_TABLE}_k-merTable" "${TMP_PATH}/${T_TABLE}_IDTable" "${TMP_PATH}/${C_RES}" ${COMP_KMER_TABLES_PAR} \
+    "$MMSEQS" compare2kmertables "${TMP_PATH}/${Q_TABLE}" "${TMP_PATH}/${T_TABLE}" "${TMP_PATH}/${C_RES}" ${COMP_KMER_TABLES_PAR} \
         || fail "comparing both k-mer tables failed"
 fi
 
