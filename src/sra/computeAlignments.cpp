@@ -22,7 +22,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
     par.rescoreMode = Parameters::RESCORE_MODE_ALIGNMENT;
-    par.evalThr = 10000;
+    par.evalThr = 1000000;
     par.parseParameters(argc, argv, command, true, 1, 0);
 
     // query target prev_result new_result is the order
@@ -31,7 +31,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     querySequenceReader.open(DBReader<unsigned int>::NOSORT);
 
     DBReader<unsigned int> targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
-    targetSequenceReader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
+    targetSequenceReader.open(DBReader<unsigned int>::NOSORT);
 
     DBReader<unsigned int> resultReader(par.db3.c_str(), par.db3Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_WRITABLE);
     resultReader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
@@ -76,13 +76,13 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
 //            progress.updateProgress();
 
-            size_t targetId = resultReader.getDbKey(i);
-            unsigned int targetKey = targetSequenceReader.getDbKey(targetId);
+            size_t targetKey = resultReader.getDbKey(i);
+            unsigned int targetId = targetSequenceReader.getId(targetKey);
 
             //determine block size of current target sequence
 //            size_t targetId = targetSequenceReader.getId(targetKey);
             const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
-            unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetId);
+            const unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetId);
             targetSeq.mapSequence(targetId, targetKey, targetSeqData, targetSeqLen);
 
             // TODO: this might be wasted if no single hit hit the target
@@ -136,8 +136,10 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 }
 
                 int maxScore = INT_MIN;
-                const char *querySeqData = querySequenceReader.getData(queryBlockStart->querySequenceId, thread_idx);
-                unsigned int querySeqLen = querySequenceReader.getSeqLen(queryBlockStart->querySequenceId);
+                unsigned int queryKey = queryBlockStart->querySequenceId;
+                unsigned int queryId = querySequenceReader.getId(queryKey);
+                const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
+                const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
                 for (QueryTableEntry *k = queryBlockStart; k < queryBlockEnd; ++k) {
                     // TODO: ??
                     if (k > queryBlockStart && k->Result.diag == (k - 1)->Result.diag) {
@@ -178,8 +180,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     continue;
                 }
 
-                unsigned int queryKey = querySequenceReader.getDbKey(queryBlockStart->querySequenceId);
-                querySeq.mapSequence(queryBlockStart->querySequenceId, queryKey, querySeqData, querySeqLen);
+                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
 
                 // we have to swap coverage mode etc
                 // replace 0 with actual best diagonal for nucleotide alignments

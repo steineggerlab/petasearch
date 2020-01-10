@@ -94,6 +94,7 @@ int createTargetTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatri
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader->getSize(); ++i) {
             progress.updateProgress();
+            unsigned int key = reader->getDbKey(i);
             char *data = reader->getData(i, thread_idx);
             unsigned int seqLen = reader->getSeqLen(i);
             s.mapSequence(i, 0, data, seqLen);
@@ -104,7 +105,7 @@ int createTargetTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatri
                     continue;
                 }
 
-                localBuffer[localTableIndex].sequenceID = i;
+                localBuffer[localTableIndex].sequenceID = key;
                 localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
                 localBuffer[localTableIndex].sequenceLength = reader->getSeqLen(i);
                 ++localTableIndex;
@@ -171,6 +172,7 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader->getSize(); ++i) {
             progress.updateProgress();
+            unsigned int key = reader->getDbKey(i);
             char *data = reader->getData(i, thread_idx);
             unsigned int seqLen = reader->getSeqLen(i);
             sequence.mapSequence(i, 0, data, seqLen);
@@ -183,7 +185,7 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
 
                 if (par.exactKmerMatching) {
                     QueryTableEntry entry;
-                    entry.querySequenceId = i;
+                    entry.querySequenceId = key;
                     entry.targetSequenceID = UINT_MAX;
                     entry.Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
                     entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
@@ -198,7 +200,7 @@ int createQueryTable(Parameters &par, DBReader<unsigned int> *reader, BaseMatrix
 //                    }
                     for (size_t j = 0; j < similarKmerList.second; ++j) {
                         QueryTableEntry entry;
-                        entry.querySequenceId = i;
+                        entry.querySequenceId = key;
                         entry.targetSequenceID = UINT_MAX;
                         entry.Query.kmer = similarKmerList.first[j];
                         entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
