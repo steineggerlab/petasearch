@@ -38,8 +38,8 @@ std::vector<struct Command> commands = {
 
         },
         {"createkmertable", createkmertable, &localPar.createkmertable, COMMAND_EXPERT,
-                "Extracts a table containing all (unique) k-mers",
-                "Extract a unique k-mer table and  table with the corresponding sequence ids or a table containing sequence id, an empty field for the target id, the position of the k-mer in the sequence and the k-mer. The mode is set by the createTarget flag.",
+                "Extracts a table containing all unique k-mers",
+                "Extracts a unique k-mer table.",
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
                 "<i:sequenceDB> <o:kmerTable>",
                 CITATION_MMSEQS2,
@@ -52,7 +52,7 @@ std::vector<struct Command> commands = {
                 "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
                 "<i:queryKmerTable> <i:targetKmerTable> <o:resultTable>",
                 CITATION_MMSEQS2, 
-                {{"queryKmerTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
+                {{"queryDb",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
                         {"targetKmerTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
                         {"resultTable",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::flatfile}}
         },

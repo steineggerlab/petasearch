@@ -14,7 +14,42 @@
 
 #ifdef OPENMP
 #include <omp.h>
+#include <QueryTableEntry.h>
+
 #endif
+
+
+
+std::string printAlnFromBt(const char *seq, unsigned int offset, const std::string &bt, bool reverse) {
+    std::string out;
+    unsigned int seqPos = 0;
+    for (uint32_t i = 0; i < bt.size(); ++i) {
+        char seqChar = seq[offset + seqPos];
+        switch (bt[i]) {
+            case 'M':
+                out.append(1, seqChar);
+                seqPos += 1;
+                break;
+            case 'I':
+                if (reverse) {
+                    out.append(1, '-');
+                } else {
+                    out.append(1, seqChar);
+                    seqPos += 1;
+                }
+                break;
+            case 'D':
+                if (reverse) {
+                    out.append(1, seqChar);
+                    seqPos += 1;
+                } else {
+                    out.append(1, '-');
+                }
+                break;
+        }
+    }
+    return out;
+}
 
 int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second);
 
@@ -23,7 +58,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     par.spacedKmer = false;
     par.rescoreMode = Parameters::RESCORE_MODE_ALIGNMENT;
     par.evalThr = 1000000;
-    par.parseParameters(argc, argv, command, true, 1, 0);
+    par.parseParameters(argc, argv, command, true, 0, 0);
 
     // query target prev_result new_result is the order
 
@@ -97,6 +132,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             QueryTableEntry *targetBlock = (QueryTableEntry *)resultReader.getData(i, thread_idx);
             size_t targetBlockCount = resultReader.getEntryLen(i) / sizeof(QueryTableEntry);
             //calculate diags for each query block in the target block
+            results.clear();
             for (size_t j = 0; j < targetBlockCount;) {
                 QueryTableEntry *queryBlockStart = targetBlock + j;
                 QueryTableEntry *queryBlockEnd = queryBlockStart;
@@ -105,18 +141,25 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     lastQueryId = queryBlockEnd->querySequenceId;
 //                    idx.printKmer(queryBlockEnd->Query.kmer, par.kmerSize, subMat->int2aa);
 //                    Debug(Debug::ERROR) << "\n";
+                    bool kmerFound  = false;
                     while (targetSeq.hasNextKmer()) {
                         const int *kmer = targetSeq.nextKmer();
                         if (queryBlockEnd->Query.kmer ==
-                            idx.int2index(kmer, 0, par.kmerSize)) { //TODO test performance (cache invalidations)
+                            idx.int2index(kmer, 0, par.kmerSize)) {
 //                        idx.printKmer(idx.int2index(kmer, 0, par.kmerSize), par.kmerSize, subMat->int2aa);
 //                        Debug(Debug::INFO) << "\n";
 //                            Debug(Debug::ERROR) << "!!!!!";
                             queryBlockEnd->Result.diag =
                                     queryBlockEnd->Query.kmerPosInQuery - targetSeq.getCurrentPosition();
+                            kmerFound = true;
                             break;
                         }
                     }
+                    if(kmerFound == false){
+                        Debug(Debug::ERROR) << "Found no matching k-mers between query and target sequence.\n";
+                        EXIT(EXIT_FAILURE);
+                    }
+
                     targetSeq.resetCurrPos();
                     ++queryBlockEnd;
                     ++j;
@@ -132,6 +175,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 // SUPER IMPORTANT DOCUMENT THIS
                 //only compute the alignment if we found at least 2 matches which are close to each other in the sequence --> increases sensitivity
                 if (shortestDiagDistance > 4) {
+                    writer.writeData("", 0, targetKey, thread_idx);
                     continue;
                 }
 
@@ -141,7 +185,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
                 for (QueryTableEntry *k = queryBlockStart; k < queryBlockEnd; ++k) {
-                    // TODO: ??
                     if (k > queryBlockStart && k->Result.diag == (k - 1)->Result.diag) {
                         k->Result.score = (k - 1)->Result.score;
                         continue;
@@ -149,11 +192,11 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
                     DistanceCalculator::LocalAlignment aln =
                             DistanceCalculator::computeUngappedAlignment(
-                                    // TODO check order of Q and T
                                     querySeqData, querySeqLen,
                                     targetSeqData, targetSeqLen,
                                     k->Result.diag, fastMatrix.matrix, par.rescoreMode);
                     k->Result.score = aln.score;
+
 
 
 //                    Debug(Debug::ERROR) << querySeqLen << "\t" << std::string(querySeqData, querySeqLen) << "\n";
@@ -177,7 +220,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
                 if (maxScore == INT_MIN) {
                     writer.writeData("", 0, targetKey, thread_idx);
-                    continue;
+                    goto cleanup;
                 }
 
                 querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
@@ -185,7 +228,17 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 // we have to swap coverage mode etc
                 // replace 0 with actual best diagonal for nucleotide alignments
                 Matcher::result_t res = matcher.getSWResult(&querySeq, 0, false, par.covMode, par.covThr, par.evalThr,
-                                                            Matcher::SCORE_ONLY, par.seqIdMode, false);
+                                                            Matcher::SCORE_COV_SEQID, par.seqIdMode, false);
+                // print Alignments
+//                if(thread_idx == 0 && i < 640) {
+//                    Debug(Debug::INFO) << res.backtrace << "\n";
+//                    Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t" << targetKey << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
+//
+//                    Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t" << queryKey << "\t" << res.dbStartPos << "\t" << querySeqLen <<  "\n" << res.eval << "\t" << res.alnLength << "\n\n";
+////                res.backtrace;
+////                res.qStartPos;
+////                res.dbStartPos;
+//                }
                 results.emplace_back(res);
             }
             std::sort(results.begin(), results.end(), Matcher::compareHits);
@@ -195,6 +248,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             }
             // we want to write this sorted
             writer.writeData(data.c_str(), data.size(), targetKey, thread_idx);
+cleanup:
             results.clear();
             data.clear();
             // after this module in workflow call "swapresults"
@@ -216,5 +270,34 @@ int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second)
     if (second.Result.diag < first.Result.diag){
         return false;
     }
+
+    if (first.Result.score < second.Result.score){
+        return true;
+    }
+    if (second.Result.score < first.Result.score){
+        return false;
+    }
+
+    if (first.Result.eval > second.Result.eval){
+        return true;
+    }
+    if (second.Result.eval > first.Result.eval){
+        return false;
+    }
+
+    if (first.querySequenceId < second.querySequenceId){
+        return true;
+    }
+    if (second.querySequenceId < first.querySequenceId){
+        return false;
+    }
+
+    if (first.targetSequenceID < second.targetSequenceID){
+        return true;
+    }
+    if (second.targetSequenceID < first.targetSequenceID){
+        return false;
+    }
+
     return false;
 }
