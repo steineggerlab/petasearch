@@ -1,7 +1,7 @@
+#include <QueryTableEntry.h>
 #include "LocalParameters.h"
 #include "Command.h"
 #include "Debug.h"
-#include "QueryTableEntry.h"
 #include "IndexReader.h"
 #include "DBReader.h"
 #include "DBWriter.h"
@@ -9,6 +9,7 @@
 #include "EvalueComputation.h"
 #include "DistanceCalculator.h"
 #include "Matcher.h"
+#include "QueryTableEntry.h"
 
 #include "omptl/omptl_algorithm"
 
@@ -53,6 +54,101 @@ std::string printAlnFromBt(const char *seq, unsigned int offset, const std::stri
 
 int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second);
 
+const unsigned int INVALID_DIAG = (unsigned int)-1;
+
+bool isWithinNDiagonals(const std::vector<QueryTableEntry>& queries, unsigned int N) {
+    unsigned int shortestDiagDistance = UINT_MAX;
+    for (size_t i = 1; i < queries.size() && shortestDiagDistance > N; ++i) {
+        shortestDiagDistance = std::min(shortestDiagDistance, queries[i].Result.diag - queries[i - 1].Result.diag);
+    }
+    // SUPER IMPORTANT DOCUMENT THIS
+    //only compute the alignment if we found at least 2 matches which are close to each other in the sequence --> increases sensitivity
+    return shortestDiagDistance <= N;
+}
+
+unsigned int ungappedDiagFilter(std::vector<QueryTableEntry>& queries,
+        const char* querySeqData,
+        size_t querySeqLen,
+        const char* targetSeqData,
+        size_t targetSeqLen,
+        const char** matrix,
+        EvalueComputation& evaluer,
+        int rescoreMode,
+        double evalThr) {
+
+    int maxScore = INT_MIN;
+    unsigned int lastDiagonal = (unsigned int) -1;
+    for (size_t i = 1; i < queries.size(); ++i) {
+        if (queries[i].Result.diag == lastDiagonal) {
+            lastDiagonal = queries[i].Result.diag;
+            continue;
+        }
+        lastDiagonal = queries[i].Result.diag;
+
+        DistanceCalculator::LocalAlignment aln =
+                DistanceCalculator::computeUngappedAlignment(
+                        querySeqData, querySeqLen, targetSeqData, targetSeqLen,
+                        queries[i].Result.diag, matrix, rescoreMode);
+        queries[i].Result.score = aln.score;
+
+//        Debug(Debug::ERROR) << querySeqLen << "\t" << std::string(querySeqData, querySeqLen) << "\n";
+//        Debug(Debug::ERROR) << targetSeqLen << "\t" << std::string(k->Result.diag, ' ') << std::string(targetSeqData, targetSeqLen) << "\n";
+
+        // if (protein) {
+        // different than wiki, explain swap afterwards
+        double eval = evaluer.computeEvalue(aln.score, querySeqLen);
+//                    Debug(Debug::ERROR) << k->Result.diag  << "\t" << aln.score <<  "\t" << eval << "\n";
+
+        // this is bad for nucleotide petasearch, we need to know the best diagonal
+        if (eval <= evalThr) {
+            maxScore = aln.score;
+            break;
+        }
+        // } else {
+        // actually calculate maxscore
+        // }
+    }
+
+    if (maxScore == INT_MIN) {
+        return INVALID_DIAG;
+    }
+    return lastDiagonal;
+}
+
+struct BlockIterator {
+    void reset(char* data) {
+        buffer = data;
+        lastId = (unsigned int)-1;
+    }
+
+    bool getNext(std::vector<QueryTableEntry>& block) {
+        block.clear();
+        if (*buffer == '\0') {
+            return false;
+        }
+        do {
+            QueryTableEntry query = QueryTableEntry::parseQueryEntry(buffer);
+            if (lastId != query.querySequenceId) {
+                lastId = query.querySequenceId;
+                if (block.empty() == false) {
+                    return true;
+                }
+            }
+            block.emplace_back(query);
+            buffer = Util::skipLine(buffer);
+            lastId = query.querySequenceId;
+        } while (*buffer != '\0');
+        return true;
+    }
+    unsigned int lastId;
+    char* buffer;
+};
+//
+//while(hasNextBlock()) {
+//    getNextBlock();
+//    processBlock();
+//}
+
 int computeAlignments(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
@@ -94,7 +190,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 #endif
         Sequence querySeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
         Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
-        // Sequence nextSequence(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
@@ -104,155 +199,101 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         std::vector<Matcher::result_t> results;
         results.reserve(300);
 
-        std::string data;
-        data.reserve(1000);
+        std::string result;
+        result.reserve(1000);
+
+        std::vector<QueryTableEntry> queries;
+        queries.reserve(300);
+
+        BlockIterator it;
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
-//            progress.updateProgress();
+            progress.updateProgress();
 
             size_t targetKey = resultReader.getDbKey(i);
             unsigned int targetId = targetSequenceReader.getId(targetKey);
-
-            //determine block size of current target sequence
-//            size_t targetId = targetSequenceReader.getId(targetKey);
             const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
             const unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetId);
             targetSeq.mapSequence(targetId, targetKey, targetSeqData, targetSeqLen);
 
+//            Debug(Debug::INFO) << std::string(targetSeqData, targetSeqLen) << "\n";
+
             // TODO: this might be wasted if no single hit hit the target
             matcher.initQuery(&targetSeq);
 
-            // prefetch next sequence
-            // nextTargetID = (++currentPos)->targetSequenceID;
-            // char *nextData = targetSequenceReader.getData(nextTargetID, 0);
-            // TODO: prefetch instruction
-            // nextSequence.mapSequence(nextTargetID,0,nextData);
+            // TODO: prefetch next sequence
 
-            QueryTableEntry *targetBlock = (QueryTableEntry *)resultReader.getData(i, thread_idx);
-            size_t targetBlockCount = resultReader.getEntryLen(i) / sizeof(QueryTableEntry);
-            //calculate diags for each query block in the target block
-            results.clear();
-            for (size_t j = 0; j < targetBlockCount;) {
-                QueryTableEntry *queryBlockStart = targetBlock + j;
-                QueryTableEntry *queryBlockEnd = queryBlockStart;
-                unsigned int lastQueryId;
-                do {
-                    lastQueryId = queryBlockEnd->querySequenceId;
-//                    idx.printKmer(queryBlockEnd->Query.kmer, par.kmerSize, subMat->int2aa);
-//                    Debug(Debug::ERROR) << "\n";
-                    bool kmerFound  = false;
+            char* data = resultReader.getData(i, thread_idx);
+            it.reset(data);
+            while (it.getNext(queries)) {
+                for (size_t j = 0; j < queries.size(); ++j) {
+                    QueryTableEntry& query = queries[j];
+//                    Debug(Debug::INFO) << SSTR(queries.size()) << "\n";
+//                    Debug(Debug::INFO) << SSTR(targetKey) << "\n";
+//                    Debug(Debug::INFO) << SSTR(query.querySequenceId) << "\n";
+//                    Debug(Debug::INFO) << SSTR(query.Query.kmer) << "\n";
+//                    Debug(Debug::INFO) << SSTR(i) << "\n";
+//                    Debug(Debug::INFO) << SSTR(j) << "\n";
+//                    idx.printKmer(query.Query.kmer, par.kmerSize, subMat->int2aa);
+//                    Debug(Debug::INFO) << "\n";
+                    bool kmerFound = false;
                     while (targetSeq.hasNextKmer()) {
                         const int *kmer = targetSeq.nextKmer();
-                        if (queryBlockEnd->Query.kmer ==
-                            idx.int2index(kmer, 0, par.kmerSize)) {
 //                        idx.printKmer(idx.int2index(kmer, 0, par.kmerSize), par.kmerSize, subMat->int2aa);
 //                        Debug(Debug::INFO) << "\n";
-//                            Debug(Debug::ERROR) << "!!!!!";
-                            queryBlockEnd->Result.diag =
-                                    queryBlockEnd->Query.kmerPosInQuery - targetSeq.getCurrentPosition();
+                        if (query.Query.kmer == idx.int2index(kmer, 0, par.kmerSize)) {
+                            query.Result.diag = query.Query.kmerPosInQuery - targetSeq.getCurrentPosition();
                             kmerFound = true;
                             break;
                         }
                     }
-                    if(kmerFound == false){
+                    if (kmerFound == false) {
                         Debug(Debug::ERROR) << "Found no matching k-mers between query and target sequence.\n";
                         EXIT(EXIT_FAILURE);
                     }
-
                     targetSeq.resetCurrPos();
-                    ++queryBlockEnd;
-                    ++j;
-                } while (j < targetBlockCount && lastQueryId == queryBlockEnd->querySequenceId);
-
-                std::sort(queryBlockStart, queryBlockEnd - 1, blockByDiagSort);
-
-                unsigned int shortestDiagDistance = UINT_MAX;
-                for (QueryTableEntry *k = queryBlockStart + 1; k < queryBlockEnd && shortestDiagDistance > 4; ++k) {
-                    shortestDiagDistance = std::min(shortestDiagDistance, k->Result.diag - (k - 1)->Result.diag);
                 }
 
-                // SUPER IMPORTANT DOCUMENT THIS
-                //only compute the alignment if we found at least 2 matches which are close to each other in the sequence --> increases sensitivity
-                if (shortestDiagDistance > 4) {
-                    writer.writeData("", 0, targetKey, thread_idx);
+                std::sort(queries.begin(), queries.end(), blockByDiagSort);
+                if (isWithinNDiagonals(queries, 4) == false) {
                     continue;
                 }
 
-                int maxScore = INT_MIN;
-                unsigned int queryKey = queryBlockStart->querySequenceId;
+                unsigned int queryKey = queries[0].querySequenceId;
                 unsigned int queryId = querySequenceReader.getId(queryKey);
                 const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
-                for (QueryTableEntry *k = queryBlockStart; k < queryBlockEnd; ++k) {
-                    if (k > queryBlockStart && k->Result.diag == (k - 1)->Result.diag) {
-                        k->Result.score = (k - 1)->Result.score;
-                        continue;
-                    }
-
-                    DistanceCalculator::LocalAlignment aln =
-                            DistanceCalculator::computeUngappedAlignment(
-                                    querySeqData, querySeqLen,
-                                    targetSeqData, targetSeqLen,
-                                    k->Result.diag, fastMatrix.matrix, par.rescoreMode);
-                    k->Result.score = aln.score;
-
-
-
-//                    Debug(Debug::ERROR) << querySeqLen << "\t" << std::string(querySeqData, querySeqLen) << "\n";
-//                    Debug(Debug::ERROR) << targetSeqLen << "\t" << std::string(k->Result.diag, ' ') << std::string(targetSeqData, targetSeqLen) << "\n";
-
-
-                    // if (protein) {
-                    // different than wiki, explain swap afterwards
-                    double eval = evaluer.computeEvalue(aln.score, querySeqLen);
-//                    Debug(Debug::ERROR) << k->Result.diag  << "\t" << aln.score <<  "\t" << eval << "\n";
-
-                    // this is bad for nucleotide petasearch, we need to know the best diagonal
-                    if (eval <= par.evalThr) {
-                        maxScore = aln.score;
-                        break;
-                    }
-                    // } else {
-                    // actually calculate maxscore
-                    // }
+                unsigned int diag = ungappedDiagFilter(queries, querySeqData, querySeqLen, targetSeqData, targetSeqLen, fastMatrix.matrix, evaluer, par.rescoreMode, par.evalThr);
+                if (diag == INVALID_DIAG) {
+                    continue;
                 }
 
-                if (maxScore == INT_MIN) {
-                    writer.writeData("", 0, targetKey, thread_idx);
-                    goto cleanup;
-                }
-
+                // TODO we have to swap coverage mode either here or already in workflow etc
                 querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
-
-                // we have to swap coverage mode etc
-                // replace 0 with actual best diagonal for nucleotide alignments
-                Matcher::result_t res = matcher.getSWResult(&querySeq, 0, false, par.covMode, par.covThr, par.evalThr,
+                Matcher::result_t res = matcher.getSWResult(&querySeq, diag, false, par.covMode, par.covThr, par.evalThr,
                                                             Matcher::SCORE_COV_SEQID, par.seqIdMode, false);
-                // print Alignments
-//                if(thread_idx == 0 && i < 640) {
-//                    Debug(Debug::INFO) << res.backtrace << "\n";
-//                    Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t" << targetKey << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
-//
-//                    Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t" << queryKey << "\t" << res.dbStartPos << "\t" << querySeqLen <<  "\n" << res.eval << "\t" << res.alnLength << "\n\n";
-////                res.backtrace;
-////                res.qStartPos;
-////                res.dbStartPos;
-//                }
                 results.emplace_back(res);
             }
+
             std::sort(results.begin(), results.end(), Matcher::compareHits);
             for (size_t j = 0; j < results.size(); ++j) {
                 size_t len = Matcher::resultToBuffer(buffer, results[j], false, false);
-                data.append(buffer, len);
+                result.append(buffer, len);
             }
-            // we want to write this sorted
-            writer.writeData(data.c_str(), data.size(), targetKey, thread_idx);
-cleanup:
+
+//    if (thread_idx == 0 && i < 640) {
+//        Debug(Debug::INFO) << res.backtrace << "\n";
+//        Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t" << targetKey
+//                           << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
+//        Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t" << queryKey
+//                           << "\t" << res.dbStartPos << "\t" << querySeqLen << "\n" << res.eval << "\t" << res.alnLength
+//                           << "\n\n";
+//    }
+
+            writer.writeData(result.c_str(), result.size(), targetKey, thread_idx);
             results.clear();
-            data.clear();
-            // after this module in workflow call "swapresults"
-            // TODO what about convertalis if we need pairwise alignments or if we need profiles??
+            result.clear();
         }
     }
     writer.close();

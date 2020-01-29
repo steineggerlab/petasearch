@@ -9,7 +9,6 @@
 #include "QueryTableEntry.h"
 #include "DBWriter.h"
 #include "MemoryMapped.h"
-#include "QueryMatcher.h"
 
 #include "omptl/omptl_algorithm"
 
@@ -62,7 +61,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength >= par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
+        kmerCount += currentSequenceLength >= (size_t)par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
     }
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n";
     float similarKmerFactor = 1.5 ;
@@ -104,7 +103,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
                 const int *kmer = sequence.nextKmer();
 
                 int xCount = 0;
-                for (size_t pos = 0; pos < par.kmerSize; pos++) {
+                for (int pos = 0; pos < par.kmerSize; ++pos) {
                     xCount += (kmer[pos] == xIndex);
                 }
                 if (xCount) {
@@ -238,18 +237,26 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     omptl::sort(resultTable, truncatedResultEndPos, truncatedResultTableSort);
 
     Debug(Debug::INFO) << "Writing result files\n";
-    DBWriter writer(par.db3.c_str(), par.db3Index.c_str(), 1, par.compressed, Parameters::DBTYPE_GENERIC_DB);
+    DBWriter writer(par.db3.c_str(), par.db3Index.c_str(), 1, par.compressed, Parameters::DBTYPE_PREFILTER_RES);
     writer.open();
 
     QueryTableEntry *startPos = resultTable;
     QueryTableEntry *endPos = truncatedResultEndPos;
+    std::string result;
+    result.reserve(10 * 1024);
+    char buffer[1024];
     for (QueryTableEntry *currentPos = startPos; currentPos < endPos - 1; ++currentPos) {
-        size_t blockSize = 0;
+//        bool didAppend = false;
         while (currentPos < endPos - 1 && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
-            ++blockSize;
+            size_t len = QueryTableEntry::queryEntryToBuffer(buffer, *currentPos);
+//            if (didAppend == false) {
+            result.append(buffer, len);
+//                didAppend = true;
+//            }
             ++currentPos;
         }
-        writer.writeData((char *) (currentPos - (blockSize - 1)), blockSize * sizeof(QueryTableEntry), currentPos->targetSequenceID, 0U, false);
+        writer.writeData(result.c_str(), result.length(), currentPos->targetSequenceID, 0);
+        result.clear();
     }
     writer.close();
 
@@ -270,7 +277,7 @@ QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntr
             ++count;
             ++currentReadPos;
         }
-        if (count >= par.requiredKmerMatches) {
+        if (count > par.requiredKmerMatches) {
             memcpy(currentWritePos, currentReadPos - (count - 1), sizeof(QueryTableEntry) * count);
             currentWritePos += count;
         }
