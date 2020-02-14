@@ -16,8 +16,6 @@
 #include <omp.h>
 #endif
 
-#define BUFFERSIZE Util::getPageSize()
-
 void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::string blockID);
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
@@ -55,14 +53,13 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n"
                        << "Creating TargetTable. Requiring " << ((kmerCount + 1) * sizeof(TargetTableEntry)) / 1024 / 1024 << " MB of memory for it\n";
-    size_t page_size = Util::getPageSize();
-    targetTable = (TargetTableEntry *)mem_align(page_size, (kmerCount + 1) * sizeof(TargetTableEntry));
-    if (madvise(targetTable, (kmerCount + 1) * sizeof(TargetTableEntry), MADV_HUGEPAGE | MADV_SEQUENTIAL) != 0) {
-        Debug(Debug::WARNING) << "madvise returned an error\n";
-    }
+    targetTable = (TargetTableEntry *)calloc((kmerCount + 1), sizeof(TargetTableEntry));
     Debug(Debug::INFO) << "Memory allocated \n"
                        << timer.lap() << "\n"
                        << "Extracting k-mers\n";
+
+    const size_t pageSize = Util::getPageSize();
+    const size_t threadBufferSize = 16 * pageSize;
 
     size_t tableIndex = 0;
     Debug::Progress progress(reader.getSize());
@@ -74,7 +71,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 #endif
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
         Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
-        TargetTableEntry *localBuffer = new TargetTableEntry[BUFFERSIZE];
+        TargetTableEntry *localBuffer = (TargetTableEntry *)mem_align(pageSize, threadBufferSize * sizeof(TargetTableEntry));
         size_t localTableIndex = 0;
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
@@ -98,7 +95,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
                 localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
                 localBuffer[localTableIndex].sequenceLength = reader.getSeqLen(i);
                 ++localTableIndex;
-                if (localTableIndex >= BUFFERSIZE) {
+                if (localTableIndex >= threadBufferSize) {
                     size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
                     memcpy(targetTable + writeOffset, localBuffer, sizeof(TargetTableEntry) * localTableIndex);
                     localTableIndex = 0;
@@ -109,7 +106,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
             size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
             memcpy(targetTable + writeOffset, localBuffer, sizeof(TargetTableEntry) * localTableIndex);
         }
-        delete[] localBuffer;
+        free(localBuffer);
     }
 
     Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";

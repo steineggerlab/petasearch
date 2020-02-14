@@ -1,6 +1,5 @@
 #include "LocalParameters.h"
 #include "FileUtil.h"
-#include "Debug.h"
 #include "Util.h"
 #include "CommandCaller.h"
 
@@ -20,7 +19,7 @@ int petasearch(int argc, const char **argv, const Command &command) {
 
     par.parseParameters(argc, argv, command, true, 0, 0);
 
-    std::string tmpDir = par.db4;
+    std::string tmpDir = par.db5;
     std::string hash = SSTR(par.hashParameter(par.filenames, par.petasearchworkflow));
     if (par.reuseLatest) {
         hash = FileUtil::getHashFromSymLink(tmpDir + "/latest");
@@ -38,6 +37,7 @@ int petasearch(int argc, const char **argv, const Command &command) {
     cmd.addVariable("COMP_ALI_PAR", par.createParameterString(par.computeAlignments).c_str());
     par.evalThr = 100000;
     cmd.addVariable("SWAP_PAR", par.createParameterString(par.swapresult).c_str());
+    cmd.addVariable("CONVERTALIS_PAR",par.createParameterString(par.convertalignments).c_str());
 
     std::string program = tmpDir + "/petasearch.sh";
     FileUtil::writeFile(program, petasearch_sh, petasearch_sh_len);

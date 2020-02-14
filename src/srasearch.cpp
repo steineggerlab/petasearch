@@ -17,12 +17,13 @@ std::vector<struct Command> commands = {
                  "",
                  NULL,
                  "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
-                 "<i:queryDB> <i:targetDB> <i:resultDB> <o:tmp>",
+                 "<i:queryDB> <i:targetDBsFile> <i:compResultDB> <o:alignmentResults> <o:tmp>",
                  CITATION_MMSEQS2,
-                 {{"queryDb",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
-                  {"targetDb",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
-                  {"resultDb",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile},
-                  {"tmp",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory}}
+                 {{"queryDB",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
+                    {"targetDBsFile",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
+                    {"compResultDB",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile},
+                    {"alignmentResults",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile},
+                    {"tmp",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory}}
 
             },
         {"easy-petasearch", easypetasearch, &localPar.easypetasearchworkflow, COMMAND_MAIN,
@@ -54,7 +55,7 @@ std::vector<struct Command> commands = {
                 CITATION_MMSEQS2, 
                 {{"queryDb",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
                         {"targetKmerTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
-                        {"resultTable",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::flatfile}}
+                        {"resultTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::flatfile}}
         },
         {"computeAlignments", computeAlignments, &localPar.computeAlignments, COMMAND_EXPERT,
                 "",

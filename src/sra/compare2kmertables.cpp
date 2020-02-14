@@ -14,6 +14,8 @@
 
 #ifdef OPENMP
 #include <omp.h>
+#include <fstream>
+
 #endif
 
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
@@ -144,6 +146,28 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     reader.close();
 }
 
+std::vector<std::string> getFileNamesFromFile(std::string fileName){
+    std::vector<std::string> fileNames;
+    std::ifstream in(fileName);
+    std::string str;
+    if(!in){
+        Debug(Debug::ERROR) << "Could not open file with target or result file names.\n";
+        EXIT(EXIT_FAILURE);
+    }
+    while (std::getline(in, str)){
+        if(str.size() > 0) {
+            fileNames.push_back(Util::split(str, "\t")[0]);
+//            std::string first_entry;
+//            std::istringstream stringStream(str);
+//            if(std::getline(stringStream, first_entry, '\t')) {
+//                fileNames.push_back(first_entry);
+//            }
+        }
+    }
+    in.close();
+    return fileNames;
+}
+
 
 int compare2kmertables(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
@@ -154,113 +178,133 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     std::vector<QueryTableEntry> qTable;
     createQueryTable(par, qTable);
 
-    QueryTableEntry *startPosQueryTable = qTable.data();
-    QueryTableEntry *endQueryPos = startPosQueryTable + qTable.size();
-
-    MemoryMapped targetTable(par.db2, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
-    MemoryMapped targetIds(std::string(par.db2 + "_ids"), MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
-    if (targetTable.isValid() == false || targetIds.isValid() == false) {
-        Debug(Debug::ERROR) << "Could not open target database " << par.db2 << "\n";
+    std::vector<std::string> targetTables = getFileNamesFromFile(par.db2);
+    std::vector<std::string> resultFiles = getFileNamesFromFile(par.db3);
+    if(targetTables.size() == 0){
+        Debug(Debug::ERROR) << "Expected at least one targetTable entry in the target table file \n";
         EXIT(EXIT_FAILURE);
     }
-    unsigned short *startPosTargetTable = (unsigned short *)targetTable.getData();
-    unsigned int *startPosIDTable = (unsigned int *)targetIds.getData();
-
-    QueryTableEntry *currentQueryPos = startPosQueryTable;
-    unsigned short *currentTargetPos = startPosTargetTable;
-    unsigned short *endTargetPos = startPosTargetTable + targetTable.size() / sizeof(unsigned short);
-    unsigned int *currentIDPos = startPosIDTable;
-
-    size_t equalKmers = 0;
-    size_t currentKmer = 0;
-
-
-    Debug(Debug::INFO) << "start comparing \n";
-
-    Timer timer;
-    // cover the rare case that the first (real) target entry is larger than USHRT_MAX
-    while (currentTargetPos <= endTargetPos && *currentTargetPos == USHRT_MAX) {
-        currentKmer += USHRT_MAX;
-        ++currentTargetPos;
-        ++currentIDPos;
+    if(targetTables.size() != resultFiles.size()){
+        Debug(Debug::ERROR) << " number of targetTable file entries and result file entries is not equal \n";
+        EXIT(EXIT_FAILURE);
     }
-    currentKmer += *currentTargetPos;
 
-    while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
-        if (currentKmer == currentQueryPos->Query.kmer) {
-            ++equalKmers;
-            currentQueryPos->targetSequenceID = *currentIDPos;
-            ++currentQueryPos;
-            while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer == currentKmer){
+#pragma omp parallel
+{
+
+#pragma omp for schedule(dynamic, 1)
+    for (size_t i = 0; i < targetTables.size(); ++i) {
+        std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
+        QueryTableEntry *startPosQueryTable = localQTable.data();
+        QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
+
+        std::string targetName = targetTables[i];
+        MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
+        MemoryMapped targetIds(std::string(targetName + "_ids"), MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
+        if (targetTable.isValid() == false || targetIds.isValid() == false) {
+            Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
+            EXIT(EXIT_FAILURE);
+        }
+        unsigned short *startPosTargetTable = (unsigned short *) targetTable.getData();
+        unsigned int *startPosIDTable = (unsigned int *) targetIds.getData();
+
+        QueryTableEntry *currentQueryPos = startPosQueryTable;
+        unsigned short *currentTargetPos = startPosTargetTable;
+        unsigned short *endTargetPos = startPosTargetTable + targetTable.size() / sizeof(unsigned short);
+        unsigned int *currentIDPos = startPosIDTable;
+
+        size_t equalKmers = 0;
+        size_t currentKmer = 0;
+
+
+        Debug(Debug::INFO) << "start comparing \n";
+
+        Timer timer;
+        // cover the rare case that the first (real) target entry is larger than USHRT_MAX
+        while (currentTargetPos <= endTargetPos && *currentTargetPos == USHRT_MAX) {
+            currentKmer += USHRT_MAX;
+            ++currentTargetPos;
+            ++currentIDPos;
+        }
+        currentKmer += *currentTargetPos;
+
+        while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
+            if (currentKmer == currentQueryPos->Query.kmer) {
+                ++equalKmers;
                 currentQueryPos->targetSequenceID = *currentIDPos;
                 ++currentQueryPos;
-            }
-            ++currentTargetPos;
-            ++currentIDPos;
-            while (__builtin_expect(*currentTargetPos == USHRT_MAX && currentTargetPos < endTargetPos, 0)) {
-                currentKmer += USHRT_MAX;
+                while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer == currentKmer){
+                    currentQueryPos->targetSequenceID = *currentIDPos;
+                    ++currentQueryPos;
+                }
                 ++currentTargetPos;
                 ++currentIDPos;
+                while (__builtin_expect(*currentTargetPos == USHRT_MAX && currentTargetPos < endTargetPos, 0)) {
+                    currentKmer += USHRT_MAX;
+                    ++currentTargetPos;
+                    ++currentIDPos;
+                }
+                currentKmer += *currentTargetPos;
             }
-            currentKmer += *currentTargetPos;
-        }
 
-        while (currentQueryPos->Query.kmer < currentKmer && __builtin_expect(currentQueryPos < endQueryPos, 1)) {
-            ++currentQueryPos;
-        }
+            while (currentQueryPos->Query.kmer < currentKmer && __builtin_expect(currentQueryPos < endQueryPos, 1)) {
+                ++currentQueryPos;
+            }
 
-        while (currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos) {
-            ++currentTargetPos;
-            ++currentIDPos;
-            while (__builtin_expect(*currentTargetPos == USHRT_MAX && currentTargetPos < endTargetPos, 0)) {
-                currentKmer += USHRT_MAX;
+            while (currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos) {
                 ++currentTargetPos;
                 ++currentIDPos;
+                while (__builtin_expect(*currentTargetPos == USHRT_MAX && currentTargetPos < endTargetPos, 0)) {
+                    currentKmer += USHRT_MAX;
+                    ++currentTargetPos;
+                    ++currentIDPos;
+                }
+                currentKmer += *currentTargetPos;
             }
-            currentKmer += *currentTargetPos;
         }
-    }
 
+        double timediff = timer.getTimediff();
+        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
+        Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
-    double timediff = timer.getTimediff();
-    Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
-    Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
+        Debug(Debug::INFO) << "Sorting result table\n";
+        std::sort(startPosQueryTable, endQueryPos, resultTableSort);
 
-    Debug(Debug::INFO) << "Sorting result table\n";
-    omptl::sort(startPosQueryTable, endQueryPos, resultTableSort);
+        Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
+        QueryTableEntry *resultTable = new QueryTableEntry[qTable.size()];
+        QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
 
-    Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
-    QueryTableEntry *resultTable = new QueryTableEntry[qTable.size()];
-    QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
+        Debug(Debug::INFO) << "Sorting result table after target ids \n";
+        std::sort(resultTable, truncatedResultEndPos, truncatedResultTableSort);
 
-    Debug(Debug::INFO) << "Sorting result table after target id \n";
-    omptl::sort(resultTable, truncatedResultEndPos, truncatedResultTableSort);
+        Debug(Debug::INFO) << "Writing result files\n";
+        std::string resultDB = resultFiles[i];
+        DBWriter writer(resultDB.c_str(), (resultDB + ".index").c_str(), 1, par.compressed, Parameters::DBTYPE_PREFILTER_RES);
+        writer.open();
 
-    Debug(Debug::INFO) << "Writing result files\n";
-    DBWriter writer(par.db3.c_str(), par.db3Index.c_str(), 1, par.compressed, Parameters::DBTYPE_PREFILTER_RES);
-    writer.open();
-
-    QueryTableEntry *startPos = resultTable;
-    QueryTableEntry *endPos = truncatedResultEndPos;
-    std::string result;
-    result.reserve(10 * 1024);
-    char buffer[1024];
-    for (QueryTableEntry *currentPos = startPos; currentPos < endPos - 1; ++currentPos) {
+        QueryTableEntry *startPos = resultTable;
+        QueryTableEntry *endPos = truncatedResultEndPos;
+        std::string result;
+        result.reserve(10 * 1024);
+        char buffer[1024];
+        for (QueryTableEntry *currentPos = startPos; currentPos < endPos - 1; ++currentPos) {
 //        bool didAppend = false;
-        while (currentPos < endPos - 1 && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
-            size_t len = QueryTableEntry::queryEntryToBuffer(buffer, *currentPos);
+            while (currentPos < endPos - 1 && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
+                size_t len = QueryTableEntry::queryEntryToBuffer(buffer, *currentPos);
 //            if (didAppend == false) {
-            result.append(buffer, len);
+                result.append(buffer, len);
 //                didAppend = true;
 //            }
-            ++currentPos;
+                ++currentPos;
+            }
+            writer.writeData(result.c_str(), result.length(), currentPos->targetSequenceID, 0);
+            result.clear();
         }
-        writer.writeData(result.c_str(), result.length(), currentPos->targetSequenceID, 0);
-        result.clear();
-    }
-    writer.close();
+        writer.close();
 
-    delete[] resultTable;
+        delete[] resultTable;
+    }
+}
 
     return EXIT_SUCCESS;
 }

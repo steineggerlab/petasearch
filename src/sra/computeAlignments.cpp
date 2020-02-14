@@ -143,11 +143,6 @@ struct BlockIterator {
     unsigned int lastId;
     char* buffer;
 };
-//
-//while(hasNextBlock()) {
-//    getNextBlock();
-//    processBlock();
-//}
 
 int computeAlignments(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
