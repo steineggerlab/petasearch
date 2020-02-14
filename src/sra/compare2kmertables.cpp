@@ -210,7 +210,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
         QueryTableEntry *currentQueryPos = startPosQueryTable;
         unsigned short *currentTargetPos = startPosTargetTable;
-        unsigned short *endTargetPos = startPosTargetTable + targetTable.size() / sizeof(unsigned short);
+        unsigned short *endTargetPos = startPosTargetTable + (targetTable.size() / sizeof(unsigned short));
         unsigned int *currentIDPos = startPosIDTable;
 
         size_t equalKmers = 0;
@@ -221,12 +221,12 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
         Timer timer;
         // cover the rare case that the first (real) target entry is larger than USHRT_MAX
-        while (currentTargetPos <= endTargetPos && *currentTargetPos == USHRT_MAX) {
+        while (currentTargetPos < endTargetPos && *currentTargetPos == USHRT_MAX) {
             currentKmer += USHRT_MAX;
             ++currentTargetPos;
             ++currentIDPos;
         }
-        currentKmer += *currentTargetPos;
+        currentKmer += currentTargetPos != NULL ? *currentTargetPos : 0;
 
         while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
             if (currentKmer == currentQueryPos->Query.kmer) {
@@ -239,7 +239,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                 }
                 ++currentTargetPos;
                 ++currentIDPos;
-                while (__builtin_expect(*currentTargetPos == USHRT_MAX && currentTargetPos < endTargetPos, 0)) {
+                while (__builtin_expect(currentTargetPos < endTargetPos && *currentTargetPos == USHRT_MAX, 0)) {
                     currentKmer += USHRT_MAX;
                     ++currentTargetPos;
                     ++currentIDPos;
@@ -247,14 +247,14 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                 currentKmer += *currentTargetPos;
             }
 
-            while (currentQueryPos->Query.kmer < currentKmer && __builtin_expect(currentQueryPos < endQueryPos, 1)) {
+            while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer < currentKmer) {
                 ++currentQueryPos;
             }
 
-            while (currentKmer < currentQueryPos->Query.kmer && currentTargetPos < endTargetPos) {
+            while (currentQueryPos < endQueryPos && currentTargetPos < endTargetPos && currentKmer < currentQueryPos->Query.kmer) {
                 ++currentTargetPos;
                 ++currentIDPos;
-                while (__builtin_expect(*currentTargetPos == USHRT_MAX && currentTargetPos < endTargetPos, 0)) {
+                while (__builtin_expect(currentTargetPos < endTargetPos && *currentTargetPos == USHRT_MAX, 0)) {
                     currentKmer += USHRT_MAX;
                     ++currentTargetPos;
                     ++currentIDPos;
@@ -271,7 +271,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         std::sort(startPosQueryTable, endQueryPos, resultTableSort);
 
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
-        QueryTableEntry *resultTable = new QueryTableEntry[qTable.size()];
+        QueryTableEntry *resultTable = new QueryTableEntry[localQTable.size()];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
 
         Debug(Debug::INFO) << "Sorting result table after target ids \n";
