@@ -21,7 +21,7 @@ std::vector<struct Command> commands = {
                  CITATION_MMSEQS2,
                  {{"queryDB",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
                     {"targetDBsFile",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
-                    {"compResultDB",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile},
+                    {"compResultDBsFile",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
                     {"alignmentResults",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile},
                     {"tmp",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory}}
 

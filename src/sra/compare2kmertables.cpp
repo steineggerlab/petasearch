@@ -14,8 +14,6 @@
 
 #ifdef OPENMP
 #include <omp.h>
-#include <fstream>
-
 #endif
 
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
@@ -141,31 +139,24 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
 
     Debug(Debug::INFO) << "start sorting \n";
     omptl::sort(queryTable.begin(), queryTable.end(), queryTableSort);
-    Debug(Debug::INFO) << "Required time for sorting" << timer.lap() << "\n";
+    Debug(Debug::INFO) << "Required time for sorting: " << timer.lap() << "\n";
 
     reader.close();
 }
 
-std::vector<std::string> getFileNamesFromFile(std::string fileName){
-    std::vector<std::string> fileNames;
-    std::ifstream in(fileName);
-    std::string str;
-    if(!in){
-        Debug(Debug::ERROR) << "Could not open file with target or result file names.\n";
-        EXIT(EXIT_FAILURE);
+std::vector<std::string> getFileNamesFromFile(const std::string &filename){
+    std::vector<std::string> files;
+    char *line = NULL;
+    size_t len = 0;
+    FILE *handle = FileUtil::openFileOrDie(filename.c_str(), "r", true);
+    char buffer[PATH_MAX];
+    while (getline(&line, &len, handle) != -1) {
+        Util::parseKey(line, buffer);
+        files.emplace_back(buffer);
     }
-    while (std::getline(in, str)){
-        if(str.size() > 0) {
-            fileNames.push_back(Util::split(str, "\t")[0]);
-//            std::string first_entry;
-//            std::istringstream stringStream(str);
-//            if(std::getline(stringStream, first_entry, '\t')) {
-//                fileNames.push_back(first_entry);
-//            }
-        }
-    }
-    in.close();
-    return fileNames;
+    fclose(handle);
+    free(line);
+    return files;
 }
 
 
