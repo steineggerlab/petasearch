@@ -16,9 +16,54 @@
 #include <omp.h>
 #endif
 
-int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
-int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
-QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par);
+QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
+    QueryTableEntry *currentReadPos = startPos;
+    QueryTableEntry *currentWritePos = resultTable;
+    while (currentReadPos < endPos) {
+        size_t count = 1;
+        while (currentReadPos < endPos
+               && currentReadPos->targetSequenceID != UINT_MAX
+               && currentReadPos->targetSequenceID == (currentReadPos + 1)->targetSequenceID
+               && currentReadPos->querySequenceId  == (currentReadPos + 1)->querySequenceId) {
+            ++count;
+            ++currentReadPos;
+        }
+        if (count > par.requiredKmerMatches) {
+            memcpy(currentWritePos, currentReadPos - (count - 1), sizeof(QueryTableEntry) * count);
+            currentWritePos += count;
+        }
+        ++currentReadPos;
+    }
+    return currentWritePos;
+}
+
+int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
+    if (first.targetSequenceID < second.targetSequenceID) {
+        return true;
+    }
+    if (second.targetSequenceID < first.targetSequenceID) {
+        return false;
+    }
+    if (first.querySequenceId < second.querySequenceId) {
+        return true;
+    }
+    if (second.querySequenceId < first.querySequenceId) {
+        return false;
+    }
+    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery) {
+        return true;
+    }
+    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery) {
+        return false;
+    }
+    if (first.Query.kmer < second.Query.kmer) {
+        return true;
+    }
+    if (second.Query.kmer < first.Query.kmer) {
+        return false;
+    }
+    return false;
+}
 
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
     if (first.Query.kmer < second.Query.kmer) {
@@ -168,7 +213,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     Debug(Debug::INFO) << "mapping query and target files \n";
     std::vector<QueryTableEntry> qTable;
     createQueryTable(par, qTable);
-
+    
     std::vector<std::string> targetTables = getFileNamesFromFile(par.db2);
     std::vector<std::string> resultFiles = getFileNamesFromFile(par.db3);
     if(targetTables.size() == 0){
@@ -265,8 +310,6 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         QueryTableEntry *resultTable = new QueryTableEntry[localQTable.size()];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
 
-        Debug(Debug::INFO) << "Sorting result table after target ids \n";
-        std::sort(resultTable, truncatedResultEndPos, truncatedResultTableSort);
 
         Debug(Debug::INFO) << "Writing result files\n";
         std::string resultDB = resultFiles[i];
@@ -298,81 +341,4 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 }
 
     return EXIT_SUCCESS;
-}
-
-QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
-    QueryTableEntry *currentReadPos = startPos;
-    QueryTableEntry *currentWritePos = resultTable;
-    while (currentReadPos < endPos) {
-        size_t count = 1;
-        while (currentReadPos < endPos
-                && currentReadPos->targetSequenceID != UINT_MAX
-                && currentReadPos->targetSequenceID == (currentReadPos + 1)->targetSequenceID
-                && currentReadPos->querySequenceId  == (currentReadPos + 1)->querySequenceId) {
-            ++count;
-            ++currentReadPos;
-        }
-        if (count > par.requiredKmerMatches) {
-            memcpy(currentWritePos, currentReadPos - (count - 1), sizeof(QueryTableEntry) * count);
-            currentWritePos += count;
-        }
-        ++currentReadPos;
-    }
-    return currentWritePos;
-}
-
-int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
-    if (first.querySequenceId < second.querySequenceId) {
-        return true;
-    }
-    if (second.querySequenceId < first.querySequenceId) {
-        return false;
-    }
-    if (first.targetSequenceID < second.targetSequenceID) {
-        return true;
-    }
-    if (second.targetSequenceID < first.targetSequenceID) {
-        return false;
-    }
-    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery) {
-        return true;
-    }
-    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery) {
-        return false;
-    }
-    if (first.Query.kmer < second.Query.kmer) {
-        return true;
-    }
-    if (second.Query.kmer < first.Query.kmer) {
-        return false;
-    }
-    return false;
-}
-
-int truncatedResultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
-    if (first.targetSequenceID < second.targetSequenceID) {
-        return true;
-    }
-    if (second.targetSequenceID < first.targetSequenceID) {
-        return false;
-    }
-    if (first.querySequenceId < second.querySequenceId) {
-        return true;
-    }
-    if (second.querySequenceId < first.querySequenceId) {
-        return false;
-    }
-    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery) {
-        return true;
-    }
-    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery) {
-        return false;
-    }
-    if (first.Query.kmer < second.Query.kmer) {
-        return true;
-    }
-    if (second.Query.kmer < first.Query.kmer) {
-        return false;
-    }
-    return false;
 }
