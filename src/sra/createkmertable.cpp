@@ -47,7 +47,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength >= par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
+        kmerCount += currentSequenceLength >= (unsigned)par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
     }
     TargetTableEntry *targetTable = NULL;
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
@@ -84,7 +84,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
             while (s.hasNextKmer()) {
                 const unsigned char*kmer = s.nextKmer();
                 int xCount = 0;
-                for (size_t pos = 0; pos < par.kmerSize; pos++) {
+                for (size_t pos = 0; pos < (unsigned)par.kmerSize; pos++) {
                     xCount += (kmer[pos] == xIndex);
                 }
                 if (xCount) {
@@ -175,22 +175,33 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     fclose(handleIDTable);
     Debug(Debug::INFO) << "Wrote " << uniqueKmerCount << " unique k-mers.\n";
     Debug(Debug::INFO) << "For "<< entryDiffLargerUShortMax  << " entries the difference between the previous were larger than max short.\n";
-    Debug(Debug::INFO) << "Created " << diffLargerThenUShortMax << " extra unsigned short max entries to store the diff.\n";
+//    Debug(Debug::INFO) << "Created " << diffLargerThenUShortMax << " extra unsigned short max entries to store the diff.\n";
 }
 
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable) {
     size_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
     bool first = true;
-    unsigned short maxshort = USHRT_MAX;
-    while (kmerdiff >= maxshort) {
-        if(first) {
+    short maxshort = SHRT_MAX;
+    unsigned long numOfShortMax = 0;
+
+    while (kmerdiff > (unsigned long)maxshort) {
+        if (first) {
             ++entryDiffLargerUShortMax;
             first = false;
         }
-        ++diffLargerThenUShortMax;
-        fwrite(&(maxshort), sizeof(unsigned short), 1, handleKmerTable);
-        fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
+        ++numOfShortMax;
         kmerdiff -= maxshort;
+    } // Set the first bit to 1, as a flag
+    unsigned short MAX_TOWRITE = 0x8000 | maxshort;
+    while (numOfShortMax > (unsigned long)maxshort) {
+        fwrite(&(MAX_TOWRITE), sizeof(unsigned short), 1, handleKmerTable);
+        numOfShortMax -= maxshort;
+        ++diffLargerThenUShortMax;
+    }
+    if (numOfShortMax > 0) {
+        unsigned short toWrite = 0x8000 | numOfShortMax;
+        fwrite(&(toWrite), sizeof(unsigned short), 1, handleKmerTable);
+        ++diffLargerThenUShortMax;
     }
     fwrite((short *)&(kmerdiff), sizeof(unsigned short), 1, handleKmerTable);
     fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
