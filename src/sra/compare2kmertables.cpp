@@ -251,7 +251,6 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
             unsigned short *endTargetPos = startPosTargetTable + (targetTable.size() / sizeof(unsigned short));
             unsigned int *currentIDPos = startPosIDTable;
 
-            // FIXME: the computation of equalKmer is wrong
             size_t equalKmers = 0;
             unsigned long long currentKmer = 0;
 
@@ -259,12 +258,17 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
             Debug(Debug::INFO) << "start comparing \n";
 
             Timer timer;
-            // cover the rare case that the first (real) target entry is larger than SHRT_MAX
-            while (currentTargetPos < endTargetPos && (((*currentTargetPos >> 15) & 0x1) == 1)) {
-                currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
+            // cover the rare case that the first (real) target entry is larger than USHRT_MAX
+            uint64_t currDiffIndex = 0;
+            while (currentTargetPos < endTargetPos && (((*currentTargetPos >> 15U) & 0x1U) == 0)) {
+//                currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
+                currDiffIndex |= (*currentTargetPos);
+                currDiffIndex >>= 15U;
                 ++currentTargetPos;
             }
-            currentKmer += currentTargetPos != NULL ? *currentTargetPos : 0;
+            currDiffIndex |= 0x7fffU & (*currentTargetPos);
+            currentKmer += currDiffIndex;
+            currDiffIndex = 0;
 
             while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
                 if (currentKmer == currentQueryPos->Query.kmer) {
@@ -277,25 +281,32 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                     }
                     ++currentTargetPos;
                     ++currentIDPos;
-                    while (__builtin_expect(currentTargetPos < endTargetPos && (((*currentTargetPos >> 15) & 0x1) == 1), 0)) {
-                        currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
+                    while (__builtin_expect(currentTargetPos < endTargetPos && (((*currentTargetPos >> 15U) & 0x1U) == 0), 0)) {
+//                        currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
+                        currDiffIndex |= (*currentTargetPos);
+                        currDiffIndex >>= 15U;
                         ++currentTargetPos;
                     }
-                    currentKmer += *currentTargetPos;
+                    currDiffIndex |= 0x7fffU & (*currentTargetPos);
+                    currentKmer += currDiffIndex;
+                    currDiffIndex = 0;
                 }
-
+//
                 while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer < currentKmer) {
                     ++currentQueryPos;
                 }
-
+//
                 while (currentQueryPos < endQueryPos && currentTargetPos < endTargetPos && currentKmer < currentQueryPos->Query.kmer) {
                     ++currentTargetPos;
                     ++currentIDPos;
-                    while (__builtin_expect(currentTargetPos < endTargetPos && (((*currentTargetPos >> 15) & 0x1) == 1), 0)) {
-                        currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
+                    while (__builtin_expect(currentTargetPos < endTargetPos && (((*currentTargetPos >> 15) & 0x1) == 0), 0)) {
+                        currDiffIndex |= (*currentTargetPos);
+                        currDiffIndex >>= 15U;
                         ++currentTargetPos;
                     }
-                    currentKmer += *currentTargetPos;
+                    currDiffIndex |= 0x7fffU & (*currentTargetPos);
+                    currentKmer += currDiffIndex;
+                    currDiffIndex = 0;
                 }
             }
 
