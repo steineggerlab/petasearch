@@ -238,7 +238,9 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
             std::string targetName = targetTables[i];
             MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
-            MemoryMapped targetIds(std::string(targetName + "_ids"), MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
+            MemoryMapped targetIds(std::string(targetName + "_ids"),
+                                   MemoryMapped::WholeFile,
+                                   MemoryMapped::SequentialScan);
             if (targetTable.isValid() == false || targetIds.isValid() == false) {
                 Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
                 EXIT(EXIT_FAILURE);
@@ -263,7 +265,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
             while (currentTargetPos < endTargetPos && (((*currentTargetPos >> 15U) & 0x1U) == 0)) {
 //                currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
                 currDiffIndex |= (*currentTargetPos);
-                currDiffIndex >>= 15U;
+                currDiffIndex <<= 15U;
                 ++currentTargetPos;
             }
             currDiffIndex |= 0x7fffU & (*currentTargetPos);
@@ -275,16 +277,18 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                     ++equalKmers;
                     currentQueryPos->targetSequenceID = *currentIDPos;
                     ++currentQueryPos;
-                    while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer == currentKmer){
+                    while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
+                           currentQueryPos->Query.kmer == currentKmer){
                         currentQueryPos->targetSequenceID = *currentIDPos;
                         ++currentQueryPos;
                     }
                     ++currentTargetPos;
                     ++currentIDPos;
-                    while (__builtin_expect(currentTargetPos < endTargetPos && (((*currentTargetPos >> 15U) & 0x1U) == 0), 0)) {
+                    while (__builtin_expect(currentTargetPos < endTargetPos &&
+                                            (((*currentTargetPos >> 15U) & 0x1U) == 0), 0)) {
 //                        currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
                         currDiffIndex |= (*currentTargetPos);
-                        currDiffIndex >>= 15U;
+                        currDiffIndex <<= 15U;
                         ++currentTargetPos;
                     }
                     currDiffIndex |= 0x7fffU & (*currentTargetPos);
@@ -292,16 +296,20 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                     currDiffIndex = 0;
                 }
 //
-                while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer < currentKmer) {
+                while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
+                       currentQueryPos->Query.kmer < currentKmer) {
                     ++currentQueryPos;
                 }
 //
-                while (currentQueryPos < endQueryPos && currentTargetPos < endTargetPos && currentKmer < currentQueryPos->Query.kmer) {
+                while (currentQueryPos < endQueryPos &&
+                       currentTargetPos < endTargetPos &&
+                       currentKmer < currentQueryPos->Query.kmer) {
                     ++currentTargetPos;
                     ++currentIDPos;
-                    while (__builtin_expect(currentTargetPos < endTargetPos && (((*currentTargetPos >> 15) & 0x1) == 0), 0)) {
+                    while (__builtin_expect(currentTargetPos < endTargetPos &&
+                                            (((*currentTargetPos >> 15) & 0x1) == 0), 0)) {
                         currDiffIndex |= (*currentTargetPos);
-                        currDiffIndex >>= 15U;
+                        currDiffIndex <<= 15U;
                         ++currentTargetPos;
                     }
                     currDiffIndex |= 0x7fffU & (*currentTargetPos);
