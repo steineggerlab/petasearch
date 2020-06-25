@@ -262,7 +262,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
             Timer timer;
             // cover the rare case that the first (real) target entry is larger than USHRT_MAX
             uint64_t currDiffIndex = 0;
-            while (currentTargetPos < endTargetPos && (((*currentTargetPos >> 15U) & 0x1U) == 0)) {
+            while (currentTargetPos < endTargetPos && !((*currentTargetPos) & 0x8000U)) {
 //                currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
                 currDiffIndex |= (*currentTargetPos);
                 currDiffIndex <<= 15U;
@@ -285,7 +285,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                     ++currentTargetPos;
                     ++currentIDPos;
                     while (__builtin_expect(currentTargetPos < endTargetPos &&
-                                            (((*currentTargetPos >> 15U) & 0x1U) == 0), 0)) {
+                                            !((*currentTargetPos) & 0x8000U), 0)) {
 //                        currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
                         currDiffIndex |= (*currentTargetPos);
                         currDiffIndex <<= 15U;
@@ -307,7 +307,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                     ++currentTargetPos;
                     ++currentIDPos;
                     while (__builtin_expect(currentTargetPos < endTargetPos &&
-                                            (((*currentTargetPos >> 15) & 0x1) == 0), 0)) {
+                                            !((*currentTargetPos) & 0x8000U), 0)) {
                         currDiffIndex |= (*currentTargetPos);
                         currDiffIndex <<= 15U;
                         ++currentTargetPos;
