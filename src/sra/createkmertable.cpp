@@ -182,7 +182,7 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handle
     size_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
     bool first = true;
     unsigned short maxshort = USHRT_MAX;
-    while (kmerdiff > maxshort) {
+    while (kmerdiff >= maxshort) {
         if(first) {
             ++entryDiffLargerUShortMax;
             first = false;
