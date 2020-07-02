@@ -180,9 +180,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
 
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable) {
     uint64_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
-//    int16_t maxshort = SHRT_MAX;
-//    unsigned long numOfShortMax = 0;
-    // Consecutively store 15 bits of information into a short, until kmerdiff is all
+    // Consecutively store 15 bits of information into a short, until kmer diff is all
     unsigned short buffer[5] = { 0 }; // 15*5 = 75 > 64
     buffer[4] = 0x8000U | (kmerdiff & 0x7fffU);
     kmerdiff >>= 15U;
@@ -194,32 +192,11 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handle
         kmerdiff >>= 15U;
     }
     for (uint16_t i : buffer) {
-        if (i) { // If the bits are not all zero (which is always non-zero for the last 15 bits)
+        if (i) { // If the bits are not all zero (which is always not all zero for the last 15 bits)
             fwrite(&(i), sizeof(int16_t), 1, handleKmerTable);
-            if ((0x8000U & i) >> 15U) {
+            if (0x8000U & i) {
                 fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
             }
         }
     }
-//    while (kmerdiff > (unsigned long)maxshort) {
-//        if (first) {
-//            ++entryDiffLargerUShortMax;
-//            first = false;
-//        }
-//        ++numOfShortMax;
-//        kmerdiff -= maxshort;
-//    } // Set the first bit to 1, as a flag
-//    unsigned short MAX_TOWRITE = 0x8000 | maxshort;
-//    while (numOfShortMax > (unsigned long)maxshort) {
-//        fwrite(&(MAX_TOWRITE), sizeof(unsigned short), 1, handleKmerTable);
-//        numOfShortMax -= maxshort;
-//        ++diffLargerThenUShortMax;
-//    }
-//    if (numOfShortMax > 0) {
-//        unsigned short toWrite = 0x8000 | numOfShortMax;
-//        fwrite(&(toWrite), sizeof(unsigned short), 1, handleKmerTable);
-//        ++diffLargerThenUShortMax;
-//    }
-//    fwrite((short *)&(kmerdiff), sizeof(unsigned short), 1, handleKmerTable);
-//    fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
 }

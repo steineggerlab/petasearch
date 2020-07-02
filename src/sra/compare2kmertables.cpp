@@ -230,134 +230,132 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 #pragma omp parallel
 {
 
-    #pragma omp for schedule(dynamic, 1)
-        for (size_t i = 0; i < targetTables.size(); ++i) {
-            std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
-            QueryTableEntry *startPosQueryTable = localQTable.data();
-            QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
+#pragma omp for schedule(dynamic, 1)
+    for (size_t i = 0; i < targetTables.size(); ++i) {
+        std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
+        QueryTableEntry *startPosQueryTable = localQTable.data();
+        QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
 
-            std::string targetName = targetTables[i];
-            MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
-            MemoryMapped targetIds(std::string(targetName + "_ids"),
-                                   MemoryMapped::WholeFile,
-                                   MemoryMapped::SequentialScan);
-            if (targetTable.isValid() == false || targetIds.isValid() == false) {
-                Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
-                EXIT(EXIT_FAILURE);
-            }
-            unsigned short *startPosTargetTable = (unsigned short *) targetTable.getData();
-            unsigned int *startPosIDTable = (unsigned int *) targetIds.getData();
+        std::string targetName = targetTables[i];
+        MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
+        MemoryMapped targetIds(std::string(targetName + "_ids"),
+                               MemoryMapped::WholeFile,
+                               MemoryMapped::SequentialScan);
+        if (targetTable.isValid() == false || targetIds.isValid() == false) {
+            Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
+            EXIT(EXIT_FAILURE);
+        }
+        unsigned short *startPosTargetTable = (unsigned short *) targetTable.getData();
+        unsigned int *startPosIDTable = (unsigned int *) targetIds.getData();
 
-            QueryTableEntry *currentQueryPos = startPosQueryTable;
-            unsigned short *currentTargetPos = startPosTargetTable;
-            unsigned short *endTargetPos = startPosTargetTable + (targetTable.size() / sizeof(unsigned short));
-            unsigned int *currentIDPos = startPosIDTable;
+        QueryTableEntry *currentQueryPos = startPosQueryTable;
+        unsigned short *currentTargetPos = startPosTargetTable;
+        unsigned short *endTargetPos = startPosTargetTable + (targetTable.size() / sizeof(unsigned short));
+        unsigned int *currentIDPos = startPosIDTable;
 
-            size_t equalKmers = 0;
-            unsigned long long currentKmer = 0;
+        size_t equalKmers = 0;
+        unsigned long long currentKmer = 0;
 
 
-            Debug(Debug::INFO) << "start comparing \n";
+        Debug(Debug::INFO) << "start comparing \n";
 
-            Timer timer;
-            // cover the rare case that the first (real) target entry is larger than USHRT_MAX
-            uint64_t currDiffIndex = 0;
-            while (currentTargetPos < endTargetPos && !((*currentTargetPos) & 0x8000U)) {
-//                currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
-                currDiffIndex |= (*currentTargetPos);
-                currDiffIndex <<= 15U;
-                ++currentTargetPos;
-            }
-            currDiffIndex |= 0x7fffU & (*currentTargetPos);
-            currentKmer += currDiffIndex;
-            currDiffIndex = 0;
+        Timer timer;
+        // cover the rare case that the first (real) target entry is larger than USHRT_MAX
+        uint64_t currDiffIndex = 0;
+        while (currentTargetPos < endTargetPos && !((*currentTargetPos) & 0x8000U)) {
+            currDiffIndex |= (*currentTargetPos);
+            currDiffIndex <<= 15U;
+            ++currentTargetPos;
+        }
+        currDiffIndex |= 0x7fffU & (*currentTargetPos);
+        currentKmer += currDiffIndex;
+        currDiffIndex = 0;
 
-            while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
-                if (currentKmer == currentQueryPos->Query.kmer) {
-                    ++equalKmers;
+        while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
+            if (currentKmer == currentQueryPos->Query.kmer) {
+                ++equalKmers;
+                currentQueryPos->targetSequenceID = *currentIDPos;
+                ++currentQueryPos;
+                while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
+                       currentQueryPos->Query.kmer == currentKmer){
                     currentQueryPos->targetSequenceID = *currentIDPos;
                     ++currentQueryPos;
-                    while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
-                           currentQueryPos->Query.kmer == currentKmer){
-                        currentQueryPos->targetSequenceID = *currentIDPos;
-                        ++currentQueryPos;
-                    }
+                }
+                ++currentTargetPos;
+                ++currentIDPos;
+                while (__builtin_expect(currentTargetPos < endTargetPos &&
+                                        !((*currentTargetPos) & 0x8000U), 0)) {
+                    currDiffIndex |= (*currentTargetPos);
+                    currDiffIndex <<= 15U;
                     ++currentTargetPos;
-                    ++currentIDPos;
-                    while (__builtin_expect(currentTargetPos < endTargetPos &&
-                                            !((*currentTargetPos) & 0x8000U), 0)) {
-//                        currentKmer += (size_t)SHRT_MAX * (size_t)((*currentTargetPos) & SHRT_MAX);
-                        currDiffIndex |= (*currentTargetPos);
-                        currDiffIndex <<= 15U;
-                        ++currentTargetPos;
-                    }
-                    currDiffIndex |= 0x7fffU & (*currentTargetPos);
-                    currentKmer += currDiffIndex;
-                    currDiffIndex = 0;
                 }
+                currDiffIndex |= 0x7fffU & (*currentTargetPos);
+                currentKmer += currDiffIndex;
+                currDiffIndex = 0;
+            }
 //
-                while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
-                       currentQueryPos->Query.kmer < currentKmer) {
-                    ++currentQueryPos;
-                }
+            while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
+                   currentQueryPos->Query.kmer < currentKmer) {
+                ++currentQueryPos;
+            }
 //
-                while (currentQueryPos < endQueryPos &&
-                       currentTargetPos < endTargetPos &&
-                       currentKmer < currentQueryPos->Query.kmer) {
+            while (currentQueryPos < endQueryPos &&
+                   currentTargetPos < endTargetPos &&
+                   currentKmer < currentQueryPos->Query.kmer) {
+                ++currentTargetPos;
+                ++currentIDPos;
+                while (__builtin_expect(currentTargetPos < endTargetPos &&
+                                        !((*currentTargetPos) & 0x8000U), 0)) {
+                    currDiffIndex |= (*currentTargetPos);
+                    currDiffIndex <<= 15U;
                     ++currentTargetPos;
-                    ++currentIDPos;
-                    while (__builtin_expect(currentTargetPos < endTargetPos &&
-                                            !((*currentTargetPos) & 0x8000U), 0)) {
-                        currDiffIndex |= (*currentTargetPos);
-                        currDiffIndex <<= 15U;
-                        ++currentTargetPos;
-                    }
-                    currDiffIndex |= 0x7fffU & (*currentTargetPos);
-                    currentKmer += currDiffIndex;
-                    currDiffIndex = 0;
                 }
+                currDiffIndex |= 0x7fffU & (*currentTargetPos);
+                currentKmer += currDiffIndex;
+                currDiffIndex = 0;
             }
-
-            double timediff = timer.getTimediff();
-            Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
-            Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
-
-            Debug(Debug::INFO) << "Sorting result table\n";
-            std::sort(startPosQueryTable, endQueryPos, resultTableSort);
-
-            Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
-            QueryTableEntry *resultTable = new QueryTableEntry[localQTable.size()];
-            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
-
-
-            Debug(Debug::INFO) << "Writing result files\n";
-            std::string resultDB = resultFiles[i];
-            DBWriter writer(resultDB.c_str(), (resultDB + ".index").c_str(), 1, par.compressed, Parameters::DBTYPE_PREFILTER_RES);
-            writer.open();
-
-            QueryTableEntry *startPos = resultTable;
-            QueryTableEntry *endPos = truncatedResultEndPos;
-            std::string result;
-            result.reserve(10 * 1024);
-            char buffer[1024];
-            for (QueryTableEntry *currentPos = startPos; currentPos < endPos - 1; ++currentPos) {
-    //        bool didAppend = false;
-                while (currentPos < endPos - 1 && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
-                    size_t len = QueryTableEntry::queryEntryToBuffer(buffer, *currentPos);
-    //            if (didAppend == false) {
-                    result.append(buffer, len);
-    //                didAppend = true;
-    //            }
-                    ++currentPos;
-                }
-                writer.writeData(result.c_str(), result.length(), currentPos->targetSequenceID, 0);
-                result.clear();
-            }
-            writer.close();
-
-            delete[] resultTable;
         }
+
+        double timediff = timer.getTimediff();
+        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
+        Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
+
+        Debug(Debug::INFO) << "Sorting result table\n";
+        std::sort(startPosQueryTable, endQueryPos, resultTableSort);
+
+        Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
+        QueryTableEntry *resultTable = new QueryTableEntry[localQTable.size()];
+        QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
+
+
+        Debug(Debug::INFO) << "Writing result files\n";
+        std::string resultDB = resultFiles[i];
+        DBWriter writer(resultDB.c_str(), (resultDB + ".index").c_str(), 1, par.compressed, Parameters::DBTYPE_PREFILTER_RES);
+        writer.open();
+
+        QueryTableEntry *startPos = resultTable;
+        QueryTableEntry *endPos = truncatedResultEndPos;
+        std::string result;
+        result.reserve(10 * 1024);
+        char buffer[1024];
+        for (QueryTableEntry *currentPos = startPos; currentPos < endPos - 1; ++currentPos) {
+//        bool didAppend = false;
+            while (currentPos < endPos - 1 && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
+                size_t len = QueryTableEntry::queryEntryToBuffer(buffer, *currentPos);
+//            if (didAppend == false) {
+                result.append(buffer, len);
+//                didAppend = true;
+//            }
+                ++currentPos;
+            }
+            writer.writeData(result.c_str(), result.length(), currentPos->targetSequenceID, 0);
+            result.clear();
+        }
+        writer.close();
+
+        delete[] resultTable;
     }
+}
 
     return EXIT_SUCCESS;
 }
