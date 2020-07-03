@@ -10,7 +10,7 @@ add_executable(srasearch
         ${workflow_source_files}
         LocalCommandDeclarations.h
         srasearch.cpp
-        )
+        commons/BitManipulateMacros.h)
 mmseqs_setup_derived_target(srasearch)
 target_link_libraries(srasearch version)
 

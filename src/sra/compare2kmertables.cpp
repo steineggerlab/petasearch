@@ -9,6 +9,7 @@
 #include "QueryTableEntry.h"
 #include "DBWriter.h"
 #include "MemoryMapped.h"
+#include "BitManipulateMacros.h"
 
 #include "omptl/omptl_algorithm"
 
@@ -262,12 +263,12 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         Timer timer;
         // cover the rare case that the first (real) target entry is larger than USHRT_MAX
         uint64_t currDiffIndex = 0;
-        while (currentTargetPos < endTargetPos && !((*currentTargetPos) & 0x8000U)) {
-            currDiffIndex |= (*currentTargetPos);
+        while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
+            currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
             currDiffIndex <<= 15U;
             ++currentTargetPos;
         }
-        currDiffIndex |= 0x7fffU & (*currentTargetPos);
+        currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
         currentKmer += currDiffIndex;
         currDiffIndex = 0;
 
@@ -284,12 +285,12 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                 ++currentTargetPos;
                 ++currentIDPos;
                 while (__builtin_expect(currentTargetPos < endTargetPos &&
-                                        !((*currentTargetPos) & 0x8000U), 0)) {
-                    currDiffIndex |= (*currentTargetPos);
+                                        !IS_LAST_15_BITS(*currentTargetPos), 0)) {
+                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                     currDiffIndex <<= 15U;
                     ++currentTargetPos;
                 }
-                currDiffIndex |= 0x7fffU & (*currentTargetPos);
+                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                 currentKmer += currDiffIndex;
                 currDiffIndex = 0;
             }
@@ -305,12 +306,12 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                 ++currentTargetPos;
                 ++currentIDPos;
                 while (__builtin_expect(currentTargetPos < endTargetPos &&
-                                        !((*currentTargetPos) & 0x8000U), 0)) {
-                    currDiffIndex |= (*currentTargetPos);
+                                        !IS_LAST_15_BITS(*currentTargetPos), 0)) {
+                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                     currDiffIndex <<= 15U;
                     ++currentTargetPos;
                 }
-                currDiffIndex |= 0x7fffU & (*currentTargetPos);
+                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                 currentKmer += currDiffIndex;
                 currDiffIndex = 0;
             }

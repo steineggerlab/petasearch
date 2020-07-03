@@ -7,6 +7,7 @@
 #include "TargetTableEntry.h"
 #include "ExtendedSubstitutionMatrix.h"
 #include "KmerGenerator.h"
+#include "BitManipulateMacros.h"
 
 #include "omptl/omptl_algorithm"
 #include <sys/mman.h>
@@ -182,19 +183,19 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handle
     uint64_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
     // Consecutively store 15 bits of information into a short, until kmer diff is all
     unsigned short buffer[5] = { 0 }; // 15*5 = 75 > 64
-    buffer[4] = 0x8000U | (kmerdiff & 0x7fffU);
+    buffer[4] = SET_END_FLAG(GET_15_BITS(kmerdiff));
     kmerdiff >>= 15U;
     int idx = 3;
     while (kmerdiff > 0) {
-        uint16_t toWrite = (kmerdiff & 0x7fffU);
+        uint16_t toWrite = GET_15_BITS(kmerdiff);
+        kmerdiff >>= 15U;
         buffer[idx] = toWrite;
         idx--;
-        kmerdiff >>= 15U;
     }
     for (uint16_t i : buffer) {
         if (i) { // If the bits are not all zero (which is always not all zero for the last 15 bits)
             fwrite(&(i), sizeof(int16_t), 1, handleKmerTable);
-            if (0x8000U & i) {
+            if (IS_LAST_15_BITS(i)) {
                 fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
             }
         }
