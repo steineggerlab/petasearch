@@ -3,27 +3,41 @@
 
 #include <vector>
 
-const int CITATION_MMSEQS2  = 1 << 0;
-const int CITATION_MMSEQS1  = 1 << 1;
-const int CITATION_UNICLUST = 1 << 2;
-const int CITATION_LINCLUST = 1 << 3;
-const int CITATION_PLASS    = 1 << 4;
-const int CITATION_SERVER   = 1 << 5;
+const unsigned int CITATION_MMSEQS2  = 1U << 0;
+const unsigned int CITATION_MMSEQS1  = 1U << 1;
+const unsigned int CITATION_UNICLUST = 1U << 2;
+const unsigned int CITATION_LINCLUST = 1U << 3;
+const unsigned int CITATION_PLASS    = 1U << 4;
+const unsigned int CITATION_SERVER   = 1U << 5;
+
+// Make sure this is always the last bit
+// citations from inheriting modules will start from here
+const unsigned int CITATION_END      = CITATION_SERVER << 1;
 
 struct MMseqsParameter;
 
-enum CommandMode {
-    COMMAND_MAIN = 0,
-    COMMAND_FORMAT_CONVERSION,
-    COMMAND_CLUSTER,
-    COMMAND_TAXONOMY,
-    COMMAND_MULTIHIT,
-    COMMAND_DB,
-    COMMAND_EXPERT,
-    COMMAND_SPECIAL,
-    COMMAND_HIDDEN,
-    COMMAND_EASY
-};
+typedef const unsigned int CommandMode;
+
+CommandMode COMMAND_MAIN              = 1U << 1;
+CommandMode COMMAND_FORMAT_CONVERSION = 1U << 2;
+CommandMode COMMAND_TAXONOMY          = 1U << 3;
+CommandMode COMMAND_MULTIHIT          = 1U << 4;
+CommandMode COMMAND_DB                = 1U << 5;
+CommandMode COMMAND_SPECIAL           = 1U << 6;
+CommandMode COMMAND_HIDDEN            = 1U << 7;
+CommandMode COMMAND_EASY              = 1U << 8;
+CommandMode COMMAND_DATABASE_CREATION = 1U << 9;
+CommandMode COMMAND_STORAGE           = 1U << 10;
+CommandMode COMMAND_SET               = 1U << 11;
+CommandMode COMMAND_SEQUENCE          = 1U << 12;
+CommandMode COMMAND_RESULT            = 1U << 13;
+CommandMode COMMAND_PREFILTER         = 1U << 14;
+CommandMode COMMAND_ALIGNMENT         = 1U << 15;
+CommandMode COMMAND_CLUSTER           = 1U << 16;
+CommandMode COMMAND_PROFILE           = 1U << 17;
+CommandMode COMMAND_PROFILE_PROFILE   = 1U << 18;
+
+CommandMode COMMAND_EXPERT            = 1U << 31;
 
 
 
@@ -49,6 +63,8 @@ struct DbValidator {
     static std::vector<int> taxResult;
     static std::vector<int> directory;
     static std::vector<int> flatfile;
+    static std::vector<int> flatfileAndStdin;
+    static std::vector<int> empty;
 };
 
 
@@ -60,6 +76,7 @@ struct DbType{
     static const int NEED_LOOKUP = 2;
     static const int NEED_TAXONOMY = 4;
     static const int VARIADIC = 8;
+    static const int ZERO_OR_ALL = 16;
 
     const char *usageText;
     int accessMode;
@@ -73,11 +90,11 @@ struct Command {
     int (*commandFunction)(int, const char **, const Command&);
     std::vector<MMseqsParameter*>* params;
     CommandMode mode;
-    const char *shortDescription;
-    const char *longDescription;
+    const char *description;
+    const char *examples;
     const char *author;
     const char *usage;
-    int citations;
+    unsigned int citations;
     std::vector<DbType> databases;
 };
 

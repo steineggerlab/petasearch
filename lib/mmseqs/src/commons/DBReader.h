@@ -5,7 +5,7 @@
 //
 // Manages DB read access.
 //
-
+#include "MemoryTracker.h"
 #include <cstddef>
 #include <utility>
 #include <vector>
@@ -45,35 +45,86 @@ struct DBFiles {
         TAXONOMY          = TAX_MAPPING | TAX_NAMES | TAX_NODES | TAX_MERGED,
         SEQUENCE_DB       = GENERIC | HEADERS | TAXONOMY | LOOKUP | SOURCE,
         SEQUENCE_ANCILLARY= SEQUENCE_DB & (~GENERIC),
+        SEQUENCE_NO_DATA_INDEX = SEQUENCE_DB & (~DATA_INDEX),
 
         ALL               = (size_t) -1,
     };
 };
 
 template <typename T>
-class DBReader {
+class DBReader : public MemoryTracker {
 public:
     struct Index {
         T id;
         size_t offset;
         unsigned int length;
-        static bool compareById(const Index& x, const Index& y){
-            return (x.id <= y.id);
+
+        // we need a non-strict-weak ordering function here
+        // so our upper_bound call works correctly
+        static bool compareByIdOnly(const Index &x, const Index &y) {
+            return x.id <= y.id;
         }
-        static bool compareByOffset(const Index& x, const Index& y){
-            return (x.offset <= y.offset);
+
+        static bool compareById(const Index &x, const Index &y) {
+            if (x.id < y.id)
+                return true;
+            if (y.id < x.id)
+                return false;
+            if (x.offset < y.offset)
+                return true;
+            if (y.offset < x.offset)
+                return false;
+            if (x.length < y.length)
+                return true;
+            if (y.length < x.length)
+                return false;
+            return false;
+        }
+
+        static bool compareByOffset(const Index &x, const Index &y) {
+            if (x.offset < y.offset)
+                return true;
+            if (y.offset < x.offset)
+                return false;
+            if (x.id < y.id)
+                return true;
+            if (y.id < x.id)
+                return false;
+            if (x.length < y.length)
+                return true;
+            if (y.length < x.length)
+                return false;
+            return false;
         }
     };
-
 
     struct LookupEntry {
         T id;
         std::string entryName;
         unsigned int fileNumber;
 
-        static bool compareById(const LookupEntry& x, const LookupEntry& y){
-            return (x.id <= y.id);
+        // we need a non-strict-weak ordering function here
+        // so our upper_bound call works correctly
+        static bool compareByIdOnly(const LookupEntry& x, const LookupEntry& y) {
+            return x.id <= y.id;
         }
+
+        static bool compareById(const LookupEntry& x, const LookupEntry& y) {
+            if (x.id < y.id)
+                return true;
+            if (y.id < x.id)
+                return false;
+            if (x.entryName < y.entryName)
+                return true;
+            if (y.entryName < x.entryName)
+                return false;
+            if (x.fileNumber < y.fileNumber)
+                return true;
+            if (y.fileNumber < x.fileNumber)
+                return false;
+            return false;
+        }
+
         static bool compareByAccession(const LookupEntry& x, const LookupEntry& y){
             return x.entryName.compare(y.entryName);
         }
@@ -114,7 +165,7 @@ public:
 
     char * getDataByOffset(size_t offset);
 
-    size_t getSize();
+    size_t getSize() const;
 
     unsigned int getMaxSeqLen(){return maxSeqLen;}
 
@@ -168,13 +219,13 @@ public:
     size_t getId (T dbKey);
 
     // does a binary search in the lookup and returns index of the entry
-    size_t getLookupSize();
+    size_t getLookupSize() const;
     size_t getLookupIdByKey(T dbKey);
     size_t getLookupIdByAccession(const std::string& accession);
     T getLookupKey(size_t id);
     std::string getLookupEntryName(size_t id);
     unsigned int getLookupFileNumber(size_t id);
-    size_t lookupEntryToBuffer(char* buffer, const LookupEntry& entry);
+    void lookupEntryToBuffer(std::string& buffer, const LookupEntry& entry);
     LookupEntry* getLookup() { return lookup; };
 
     static const int NOSORT = 0;
@@ -347,8 +398,7 @@ public:
     void decomposeDomainByAminoAcid(size_t worldRank, size_t worldSize, size_t *startEntry, size_t *numEntries);
 
 private:
-
-    void checkClosed();
+    void checkClosed() const;
 
     int threads;
 
