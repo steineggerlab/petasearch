@@ -37,7 +37,7 @@ void chainAlignmentHits(std::vector<Matcher::result_t> &results, std::vector<Mat
                 currRegion.dbEndPos = dbEndPos;
             }
             int currDiagonal = qStartPos - dbStartPos;
-            int nextDiagonal = UINT_MAX;
+            int nextDiagonal = INT_MAX;
             bool nextQueryStrand = true;
             bool nextTargetStrand = true;
             const bool isDifferentKey = (currRegion.dbKey != results[resIdx].dbKey);
@@ -94,18 +94,23 @@ void updateOffset(char* data, std::vector<Matcher::result_t> &results, const Orf
     size_t endPos = results.size();
     for (size_t i = startPos; i < endPos; i++) {
         Matcher::result_t &res = results[i];
+        res.queryOrfStartPos = -1;
+        res.queryOrfEndPos = -1;
+        res.dbOrfStartPos = -1;
+        res.dbOrfEndPos = -1;
         if (targetNeedsUpdate == true || qloc == NULL) {
             size_t targetId = tOrfDBr.sequenceReader->getId(res.dbKey);
             char *header = tOrfDBr.sequenceReader->getData(targetId, thread_idx);
 
             Orf::SequenceLocation tloc = Orf::parseOrfHeader(header);
             res.dbKey   = (tloc.id != UINT_MAX) ? tloc.id : res.dbKey;
-            size_t from = (tloc.id != UINT_MAX) ? tloc.from : (tloc.strand == Orf::STRAND_MINUS) ? 0 : res.dbLen - 1;
+            size_t from = (tloc.id != UINT_MAX) ? tloc.from : (tloc.strand == Orf::STRAND_MINUS) ? res.dbLen - 1 : 0;
 
             int dbStartPos = isNucleotideSearch ? res.dbStartPos : res.dbStartPos * 3;
             int dbEndPos   = isNucleotideSearch ? res.dbEndPos : res.dbEndPos * 3;
-
-            if (tloc.strand == Orf::STRAND_MINUS && tloc.id != UINT_MAX) {
+            res.dbOrfStartPos = from;
+            res.dbOrfEndPos = tloc.to;
+            if (tloc.strand == Orf::STRAND_MINUS) {
                 res.dbStartPos = from - dbStartPos;
                 res.dbEndPos   = from - dbEndPos;
                 // account for last orf
@@ -133,6 +138,8 @@ void updateOffset(char* data, std::vector<Matcher::result_t> &results, const Orf
             int qEndPos   = isNucleotideSearch ? res.qEndPos : res.qEndPos * 3;
 
             size_t from = (qloc->id != UINT_MAX) ? qloc->from : (qloc->strand == Orf::STRAND_MINUS) ? 0 : res.qLen - 1;
+            res.queryOrfStartPos = from;
+            res.queryOrfEndPos =  qloc->to;
 
             if (qloc->strand == Orf::STRAND_MINUS && qloc->id != UINT_MAX) {
                 res.qStartPos  = from - qStartPos;
@@ -214,6 +221,7 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
     bool isSameSrcDB = (par.db3.compare(par.db1) == 0);
     bool isNuclNuclSearch = false;
     bool isTransNucTransNucSearch = false;
+    bool isTransNuclAln = false;
     if (targetNucl) {
         bool seqtargetNuc = true;
         if(isSameSrcDB){
@@ -236,6 +244,10 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
             } else if(par.searchType == Parameters::SEARCH_TYPE_NUCLEOTIDES){
                 seqtargetNuc = true;
                 isTransNucTransNucSearch = false;
+            } else if(par.searchType == Parameters::SEARCH_TYPE_TRANS_NUCL_ALN){
+                isTransNuclAln = true;
+                seqtargetNuc = false;
+                isTransNucTransNucSearch = true;
             }
         }
 
@@ -351,6 +363,9 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
         results.reserve(300);
         tmp.reserve(300);
 
+        std::string newBacktrace;
+        newBacktrace.reserve(300);
+
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < entryCount; ++i) {
             progress.updateProgress();
@@ -389,7 +404,13 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
                         for(size_t i = 0; i < results.size(); i++) {
                             Matcher::result_t &res = results[i];
                             bool hasBacktrace = (res.backtrace.size() > 0);
-                            size_t len = Matcher::resultToBuffer(buffer, res, hasBacktrace, false);
+                            if (isTransNuclAln == true && isNuclNuclSearch == false && isTransNucTransNucSearch == true && hasBacktrace) {
+                                newBacktrace.reserve(res.backtrace.length() * 3);
+                                Matcher::result_t::protein2nucl(res.backtrace, newBacktrace);
+                                res.backtrace = newBacktrace;
+                                newBacktrace.clear();
+                            }
+                            size_t len = Matcher::resultToBuffer(buffer, res, hasBacktrace, false, true);
                             ss.append(buffer, len);
                         }
                         resultWriter.writeData(ss.c_str(), ss.length(), queryKey, thread_idx);
@@ -414,7 +435,13 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
                     for(size_t i = 0; i < results.size(); i++){
                         Matcher::result_t &res = results[i];
                         bool hasBacktrace = (res.backtrace.size() > 0);
-                        size_t len = Matcher::resultToBuffer(buffer, res, hasBacktrace, false);
+                        if (isTransNuclAln == true && isNuclNuclSearch == false && isTransNucTransNucSearch == true && hasBacktrace) {
+                            newBacktrace.reserve(res.backtrace.length() * 3);
+                            Matcher::result_t::protein2nucl(res.backtrace, newBacktrace);
+                            res.backtrace = newBacktrace;
+                            newBacktrace.clear();
+                        }
+                        size_t len = Matcher::resultToBuffer(buffer, res, hasBacktrace, false, true);
                         ss.append(buffer, len);
                     }
                     resultWriter.writeData(ss.c_str(), ss.length(), queryKey, thread_idx);
@@ -423,7 +450,13 @@ int offsetalignment(int argc, const char **argv, const Command &command) {
                     for(size_t i = 0; i < tmp.size(); i++){
                         Matcher::result_t &res = tmp[i];
                         bool hasBacktrace = (res.backtrace.size() > 0);
-                        size_t len = Matcher::resultToBuffer(buffer, res, hasBacktrace, false);
+                        if (isTransNuclAln == true && isNuclNuclSearch == false && isTransNucTransNucSearch == true && hasBacktrace) {
+                            newBacktrace.reserve(res.backtrace.length() * 3);
+                            Matcher::result_t::protein2nucl(res.backtrace, newBacktrace);
+                            res.backtrace = newBacktrace;
+                            newBacktrace.clear();
+                        }
+                        size_t len = Matcher::resultToBuffer(buffer, res, hasBacktrace, false, true);
                         ss.append(buffer, len);
                     }
                     resultWriter.writeData(ss.c_str(), ss.length(), queryKey, thread_idx);

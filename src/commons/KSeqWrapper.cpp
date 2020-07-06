@@ -12,6 +12,7 @@ namespace KSEQFILE {
 KSeqFile::KSeqFile(const char* fileName) {
     file = FileUtil::openFileOrDie(fileName, "r", true);
     seq = (void*) KSEQFILE::kseq_init(fileno(file));
+    type = KSEQ_FILE;
 }
 
 bool KSeqFile::ReadEntry() {
@@ -19,7 +20,9 @@ bool KSeqFile::ReadEntry() {
     int result = KSEQFILE::kseq_read(s);
     if (result < 0)
         return false;
-
+    entry.headerOffset = s->headerOffset;
+    entry.sequenceOffset = s->sequenceOffset;
+    entry.multiline = s->multiline;
     entry.name = s->name;
     entry.comment = s->comment;
     entry.sequence = s->seq;
@@ -31,6 +34,34 @@ bool KSeqFile::ReadEntry() {
 KSeqFile::~KSeqFile() {
     kseq_destroy((KSEQFILE::kseq_t*)seq);
     fclose(file);
+}
+
+
+namespace KSEQSTREAM {
+    KSEQ_INIT(int, read)
+}
+
+KSeqStream::KSeqStream() {
+    seq = (void*) KSEQSTREAM::kseq_init(STDIN_FILENO);
+    type = KSEQ_STREAM;
+}
+
+bool KSeqStream::ReadEntry() {
+    KSEQSTREAM::kseq_t* s = (KSEQSTREAM::kseq_t*) seq;
+    int result = KSEQSTREAM::kseq_read(s);
+    if (result < 0)
+        return false;
+
+    entry.name = s->name;
+    entry.comment = s->comment;
+    entry.sequence = s->seq;
+    entry.qual = s->qual;
+
+    return true;
+}
+
+KSeqStream::~KSeqStream() {
+    kseq_destroy((KSEQSTREAM::kseq_t*)seq);
 }
 
 #ifdef HAVE_ZLIB
@@ -51,6 +82,7 @@ KSeqGzip::KSeqGzip(const char* fileName) {
     }
 
     seq = (void*) KSEQGZIP::kseq_init(file);
+    type = KSEQ_GZIP;
 }
 
 bool KSeqGzip::ReadEntry() {
@@ -63,6 +95,9 @@ bool KSeqGzip::ReadEntry() {
     entry.comment = s->comment;
     entry.sequence = s->seq;
     entry.qual = s->qual;
+    entry.headerOffset = 0;
+    entry.sequenceOffset = 0;
+    entry.multiline = s->multiline;
 
     return true;
 }
@@ -76,7 +111,6 @@ KSeqGzip::~KSeqGzip() {
 
 #ifdef HAVE_BZLIB
 namespace KSEQBZIP {
-
     KSEQ_INIT(BZFILE *, BZ2_bzread)
 }
 
@@ -93,6 +127,7 @@ KSeqBzip::KSeqBzip(const char* fileName) {
         perror(fileName); EXIT(EXIT_FAILURE);
     }
     seq = (void*) KSEQBZIP::kseq_init(file);
+    type = KSEQ_BZIP;
 }
 
 bool KSeqBzip::ReadEntry() {
@@ -105,6 +140,9 @@ bool KSeqBzip::ReadEntry() {
     entry.comment = s->comment;
     entry.sequence = s->seq;
     entry.qual = s->qual;
+    entry.headerOffset = 0;
+    entry.sequenceOffset = 0;
+    entry.multiline = s->multiline;
 
     return true;
 }
@@ -118,12 +156,19 @@ KSeqBzip::~KSeqBzip() {
 
 KSeqWrapper* KSeqFactory(const char* file) {
     KSeqWrapper* kseq = NULL;
+    if( strcmp(file, "stdin") == 0 ){
+        kseq = new KSeqStream();
+        return kseq;
+    }
+
     if(Util::endsWith(".gz", file) == false && Util::endsWith(".bz2", file) == false ) {
         kseq = new KSeqFile(file);
+        return kseq;
     }
 #ifdef HAVE_ZLIB
     else if(Util::endsWith(".gz", file) == true) {
         kseq = new KSeqGzip(file);
+        return kseq;
     }
 #else
     else if(Util::endsWith(".gz", file) == true) {
@@ -135,6 +180,7 @@ KSeqWrapper* KSeqFactory(const char* file) {
 #ifdef HAVE_BZLIB
     else if(Util::endsWith(".bz2", file) == true) {
         kseq = new KSeqBzip(file);
+        return kseq;
     }
 #else
     else if(Util::endsWith(".bz2", file) == true) {
@@ -146,3 +192,34 @@ KSeqWrapper* KSeqFactory(const char* file) {
     return kseq;
 }
 
+namespace KSEQBUFFER {
+    KSEQ_INIT(kseq_buffer_t*, kseq_buffer_reader)
+}
+
+KSeqBuffer::KSeqBuffer(const char* buffer, size_t length) {
+    d.buffer = (char*)buffer;
+    d.length = length;
+    d.position = 0;
+    seq = (void*) KSEQBUFFER::kseq_init(&d);
+    type = KSEQ_BUFFER;
+}
+
+bool KSeqBuffer::ReadEntry() {
+    KSEQBUFFER::kseq_t* s = (KSEQBUFFER::kseq_t*) seq;
+    int result = KSEQBUFFER::kseq_read(s);
+    if (result < 0)
+        return false;
+    entry.headerOffset = s->headerOffset;
+    entry.sequenceOffset = s->sequenceOffset;
+    entry.multiline = s->multiline;
+    entry.name = s->name;
+    entry.comment = s->comment;
+    entry.sequence = s->seq;
+    entry.qual = s->qual;
+
+    return true;
+}
+
+KSeqBuffer::~KSeqBuffer() {
+    kseq_destroy((KSEQBUFFER::kseq_t*)seq);
+}

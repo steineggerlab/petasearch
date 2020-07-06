@@ -21,7 +21,7 @@ std::string findIncompatibleParameter(DBReader<unsigned int>& index, const Param
         return "maxSeqLen";
     if (meta.seqType != dbtype)
         return "seqType";
-    if (Parameters::isEqualDbtype(dbtype, Parameters::DBTYPE_NUCLEOTIDES) == false && par.searchType != Parameters::SEARCH_TYPE_NUCLEOTIDES && meta.alphabetSize != par.alphabetSize)
+    if (Parameters::isEqualDbtype(dbtype, Parameters::DBTYPE_NUCLEOTIDES) == false && par.searchType != Parameters::SEARCH_TYPE_NUCLEOTIDES && meta.alphabetSize != par.alphabetSize.aminoacids)
         return "alphabetSize";
     if (meta.kmerSize != par.kmerSize)
         return "kmerSize";
@@ -44,6 +44,8 @@ int indexdb(int argc, const char **argv, const Command &command) {
     par.parseParameters(argc, argv, command, true, 0, 0);
 
     const bool sameDB = (par.db1 == par.db2);
+
+    std::string path = FileUtil::getRealPathFromSymLink(par.db2dbtype);
     DBReader<unsigned int> dbr(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     dbr.open(DBReader<unsigned int>::NOSORT);
 
@@ -58,12 +60,7 @@ int indexdb(int argc, const char **argv, const Command &command) {
     BaseMatrix *seedSubMat = Prefiltering::getSubstitutionMatrix(par.seedScoringMatrixFile, par.alphabetSize, 8.0f, false, (db1IsNucl && db2IsNucl));
 
     // memoryLimit in bytes
-    size_t memoryLimit;
-    if (par.splitMemoryLimit > 0) {
-        memoryLimit = par.splitMemoryLimit;
-    } else {
-        memoryLimit = static_cast<size_t>(Util::getTotalSystemMemory() * 0.9);
-    }
+    size_t memoryLimit=Util::computeMemory(par.splitMemoryLimit);
 
     int splitMode = Parameters::TARGET_DB_SPLIT;
     par.maxResListLen = std::min(dbr.getSize(), par.maxResListLen);

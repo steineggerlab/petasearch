@@ -132,11 +132,24 @@ size_t FileUtil::getFreeSpace(const char *path) {
     struct statvfs stat;
     if (statvfs(path, &stat) != 0) {
         // error happens, just quits here
-        return -1;
+        return SIZE_MAX;
     }
 
     // the available size is f_bsize * f_bavail
     return stat.f_bfree * stat.f_frsize;
+}
+
+
+std::string FileUtil::getRealPathFromSymLink(const std::string path){
+    char *p = realpath(path.c_str(), NULL);
+    if (p == NULL) {
+        Debug(Debug::ERROR) << "Could not get path of " << path << "!\n";
+        EXIT(EXIT_FAILURE);
+    }
+
+    std::string name(p);
+    free(p);
+    return name;
 }
 
 std::string FileUtil::getHashFromSymLink(const std::string path){
@@ -173,16 +186,46 @@ void FileUtil::symlinkAlias(const std::string &file, const std::string &alias) {
     if (symlinkExists(pathToAlias) == true){
         FileUtil::remove(pathToAlias.c_str());
     }
-
-    if (symlinkat(base.c_str(), dirfd(dir), alias.c_str()) != 0) {
+    // symlinkat is not available in Conda macOS
+    // Conda uses the macOS 10.9 SDK, and symlinkat was introduced in 10.10
+    // We emulate symlinkat by manipulating the CWD instead
+    std::string oldWd = FileUtil::getCurrentWorkingDirectory();
+    if (chdir(path.c_str()) != 0) {
+        Debug(Debug::ERROR) << "Could not change working directory to " << path << "\n";
+        EXIT(EXIT_FAILURE);
+    }
+    if (symlink(base.c_str(), alias.c_str()) != 0) {
         Debug(Debug::ERROR) << "Could not create symlink of " << file << "!\n";
         EXIT(EXIT_FAILURE);
     }
-
+    if (chdir(oldWd.c_str()) != 0) {
+        Debug(Debug::ERROR) << "Could not change working directory to " << oldWd << "\n";
+        EXIT(EXIT_FAILURE);
+    }
     if (closedir(dir) != 0) {
         Debug(Debug::ERROR) << "Error closing directory " << path << "!\n";
         EXIT(EXIT_FAILURE);
     }
+}
+
+std::string FileUtil::getCurrentWorkingDirectory() {
+    // CWD can be larger than PATH_MAX and allocating enough memory is somewhat tricky
+    char* wd = NULL;
+    size_t bufferSize = PATH_MAX;
+    do {
+        if (wd != NULL) {
+            free(wd);
+            bufferSize *= 2;
+        }
+        wd = getcwd(NULL, bufferSize);
+        if (wd == NULL && errno != ERANGE && errno != 0) {
+            Debug(Debug::ERROR) << "Could not get current working directory\n";
+            EXIT(EXIT_FAILURE);
+        }
+    } while (wd == NULL && errno == ERANGE);
+    std::string cwd(wd);
+    free(wd);
+    return cwd;
 }
 
 void FileUtil::symlinkAbs(const std::string &target, const std::string &link) {
