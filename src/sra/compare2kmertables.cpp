@@ -113,7 +113,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     size_t tableCapacity = (size_t) (similarKmerFactor * (kmerCount + 1));
     queryTable.reserve(tableCapacity);
 
-    const int xIndex = subMat->aa2int[(int)'X'];
+    const int xIndex = subMat->aa2num[(int)'X'];
 
     Debug::Progress progress(reader.getSize());
 
@@ -145,7 +145,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
             sequence.mapSequence(i, 0, data, seqLen);
 
             while (sequence.hasNextKmer()) {
-                const int *kmer = sequence.nextKmer();
+                const unsigned char *kmer = sequence.nextKmer();
 
                 int xCount = 0;
                 for (int pos = 0; pos < par.kmerSize; ++pos) {

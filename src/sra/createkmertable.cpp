@@ -80,9 +80,9 @@ int createkmertable(int argc, const char **argv, const Command &command) {
             char *data = reader.getData(i, thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
             s.mapSequence(i, 0, data, seqLen);
-            const int xIndex = s.subMat->aa2int[(int)'X'];
+            const int xIndex = s.subMat->aa2num[(int)'X'];
             while (s.hasNextKmer()) {
-                const int *kmer = s.nextKmer();
+                const unsigned char*kmer = s.nextKmer();
                 int xCount = 0;
                 for (size_t pos = 0; pos < par.kmerSize; pos++) {
                     xCount += (kmer[pos] == xIndex);
