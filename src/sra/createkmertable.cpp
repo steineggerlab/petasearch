@@ -141,7 +141,7 @@ int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &secon
     if (first.sequenceID < second.sequenceID) {
         return true;
     }
-    if (second.sequenceID < first.sequenceID) {  
+    if (second.sequenceID < first.sequenceID) {
         return false;
     }
     return false;
@@ -194,19 +194,9 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handle
         buffer[idx] = toWrite;
         idx--;
     }
-    int start = -1;
-    for (int i = 0; i < 5; i++) {
+    for (int i = idx + 1; i < 5; i++) {
         uint16_t bits = buffer[i];
-        if (bits) {
-            start = i;
-            break;
-        }
-    }
-    for (; start < 5; start++) {
-        uint16_t bits = buffer[start];
         fwrite(&(bits), sizeof(uint16_t), 1, handleKmerTable);
-        if (IS_LAST_15_BITS(bits)) {
-            fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
-        }
     }
+    fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
 }
