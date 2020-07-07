@@ -9,9 +9,10 @@
 #include "KmerGenerator.h"
 #include "BitManipulateMacros.h"
 
-#include "omptl/omptl_algorithm"
 #include <sys/mman.h>
 #include <algorithm>
+
+#include "ips4o/ips4o.hpp"
 
 #ifdef OPENMP
 #include <omp.h>
@@ -112,7 +113,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
     Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
-    omptl::sort(targetTable, targetTable + tableIndex, targetTableSort);
+    ips4o::parallel::sort(targetTable, targetTable + tableIndex, targetTableSort);
     Debug(Debug::INFO) << timer.lap() << "\n";
     writeTargetTables(targetTable, tableIndex, par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
@@ -159,6 +160,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     size_t lastKmer = 0;
     Debug::Progress progress(kmerCount);
 
+    // TODO: add a buffer array to save the overhead of writing
     for (size_t i = 0; i < kmerCount; ++i, ++posInTable) {
         progress.updateProgress();
         if (posInTable->kmerAsLong != entryToWrite->kmerAsLong) {
@@ -175,29 +177,36 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     fclose(handleKmerTable);
     fclose(handleIDTable);
     Debug(Debug::INFO) << "Wrote " << uniqueKmerCount << " unique k-mers.\n";
-    Debug(Debug::INFO) << "For "<< entryDiffLargerUShortMax  << " entries the difference between the previous were larger than max short.\n";
+//    Debug(Debug::INFO) << "For "<< entryDiffLargerUShortMax  << " entries the difference between the previous were larger than max short.\n";
 //    Debug(Debug::INFO) << "Created " << diffLargerThenUShortMax << " extra unsigned short max entries to store the diff.\n";
 }
 
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable) {
     uint64_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
     // Consecutively store 15 bits of information into a short, until kmer diff is all
-    unsigned short buffer[5] = { 0 }; // 15*5 = 75 > 64
+    uint16_t buffer[5] = { 0 }; // 15*5 = 75 > 64
     buffer[4] = SET_END_FLAG(GET_15_BITS(kmerdiff));
     kmerdiff >>= 15U;
     int idx = 3;
-    while (kmerdiff > 0) {
+    while (kmerdiff) {
         uint16_t toWrite = GET_15_BITS(kmerdiff);
         kmerdiff >>= 15U;
         buffer[idx] = toWrite;
         idx--;
     }
-    for (uint16_t i : buffer) {
-        if (i) { // If the bits are not all zero (which is always not all zero for the last 15 bits)
-            fwrite(&(i), sizeof(int16_t), 1, handleKmerTable);
-            if (IS_LAST_15_BITS(i)) {
-                fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
-            }
+    int start = -1;
+    for (int i = 0; i < 5; i++) {
+        uint16_t bits = buffer[i];
+        if (bits) {
+            start = i;
+            break;
+        }
+    }
+    for (; start < 5; start++) {
+        uint16_t bits = buffer[start];
+        fwrite(&(bits), sizeof(uint16_t), 1, handleKmerTable);
+        if (IS_LAST_15_BITS(bits)) {
+            fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
         }
     }
 }

@@ -12,6 +12,7 @@
 #include "BitManipulateMacros.h"
 
 #include "omptl/omptl_algorithm"
+#include "ips4o/ips4o.hpp"
 
 #ifdef OPENMP
 #include <omp.h>
@@ -186,7 +187,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
                        << "\ntime: " << timer.lap() << "\n";
 
     Debug(Debug::INFO) << "start sorting \n";
-    omptl::sort(queryTable.begin(), queryTable.end(), queryTableSort);
+    ips4o::parallel::sort(queryTable.begin(), queryTable.end(), queryTableSort);
     Debug(Debug::INFO) << "Required time for sorting: " << timer.lap() << "\n";
 
     reader.close();
@@ -322,7 +323,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
         Debug(Debug::INFO) << "Sorting result table\n";
-        std::sort(startPosQueryTable, endQueryPos, resultTableSort);
+        ips4o::sort(startPosQueryTable, endQueryPos, resultTableSort);
 
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
         QueryTableEntry *resultTable = new QueryTableEntry[localQTable.size()];

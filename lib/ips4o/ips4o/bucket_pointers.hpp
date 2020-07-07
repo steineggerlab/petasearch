@@ -54,7 +54,10 @@ class Sorter<Cfg>::BucketPointers {
 #if UINTPTR_MAX == UINT32_MAX
     using atomic_type = std::uint64_t;
 #else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
     using atomic_type = unsigned __int128;
+#pragma GCC diagnostic pop
 #endif
     static constexpr const int kShift = sizeof(atomic_type) * CHAR_BIT / 2;
     static constexpr const atomic_type kMask = (static_cast<atomic_type>(1) << kShift) - 1;
