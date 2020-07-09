@@ -106,7 +106,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
                 localBuffer[localTableIndex].sequenceID = key;
                 localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
-                localBuffer[localTableIndex].sequenceLength = reader.getSeqLen(i);
+                localBuffer[localTableIndex].sequenceLength = s.L;
                 ++localTableIndex;
                 if (localTableIndex >= threadBufferSize) {
                     size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
@@ -238,11 +238,6 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handle
         buffer[idx] = toWrite;
         idx--;
     }
-//    for (int i = idx + 1; i < 5; i++) {
-//        uint16_t bits = buffer[i];
-//        fwrite(&(bits), sizeof(uint16_t), 1, handleKmerTable);
-//    }
-//    fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
     writeKmer(kmerBuf, handleKmerTable, (buffer + idx + 1), (4 - idx));
     writeID(IDBuf, handleIDTable, entryToWrite->sequenceID);
 }
