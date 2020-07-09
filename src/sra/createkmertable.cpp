@@ -18,6 +18,10 @@
 #include <omp.h>
 #endif
 
+#define KMER_BUFFER_SIZE (sizeof(uint16_t)*500000000)
+#define ID_BUFFER_SIZE   (sizeof(unsigned int) * 250000000)
+
+
 void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::string blockID);
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
@@ -161,6 +165,10 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     Debug::Progress progress(kmerCount);
 
     // TODO: add a buffer array to save the overhead of writing
+    char *kmerLocalBuffer = (char *)malloc( KMER_BUFFER_SIZE);
+    char *targetIDLocalBuffer = (char *)malloc(ID_BUFFER_SIZE);
+    setvbuf(handleKmerTable, kmerLocalBuffer, _IOFBF, KMER_BUFFER_SIZE);
+    setvbuf(handleIDTable, targetIDLocalBuffer, _IOFBF, ID_BUFFER_SIZE);
     for (size_t i = 0; i < kmerCount; ++i, ++posInTable) {
         progress.updateProgress();
         if (posInTable->kmerAsLong != entryToWrite->kmerAsLong) {
@@ -194,9 +202,10 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handle
         buffer[idx] = toWrite;
         idx--;
     }
-    for (int i = idx + 1; i < 5; i++) {
-        uint16_t bits = buffer[i];
-        fwrite(&(bits), sizeof(uint16_t), 1, handleKmerTable);
-    }
+//    for (int i = idx + 1; i < 5; i++) {
+//        uint16_t bits = buffer[i];
+//        fwrite(&(bits), sizeof(uint16_t), 1, handleKmerTable);
+//    }
+    fwrite((buffer + idx + 1), sizeof(uint16_t), 4 - idx, handleKmerTable);
     fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
 }
