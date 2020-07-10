@@ -88,7 +88,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
         size_t localTableIndex = 0;
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
-            progress.updateProgress();
+//            progress.updateProgress();
             unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
@@ -175,7 +175,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     uint16_t *kmerLocalBuf = (uint16_t *)malloc(sizeof(uint16_t) * KMER_BUFSIZ);
     unsigned int *IDLocalBuf = (unsigned int *)malloc(sizeof(unsigned int) * ID_BUFSIZ);
     for (size_t i = 0; i < kmerCount; ++i, ++posInTable) {
-        progress.updateProgress();
+//        progress.updateProgress();
         if (posInTable->kmerAsLong != entryToWrite->kmerAsLong) {
             writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable, kmerLocalBuf, IDLocalBuf);
             lastKmer = entryToWrite->kmerAsLong;
