@@ -96,8 +96,8 @@ int scoreSubAlignment(std::string query, std::string target, unsigned int qStart
 //            std::cout << "tGap\t"  << query[qPos] << "\t" << target[tPos] << "\t" << rawScore << "\t" << rawScore << "\t" << maxScore << std::endl;
         } else {
 
-            int queryRes = qSeq.int_sequence[qPos];
-            int targetRes = tSeq.int_sequence[tPos];
+            int queryRes = qSeq.numSequence[qPos];
+            int targetRes = tSeq.numSequence[tPos];
             int matchScore = matrix.subMatrix[queryRes][targetRes];
             rawScore = std::max(0, rawScore + matchScore);
 //            std::cout << "Matc\t"  << queryAA << "\t" << targetAA << "\t" << matchScore << "\t" << rawScore << "\t" << maxScore << std::endl;
@@ -134,7 +134,7 @@ std::vector<Domain> mapMsa(const std::string &msa, const std::vector<Domain> &do
             continue;
         }
 
-        std::string name = Util::parseFastaHeader(fullName);
+        std::string name = Util::parseFastaHeader(fullName.c_str());
         if (seq->comment.l > 0) {
             std::string comment(seq->comment.s);
             size_t start = comment.find("Split=");
@@ -261,7 +261,7 @@ int doExtract(Parameters &par, DBReader<unsigned int> &blastTabReader,
             char *tabData = blastTabReader.getData(i, thread_idx);
             size_t tabLength = blastTabReader.getEntryLen(i) - 1;
             const std::vector<Domain> result = getEntries(std::string(tabData, tabLength));
-            if (result.size() == 0) {
+            if (result.empty()) {
                 Debug(Debug::WARNING) << "Can not map any entries for entry " << id << "!\n";
                 continue;
             }

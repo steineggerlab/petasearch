@@ -9,8 +9,10 @@
 #include "QueryTableEntry.h"
 #include "DBWriter.h"
 #include "MemoryMapped.h"
+#include "BitManipulateMacros.h"
 
 #include "omptl/omptl_algorithm"
+#include "ips4o/ips4o.hpp"
 
 #ifdef OPENMP
 #include <omp.h>
@@ -88,7 +90,7 @@ int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second) 
 }
 
 
-void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryTable){
+void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryTable) {
     Timer timer;
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
@@ -113,7 +115,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     size_t tableCapacity = (size_t) (similarKmerFactor * (kmerCount + 1));
     queryTable.reserve(tableCapacity);
 
-    const int xIndex = subMat->aa2int[(int)'X'];
+    const int xIndex = subMat->aa2num[(int)'X'];
 
     Debug::Progress progress(reader.getSize());
 
@@ -145,7 +147,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
             sequence.mapSequence(i, 0, data, seqLen);
 
             while (sequence.hasNextKmer()) {
-                const int *kmer = sequence.nextKmer();
+                const unsigned char *kmer = sequence.nextKmer();
 
                 int xCount = 0;
                 for (int pos = 0; pos < par.kmerSize; ++pos) {
@@ -162,6 +164,8 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
                     entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
                     localTable.emplace_back(entry);
                 } else {
+                    // FIXME: too memory consuming when k = 11, need to adjust
+                    //  (at least make the program does not terminate with an bad_alloc() error)
                     std::pair<size_t*, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
                     for (size_t j = 0; j < similarKmerList.second; ++j) {
                         QueryTableEntry entry;
@@ -183,7 +187,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
                        << "\ntime: " << timer.lap() << "\n";
 
     Debug(Debug::INFO) << "start sorting \n";
-    omptl::sort(queryTable.begin(), queryTable.end(), queryTableSort);
+    ips4o::parallel::sort(queryTable.begin(), queryTable.end(), queryTableSort);
     Debug(Debug::INFO) << "Required time for sorting: " << timer.lap() << "\n";
 
     reader.close();
@@ -236,7 +240,9 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
         std::string targetName = targetTables[i];
         MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
-        MemoryMapped targetIds(std::string(targetName + "_ids"), MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
+        MemoryMapped targetIds(std::string(targetName + "_ids"),
+                               MemoryMapped::WholeFile,
+                               MemoryMapped::SequentialScan);
         if (targetTable.isValid() == false || targetIds.isValid() == false) {
             Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
             EXIT(EXIT_FAILURE);
@@ -250,52 +256,65 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         unsigned int *currentIDPos = startPosIDTable;
 
         size_t equalKmers = 0;
-        size_t currentKmer = 0;
+        unsigned long long currentKmer = 0;
 
 
         Debug(Debug::INFO) << "start comparing \n";
 
         Timer timer;
         // cover the rare case that the first (real) target entry is larger than USHRT_MAX
-        while (currentTargetPos < endTargetPos && *currentTargetPos == USHRT_MAX) {
-            currentKmer += USHRT_MAX;
+        uint64_t currDiffIndex = 0;
+        while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
+            currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+            currDiffIndex <<= 15U;
             ++currentTargetPos;
-            ++currentIDPos;
         }
-        currentKmer += currentTargetPos != NULL ? *currentTargetPos : 0;
+        currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+        currentKmer += currDiffIndex;
+        currDiffIndex = 0;
 
         while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
             if (currentKmer == currentQueryPos->Query.kmer) {
                 ++equalKmers;
                 currentQueryPos->targetSequenceID = *currentIDPos;
                 ++currentQueryPos;
-                while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer == currentKmer){
+                while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
+                       currentQueryPos->Query.kmer == currentKmer){
                     currentQueryPos->targetSequenceID = *currentIDPos;
                     ++currentQueryPos;
                 }
                 ++currentTargetPos;
                 ++currentIDPos;
-                while (__builtin_expect(currentTargetPos < endTargetPos && *currentTargetPos == USHRT_MAX, 0)) {
-                    currentKmer += USHRT_MAX;
+                while (__builtin_expect(currentTargetPos < endTargetPos &&
+                                        !IS_LAST_15_BITS(*currentTargetPos), 0)) {
+                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                    currDiffIndex <<= 15U;
                     ++currentTargetPos;
-                    ++currentIDPos;
                 }
-                currentKmer += *currentTargetPos;
+                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                currentKmer += currDiffIndex;
+                currDiffIndex = 0;
             }
-
-            while (__builtin_expect(currentQueryPos < endQueryPos, 1) && currentQueryPos->Query.kmer < currentKmer) {
+//
+            while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
+                   currentQueryPos->Query.kmer < currentKmer) {
                 ++currentQueryPos;
             }
-
-            while (currentQueryPos < endQueryPos && currentTargetPos < endTargetPos && currentKmer < currentQueryPos->Query.kmer) {
+//
+            while (currentQueryPos < endQueryPos &&
+                   currentTargetPos < endTargetPos &&
+                   currentKmer < currentQueryPos->Query.kmer) {
                 ++currentTargetPos;
                 ++currentIDPos;
-                while (__builtin_expect(currentTargetPos < endTargetPos && *currentTargetPos == USHRT_MAX, 0)) {
-                    currentKmer += USHRT_MAX;
+                while (__builtin_expect(currentTargetPos < endTargetPos &&
+                                        !IS_LAST_15_BITS(*currentTargetPos), 0)) {
+                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                    currDiffIndex <<= 15U;
                     ++currentTargetPos;
-                    ++currentIDPos;
                 }
-                currentKmer += *currentTargetPos;
+                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                currentKmer += currDiffIndex;
+                currDiffIndex = 0;
             }
         }
 
@@ -304,7 +323,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
         Debug(Debug::INFO) << "Sorting result table\n";
-        std::sort(startPosQueryTable, endQueryPos, resultTableSort);
+        ips4o::sort(startPosQueryTable, endQueryPos, resultTableSort);
 
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
         QueryTableEntry *resultTable = new QueryTableEntry[localQTable.size()];

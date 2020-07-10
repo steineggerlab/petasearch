@@ -6,7 +6,7 @@
 #include <cstring>
 #include <vector>
 #include <limits>
-
+#include <map>
 #include "MMseqsMPI.h"
 
 #ifndef EXIT
@@ -63,7 +63,7 @@ template<> std::string SSTR(float);
 #define __has_attribute(x) 0
 #endif
 
-#if defined(__GNUC__) || __has_attribute(unused)
+#if defined(__GNUC__) || __has_attribute(__unused__)
 #  define MAYBE_UNUSED(x) x __attribute__((__unused__))
 #else
 #  define MAYBE_UNUSED(x) x
@@ -108,6 +108,8 @@ public:
         }
         return sign * val;
     }
+
+    static char* fastSeqIdToBuffer(float seqId, char* buffer);
 
     static bool isNumber(const std::string& s)
     {
@@ -240,8 +242,8 @@ public:
     }
 
 
-    static std::pair<ssize_t,ssize_t> getFastaHeaderPosition(const std::string& header);
-    static std::string parseFastaHeader(const std::string& header);
+    static std::pair<ssize_t,ssize_t> getFastaHeaderPosition(const std::string & header);
+    static std::string parseFastaHeader(const char * header);
 
     static inline char toUpper(char character){
         character += ('a' <= character && character <= 'z') ? ('A' - 'a') : 0;
@@ -310,6 +312,9 @@ public:
 
     static std::string removeWhiteSpace(std::string in);
 
+    static std::map<unsigned int, std::string> readLookup(const std::string& lookupFile,
+                                                          const bool removeSplit = false);
+
     static bool canBeCovered(const float covThr, const int covMode, float queryLength, float targetLength);
 
     static bool hasCoverage(float covThr, int covMode, float queryCov, float targetCov);
@@ -323,5 +328,7 @@ public:
     static bool hasAlignmentLength(int alnLenThr, int alnLen) {
         return alnLen >= alnLenThr;
     }
+
+    static size_t computeMemory(size_t limit);
 };
 #endif

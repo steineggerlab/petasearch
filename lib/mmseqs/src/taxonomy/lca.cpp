@@ -35,7 +35,7 @@ int lca(int argc, const char **argv, const Command& command) {
     DBWriter writer(par.db3.c_str(), par.db3Index.c_str(), par.threads, par.compressed, Parameters::DBTYPE_TAXONOMICAL_RESULT);
     writer.open();
 
-    std::vector<std::string> ranks = Util::split(par.lcaRanks, ";");
+    std::vector<std::string> ranks = NcbiTaxonomy::parseRanks(par.lcaRanks);
 
     // a few NCBI taxa are blacklisted by default, they contain unclassified sequences (e.g. metagenomes) or other sequences (e.g. plasmids)
     // if we do not remove those, a lot of sequences would be classified as Root, even though they have a sensible LCA
@@ -49,11 +49,21 @@ int lca(int argc, const char **argv, const Command& command) {
     size_t taxonNotFound = 0;
     size_t found = 0;
 
+    // will be used when no hits
+    std::string noTaxResult = "0\tno rank\tunclassified";
+    if (!ranks.empty()) {
+        noTaxResult += '\t';
+    }
+    if (par.showTaxLineage) {
+        noTaxResult += '\t';
+    }
+    noTaxResult += '\n';
+
+
     Debug(Debug::INFO) << "Computing LCA\n";
     #pragma omp parallel
     {
         const char *entry[255];
-        char buffer[1024];
         std::string resultData;
         resultData.reserve(4096);
         unsigned int thread_idx = 0;
@@ -77,9 +87,10 @@ int lca(int argc, const char **argv, const Command& command) {
                 std::pair<unsigned int, unsigned int> val;
                 std::vector<std::pair<unsigned int, unsigned int>>::iterator mappingIt;
                 const size_t columns = Util::getWordsOfLine(data, entry, 255);
+                data = Util::skipLine(data);
                 if (columns == 0) {
                     Debug(Debug::WARNING) << "Empty entry: " << i << "!";
-                    goto next;
+                    continue;
                 }
 
                 id = Util::fast_atoi<unsigned int>(entry[0]);
@@ -89,40 +100,37 @@ int lca(int argc, const char **argv, const Command& command) {
                 if (mappingIt == mapping.end() || mappingIt->first != val.first) {
                     // TODO: Check which taxa were not found
                     taxonNotFound += 1;
-                    data = Util::skipLine(data);
                     continue;
                 }
                 found++;
                 taxon = mappingIt->second;
 
                 // remove blacklisted taxa
+                bool isBlacklisted = false;
                 for (size_t j = 0; j < taxaBlacklistSize; ++j) {
                     if(taxaBlacklist[j] == 0)
                         continue;
                     if (t->IsAncestor(taxaBlacklist[j], taxon)) {
-                        goto next;
+                        isBlacklisted = true;
+                        break;
                     }
                 }
 
-                taxa.emplace_back(taxon);
-
-                next:
-                data = Util::skipLine(data);
+                if (isBlacklisted == false) {
+                    taxa.emplace_back(taxon);
+                }
             }
 
-            if(length == 1){
-                snprintf(buffer, 1024, "0\tno rank\tunclassified\n");
-                writer.writeData(buffer, strlen(buffer), key, thread_idx);
+            if (length == 1) {
+                writer.writeData(noTaxResult.c_str(), noTaxResult.size(), key, thread_idx);
                 continue;
             }
 
             TaxonNode const * node = t->LCA(taxa);
             if (node == NULL) {
-                snprintf(buffer, 1024, "0\tno rank\tunclassified\n");
-                writer.writeData(buffer, strlen(buffer), key, thread_idx);
+                writer.writeData(noTaxResult.c_str(), noTaxResult.size(), key, thread_idx);
                 continue;
             }
-
 
             resultData = SSTR(node->taxId) + '\t' + node->rank + '\t' + node->name;
             if (!ranks.empty()) {
@@ -138,7 +146,7 @@ int lca(int argc, const char **argv, const Command& command) {
         }
     };
     Debug(Debug::INFO) << "\n";
-    Debug(Debug::INFO) << "Taxonomy for " << taxonNotFound << " entries not found out of " << taxonNotFound+found << "\n";
+    Debug(Debug::INFO) << "Taxonomy for " << taxonNotFound << " out of " << taxonNotFound+found << " entries not found\n";
     writer.close();
     reader.close();
     delete t;

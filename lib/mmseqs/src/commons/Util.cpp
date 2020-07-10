@@ -16,9 +16,10 @@
 
 #include "simd.h"
 #include "MemoryMapped.h"
-
+#include "MemoryTracker.h"
 #include <algorithm>
 #include <sys/mman.h>
+#include <fstream>      // std::ifstream
 
 #ifdef OPENMP
 #include <omp.h>
@@ -244,7 +245,9 @@ std::pair<ssize_t,ssize_t> Util::getFastaHeaderPosition(const std::string& heade
 }
 
 
-std::string Util::parseFastaHeader(const std::string& header) {
+std::string Util::parseFastaHeader(const char * headerPtr) {
+    size_t len = Util::skipNoneWhitespace(headerPtr);
+    std::string header(headerPtr, len);
     std::pair<ssize_t, ssize_t> pos = Util::getFastaHeaderPosition(header);
     if(pos.first == -1 && pos.second == -1)
         return "";
@@ -270,6 +273,37 @@ void Util::parseKey(const char *data, char *key) {
     ptrdiff_t keySize = (endPosOfId - startPosOfKey);
     strncpy(key, data, keySize);
     key[keySize] = '\0';
+}
+
+char* Util::fastSeqIdToBuffer(float seqId, char* buffer) {
+    if (seqId == 1.0) {
+        *(buffer) = '1';
+        buffer++;
+        *(buffer) = '.';
+        buffer++;
+        *(buffer) = '0';
+        buffer++;
+        *(buffer) = '0';
+        buffer++;
+        *(buffer) = '0';
+        buffer++;
+        *(buffer) = '\0';
+    } else {
+        *(buffer) = '0';
+        buffer++;
+        *(buffer) = '.';
+        buffer++;
+        if (seqId < 0.10) {
+            *(buffer) = '0';
+            buffer++;
+        }
+        if (seqId < 0.01) {
+            *(buffer) = '0';
+            buffer++;
+        }
+        buffer = Itoa::i32toa_sse2((int)(seqId * 1000), buffer);
+    }
+    return buffer;
 }
 
 std::vector<std::string> Util::split(const std::string &str, const std::string &sep) {
@@ -462,6 +496,35 @@ int Util::omp_thread_count() {
     return n;
 }
 
+std::map<unsigned int, std::string> Util::readLookup(const std::string& file, const bool removeSplit) {
+    std::map<unsigned int, std::string> mapping;
+    if (file.length() > 0) {
+        std::ifstream mappingStream(file);
+        if (mappingStream.fail()) {
+            Debug(Debug::ERROR) << "File " << file << " not found!\n";
+            EXIT(EXIT_FAILURE);
+        }
+
+        std::string line;
+        while (std::getline(mappingStream, line)) {
+            std::vector<std::string> split = Util::split(line, "\t");
+            unsigned int id = strtoul(split[0].c_str(), NULL, 10);
+
+            std::string& name = split[1];
+
+            size_t pos;
+            if (removeSplit && (pos = name.find_last_of('_')) != std::string::npos) {
+                name = name.substr(0, pos);
+            }
+
+            mapping.emplace(id, name);
+        }
+    }
+
+    return mapping;
+}
+
+
 std::string Util::removeWhiteSpace(std::string in) {
     in.erase(std::remove_if(in.begin(), in.end(), isspace), in.end());
     return in;
@@ -474,8 +537,7 @@ bool Util::canBeCovered(const float covThr, const int covMode, float queryLength
         case Parameters::COV_MODE_QUERY:
             return ((targetLength / queryLength) >= covThr);
         case Parameters::COV_MODE_TARGET:
-            // No assumptions possible without the alignment length
-            return true;
+            return ((queryLength/targetLength) >= covThr) ;
         case Parameters::COV_MODE_LENGTH_QUERY:
             return ((targetLength / queryLength) >= covThr) && (targetLength / queryLength) <= 1.0;
         case Parameters::COV_MODE_LENGTH_TARGET:
@@ -542,7 +604,7 @@ uint64_t Util::revComplement(const uint64_t kmer, const int k) {
     // create lookup (set 16 bytes in 128 bit)
     // a lookup entry at the index of two nucleotides (4 bit) describes the reverse
     // complement of these two nucleotide in the higher 4 bits (lookup1) or in the lower 4 bits (lookup2)
-#define c (char)
+#define c (signed char)
     __m128i lookup1 = _mm_set_epi8(c(0x50),c(0x10),c(0xD0),c(0x90),c(0x40),c(0x00),c(0xC0),c(0x80),
                                    c(0x70),c(0x30),c(0xF0),c(0xB0),c(0x60),c(0x20),c(0xE0),c(0xA0));
     __m128i lookup2 = _mm_set_epi8(c(0x05),c(0x01),c(0x0D),c(0x09),c(0x04),c(0x00),c(0x0C),c(0x08),
@@ -558,35 +620,36 @@ uint64_t Util::revComplement(const uint64_t kmer, const int k) {
 #undef c
 
     // use _mm_shuffle_epi8 to look up reverse complement
-#ifdef NEON
-    kmer1 = vreinterpretq_m128i_u8(vqtbl1q_u8(vreinterpretq_u8_m128i(lookup1),vreinterpretq_u8_m128i(kmer1)));
-#else
-    kmer1 =_mm_shuffle_epi8(lookup1, kmer1);
-#endif
-
-
-#ifdef NEON
-    kmer2 = vreinterpretq_m128i_u8(vqtbl1q_u8(vreinterpretq_u8_m128i(lookup2),vreinterpretq_u8_m128i(kmer2)));
-#else
+    kmer1 = _mm_shuffle_epi8(lookup1, kmer1);
     kmer2 = _mm_shuffle_epi8(lookup2, kmer2);
-#endif
-
 
     // _mm_or_si128: bitwise OR
     x = _mm_or_si128(kmer1, kmer2);
 
     // set upper 8 bytes to 0 and revert order of lower 8 bytes
-
-#ifdef NEON
-    x = vreinterpretq_m128i_u8(vqtbl1q_u8(vreinterpretq_u8_m128i(x),vreinterpretq_u8_m128i(upper)));
-#else
     x = _mm_shuffle_epi8(x, upper);
-#endif
 
     // shift out the unused nucleotide positions (1 <= k <=32 )
     // broadcast 128 bit to 64 bit
     return (((uint64_t)_mm_cvtsi128_si64(x)) >> (uint64_t)(64-2*k));
 
+}
+
+size_t Util::computeMemory(size_t limit) {
+    size_t memoryLimit;
+    if (limit > 0) {
+        memoryLimit = limit;
+    } else {
+        memoryLimit = static_cast<size_t>(Util::getTotalSystemMemory() * 0.9);
+    }
+    if(MemoryTracker::getSize() > memoryLimit){
+        Debug(Debug::ERROR) << "Not enough memory to keep dbreader/write in memory!\n";
+        Debug(Debug::ERROR) << "Memory limit: " << memoryLimit << " dbreader/writer need: " << MemoryTracker::getSize() << "\n";
+        EXIT(EXIT_FAILURE);
+    }else{
+        memoryLimit -= MemoryTracker::getSize();
+    }
+    return memoryLimit;
 }
 
 template<> std::string SSTR(char x) { return std::string(1, x); }

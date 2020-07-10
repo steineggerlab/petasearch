@@ -168,7 +168,7 @@ void DBWriter::open(size_t bufferSize) {
             // 8MB should be enough
             bufferSize = 8ull * 1024 * 1024;
         } else {
-            bufferSize = 64ull * 1024 * 1024;
+            bufferSize = 32ull * 1024 * 1024;
         }
     }
     for (unsigned int i = 0; i < threads; i++) {
@@ -184,6 +184,7 @@ void DBWriter::open(size_t bufferSize) {
         }
 
         dataFilesBuffer[i] = new(std::nothrow) char[bufferSize];
+        incrementMemory(bufferSize);
         Util::checkAllocation(dataFilesBuffer[i], "Cannot allocate buffer for DBWriter");
         this->bufferSize = bufferSize;
 
@@ -192,7 +193,7 @@ void DBWriter::open(size_t bufferSize) {
             Debug(Debug::WARNING) << "Write buffer could not be allocated (bufferSize=" << bufferSize << ")\n";
         }
 
-        indexFiles[i] =  FileUtil::openAndDelete(indexFileNames[i], "w");
+        indexFiles[i] = FileUtil::openAndDelete(indexFileNames[i], "w");
         fd = fileno(indexFiles[i]);
         if ((flags = fcntl(fd, F_GETFL, 0)) < 0 || fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1) {
             Debug(Debug::ERROR) << "Can not set mode for " << indexFileNames[i] << "!\n";
@@ -218,7 +219,9 @@ void DBWriter::open(size_t bufferSize) {
             threadBufferSize[i] = 2097152;
             state[i] = false;
             compressedBuffers[i] = (char*) malloc(compressedBufferSizes[i]);
+            incrementMemory(compressedBufferSizes[i]);
             threadBuffer[i] = (char*) malloc(threadBufferSize[i]);
+            incrementMemory(threadBufferSize[i]);
             cstream[i] = ZSTD_createCStream();
         }
     }
@@ -253,7 +256,9 @@ void DBWriter::close(bool merge) {
     if(compressedBuffers){
         for (unsigned int i = 0; i < threads; i++) {
             free(compressedBuffers[i]);
+            decrementMemory(compressedBufferSizes[i]);
             free(threadBuffer[i]);
+            decrementMemory(threadBufferSize[i]);
             ZSTD_freeCStream(cstream[i]);
         }
     }
@@ -265,6 +270,7 @@ void DBWriter::close(bool merge) {
 
     for (unsigned int i = 0; i < threads; i++) {
         delete [] dataFilesBuffer[i];
+        decrementMemory(bufferSize);
         free(dataFileNames[i]);
         free(indexFileNames[i]);
     }
@@ -666,11 +672,11 @@ void DBWriter::writeThreadBuffer(unsigned int idx, size_t dataSize) {
     }
 }
 
-void DBWriter::createRenumberedDB(const std::string& dataFile, const std::string& indexFile, const std::string& lookupFile, int sortMode, unsigned int keyOffset) {
+void DBWriter::createRenumberedDB(const std::string& dataFile, const std::string& indexFile, const std::string& origData, const std::string& origIndex, int sortMode) {
     DBReader<unsigned int>* lookupReader = NULL;
     FILE *sLookup = NULL;
-    if (lookupFile.empty() == false) {
-        lookupReader = new DBReader<unsigned int>(lookupFile.c_str(), lookupFile.c_str(), 1, DBReader<unsigned int>::USE_LOOKUP);
+    if (origData.empty() == false && origIndex.empty() == false) {
+        lookupReader = new DBReader<unsigned int>(origData.c_str(), origIndex.c_str(), 1, DBReader<unsigned int>::USE_LOOKUP);
         lookupReader->open(DBReader<unsigned int>::NOSORT);
         sLookup = FileUtil::openAndDelete((dataFile + ".lookup").c_str(), "w");
     }
@@ -681,13 +687,15 @@ void DBWriter::createRenumberedDB(const std::string& dataFile, const std::string
     FILE *sIndex = FileUtil::openAndDelete(indexTmp.c_str(), "w");
 
     char buffer[1024];
+    std::string strBuffer;
+    strBuffer.reserve(1024);
     DBReader<unsigned int>::LookupEntry* lookup = NULL;
     if (lookupReader != NULL) {
         lookup = lookupReader->getLookup();
     }
     for (size_t i = 0; i < reader.getSize(); i++) {
         DBReader<unsigned int>::Index *idx = (reader.getIndex(i));
-        size_t len = DBWriter::indexToBuffer(buffer, keyOffset + i, idx->offset, idx->length);
+        size_t len = DBWriter::indexToBuffer(buffer, i, idx->offset, idx->length);
         int written = fwrite(buffer, sizeof(char), len, sIndex);
         if (written != (int) len) {
             Debug(Debug::ERROR) << "Can not write to data file " << indexFile << "_tmp\n";
@@ -696,13 +704,15 @@ void DBWriter::createRenumberedDB(const std::string& dataFile, const std::string
         if (lookupReader != NULL) {
             size_t lookupId = lookupReader->getLookupIdByKey(idx->id);
             DBReader<unsigned int>::LookupEntry copy = lookup[lookupId];
-            copy.id = keyOffset + i;
-            len = lookupReader->lookupEntryToBuffer(buffer, copy);
-            written = fwrite(buffer, sizeof(char), len, sLookup);
-            if (written != (int) len) {
+            copy.id = i;
+            copy.entryName = SSTR(idx->id);
+            lookupReader->lookupEntryToBuffer(strBuffer, copy);
+            written = fwrite(strBuffer.c_str(), sizeof(char), strBuffer.size(), sLookup);
+            if (written != (int) strBuffer.size()) {
                 Debug(Debug::ERROR) << "Could not write to lookup file " << indexFile << "_tmp\n";
                 EXIT(EXIT_FAILURE);
             }
+            strBuffer.clear();
         }
     }
     fclose(sIndex);
