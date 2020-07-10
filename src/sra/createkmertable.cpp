@@ -186,7 +186,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     //write last one
     writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable, kmerLocalBuf, IDLocalBuf);
     ++uniqueKmerCount;
-
+    
     flushKmerBuf(kmerLocalBuf, handleKmerTable);
     flushIDBuf(IDLocalBuf, handleIDTable);
     free(kmerLocalBuf);
@@ -199,29 +199,35 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
 }
 
 static inline void flushKmerBuf(uint16_t *buffer, FILE *handleKmerTable) {
+//    Debug(Debug::INFO) << "Called flushKmerBuf\n";
     fwrite(buffer, sizeof(uint16_t), kmerBufIdx, handleKmerTable);
     kmerBufIdx = 0;
 }
 
 static inline void flushIDBuf(unsigned int *buffer, FILE *handleIDTable) {
+//    Debug(Debug::INFO) << "Called flush id Buf\n";
     fwrite(buffer, sizeof(unsigned int), IDBufIdx, handleIDTable);
     IDBufIdx = 0;
 }
 
 static inline void writeKmer(uint16_t *buffer, FILE *handleKmerTable, uint16_t *toWrite, size_t size) {
+//    Debug(Debug::INFO) << "Called writeKmer\n";
     if (kmerBufIdx + size >= KMER_BUFSIZ) {
         flushKmerBuf(buffer, handleKmerTable);
     }
     memcpy(buffer + kmerBufIdx, toWrite, sizeof(uint16_t) * size);
     kmerBufIdx += size;
+//    Debug(Debug::INFO) << "Return from WRITEKMER\n";
 }
 
 static inline void writeID(unsigned int *buffer, FILE *handleIDTable, unsigned int toWrite) {
-    if (IDBufIdx == KMER_BUFSIZ) {
+//    Debug(Debug::INFO) << "Called writeID\n";
+    if (IDBufIdx == ID_BUFSIZ) {
         flushIDBuf(buffer, handleIDTable);
     }
     buffer[IDBufIdx] = toWrite;
     IDBufIdx++;
+//    Debug(Debug::INFO) << "Return from writeID\n";
 }
 
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable,
