@@ -124,7 +124,11 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
     Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
+#ifdef OPENMP
     ips4o::parallel::sort(targetTable, targetTable + tableIndex, targetTableSort);
+#else
+    ips4o::sort(targetTable, targetTable + tableIndex, targetTableSort);
+#endif
     Debug(Debug::INFO) << timer.lap() << "\n";
     writeTargetTables(targetTable, tableIndex, par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
@@ -171,7 +175,6 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     size_t lastKmer = 0;
     Debug::Progress progress(kmerCount);
 
-    // TODO: add a buffer array to save the overhead of writing
     uint16_t *kmerLocalBuf = (uint16_t *)malloc(sizeof(uint16_t) * KMER_BUFSIZ);
     unsigned int *IDLocalBuf = (unsigned int *)malloc(sizeof(unsigned int) * ID_BUFSIZ);
     for (size_t i = 0; i < kmerCount; ++i, ++posInTable) {
@@ -199,42 +202,36 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
 }
 
 static inline void flushKmerBuf(uint16_t *buffer, FILE *handleKmerTable) {
-//    Debug(Debug::INFO) << "Called flushKmerBuf\n";
     fwrite(buffer, sizeof(uint16_t), kmerBufIdx, handleKmerTable);
     kmerBufIdx = 0;
 }
 
 static inline void flushIDBuf(unsigned int *buffer, FILE *handleIDTable) {
-//    Debug(Debug::INFO) << "Called flush id Buf\n";
     fwrite(buffer, sizeof(unsigned int), IDBufIdx, handleIDTable);
     IDBufIdx = 0;
 }
 
 static inline void writeKmer(uint16_t *buffer, FILE *handleKmerTable, uint16_t *toWrite, size_t size) {
-//    Debug(Debug::INFO) << "Called writeKmer\n";
     if (kmerBufIdx + size >= KMER_BUFSIZ) {
         flushKmerBuf(buffer, handleKmerTable);
     }
     memcpy(buffer + kmerBufIdx, toWrite, sizeof(uint16_t) * size);
     kmerBufIdx += size;
-//    Debug(Debug::INFO) << "Return from WRITEKMER\n";
 }
 
 static inline void writeID(unsigned int *buffer, FILE *handleIDTable, unsigned int toWrite) {
-//    Debug(Debug::INFO) << "Called writeID\n";
     if (IDBufIdx == ID_BUFSIZ) {
         flushIDBuf(buffer, handleIDTable);
     }
     buffer[IDBufIdx] = toWrite;
     IDBufIdx++;
-//    Debug(Debug::INFO) << "Return from writeID\n";
 }
 
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable,
                    uint16_t *kmerBuf, unsigned int *IDBuf) {
     uint64_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
     // Consecutively store 15 bits of information into a short, until kmer diff is all
-    uint16_t buffer[5] = { 0 }; // 15*5 = 75 > 64
+    uint16_t buffer[5]; // 15*5 = 75 > 64
     buffer[4] = SET_END_FLAG(GET_15_BITS(kmerdiff));
     kmerdiff >>= 15U;
     int idx = 3;
