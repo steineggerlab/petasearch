@@ -273,20 +273,19 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         currentKmer += currDiffIndex;
         currDiffIndex = 0;
 
-        while (__builtin_expect(currentTargetPos < endTargetPos, 1) && currentQueryPos < endQueryPos) {
+        while (LIKELY(currentTargetPos < endTargetPos) && currentQueryPos < endQueryPos) {
             if (currentKmer == currentQueryPos->Query.kmer) {
                 ++equalKmers;
                 currentQueryPos->targetSequenceID = *currentIDPos;
                 ++currentQueryPos;
-                while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
+                while (LIKELY(currentQueryPos < endQueryPos) &&
                        currentQueryPos->Query.kmer == currentKmer){
                     currentQueryPos->targetSequenceID = *currentIDPos;
                     ++currentQueryPos;
                 }
                 ++currentTargetPos;
                 ++currentIDPos;
-                while (__builtin_expect(currentTargetPos < endTargetPos &&
-                                        !IS_LAST_15_BITS(*currentTargetPos), 0)) {
+                while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                     currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                     currDiffIndex <<= 15U;
                     ++currentTargetPos;
@@ -296,7 +295,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                 currDiffIndex = 0;
             }
 //
-            while (__builtin_expect(currentQueryPos < endQueryPos, 1) &&
+            while (LIKELY(currentQueryPos < endQueryPos) &&
                    currentQueryPos->Query.kmer < currentKmer) {
                 ++currentQueryPos;
             }
@@ -306,8 +305,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                    currentKmer < currentQueryPos->Query.kmer) {
                 ++currentTargetPos;
                 ++currentIDPos;
-                while (__builtin_expect(currentTargetPos < endTargetPos &&
-                                        !IS_LAST_15_BITS(*currentTargetPos), 0)) {
+                while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                     currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                     currDiffIndex <<= 15U;
                     ++currentTargetPos;
