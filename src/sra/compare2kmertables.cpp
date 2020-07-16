@@ -228,12 +228,16 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-#pragma omp parallel
+#pragma omp parallel num_threads(targetTables.size())
 {
-
+std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
+bool notFirst = false;
 #pragma omp for schedule(dynamic, 1)
     for (size_t i = 0; i < targetTables.size(); ++i) {
-        std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
+        // TODO: empty the localQTable here, if this is not the first round
+        if (notFirst) {
+            localQTable = qTable;
+        }
         QueryTableEntry *startPosQueryTable = localQTable.data();
         QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
 
@@ -353,6 +357,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         writer.close();
 
         delete[] resultTable;
+        notFirst = true;
     }
 }
 
