@@ -76,7 +76,7 @@ Parameters::Parameters():
         PARAM_CLUSTER_MODE(PARAM_CLUSTER_MODE_ID, "--cluster-mode", "Cluster mode", "0: Set-Cover (greedy)\n1: Connected component (BLASTclust)\n2,3: Greedy clustering by sequence length (CDHIT)", typeid(int), (void *) &clusteringMode, "[0-3]{1}$", MMseqsParameter::COMMAND_CLUST),
         PARAM_CLUSTER_STEPS(PARAM_CLUSTER_STEPS_ID, "--cluster-steps", "Cascaded clustering steps", "Cascaded clustering steps from 1 to -s", typeid(int), (void *) &clusterSteps, "^[1-9]{1}$", MMseqsParameter::COMMAND_CLUST | MMseqsParameter::COMMAND_EXPERT),
         PARAM_CASCADED(PARAM_CASCADED_ID, "--single-step-clustering", "Single step clustering", "Switch from cascaded to simple clustering workflow", typeid(bool), (void *) &singleStepClustering, "", MMseqsParameter::COMMAND_CLUST),
-        PARAM_CLUSTER_REASSIGN(PARAM_CLUSTER_REASSIGN_ID, "--cluster-reassign", "Cluster reassign", "Cascaded clustering can cluster sequence that do not fulfill the clustering criteria.\nCluster reassignment corrects these errors", typeid(int), (void *) &clusterReassignment, "[0-1]{1}$", MMseqsParameter::COMMAND_CLUST),
+        PARAM_CLUSTER_REASSIGN(PARAM_CLUSTER_REASSIGN_ID, "--cluster-reassign", "Cluster reassign", "Cascaded clustering can cluster sequence that do not fulfill the clustering criteria.\nCluster reassignment corrects these errors", typeid(bool), (void *) &clusterReassignment, "", MMseqsParameter::COMMAND_CLUST),
         // affinity clustering
         PARAM_MAXITERATIONS(PARAM_MAXITERATIONS_ID, "--max-iterations", "Max connected component depth", "Maximum depth of breadth first search in connected component clustering", typeid(int), (void *) &maxIteration, "^[1-9]{1}[0-9]*$", MMseqsParameter::COMMAND_CLUST | MMseqsParameter::COMMAND_EXPERT),
         PARAM_SIMILARITYSCORE(PARAM_SIMILARITYSCORE_ID, "--similarity-type", "Similarity type", "Type of score used for clustering. 1: alignment score 2: sequence identity", typeid(int), (void *) &similarityScoreType, "^[1-2]{1}$", MMseqsParameter::COMMAND_CLUST | MMseqsParameter::COMMAND_EXPERT),
@@ -84,7 +84,7 @@ Parameters::Parameters():
         PARAM_V(PARAM_V_ID, "-v", "Verbosity", "Verbosity level: 0: quiet, 1: +errors, 2: +warnings, 3: +info", typeid(int), (void *) &verbosity, "^[0-3]{1}$", MMseqsParameter::COMMAND_COMMON),
         // convertalignments
         PARAM_FORMAT_MODE(PARAM_FORMAT_MODE_ID, "--format-mode", "Alignment format", "Output format: 0: BLAST-TAB, 1: SAM, 2: BLAST-TAB + query/db length, 3: Pretty HTML", typeid(int), (void *) &formatAlignmentMode, "^[0-3]{1}$"),
-        PARAM_FORMAT_OUTPUT(PARAM_FORMAT_OUTPUT_ID, "--format-output", "Format alignment output", "Choose comma separated list of output columns from: query,target,evalue,gapopen,pident,nident,qstart,qend,qlen\ntstart,tend,tlen,alnlen,raw,bits,cigar,qseq,tseq,qheader,theader,qaln,taln,qframe,tframe,mismatch,qcov,tcov\nqset,qsetid,tset,tsetid,taxid,taxname,taxlineage,qorfstart,qorfend,torfstart,torfend", typeid(std::string), (void *) &outfmt, ""),
+        PARAM_FORMAT_OUTPUT(PARAM_FORMAT_OUTPUT_ID, "--format-output", "Format alignment output", "Choose comma separated list of output columns from: query,target,evalue,gapopen,pident,fident,nident,qstart,qend,qlen\ntstart,tend,tlen,alnlen,raw,bits,cigar,qseq,tseq,qheader,theader,qaln,taln,qframe,tframe,mismatch,qcov,tcov\nqset,qsetid,tset,tsetid,taxid,taxname,taxlineage,qorfstart,qorfend,torfstart,torfend", typeid(std::string), (void *) &outfmt, ""),
         PARAM_DB_OUTPUT(PARAM_DB_OUTPUT_ID, "--db-output", "Database output", "Return a result DB instead of a text file", typeid(bool), (void *) &dbOut, "", MMseqsParameter::COMMAND_EXPERT),
         // --include-only-extendablediagonal
         PARAM_RESCORE_MODE(PARAM_RESCORE_MODE_ID, "--rescore-mode", "Rescore mode", "Rescore diagonals with:\n0: Hamming distance\n1: local alignment (score only)\n2: local alignment\n3: global alignment\n4: longest alignment fullfilling window quality criterion", typeid(int), (void *) &rescoreMode, "^[0-4]{1}$"),
@@ -146,6 +146,7 @@ Parameters::Parameters():
         PARAM_SENS_STEPS(PARAM_SENS_STEPS_ID, "--sens-steps", "Search steps", "Number of search steps performed from --start-sens to -s", typeid(int), (void *) &sensSteps, "^[1-9]{1}$"),
         PARAM_SLICE_SEARCH(PARAM_SLICE_SEARCH_ID, "--slice-search", "Slice search mode", "For bigger profile DB, run iteratively the search by greedily swapping the search results", typeid(bool), (void *) &sliceSearch, "", MMseqsParameter::COMMAND_PROFILE | MMseqsParameter::COMMAND_EXPERT),
         PARAM_STRAND(PARAM_STRAND_ID, "--strand", "Strand selection", "Strand selection only works for DNA/DNA search 0: reverse, 1: forward, 2: both", typeid(int), (void *) &strand, "^[0-2]{1}$", MMseqsParameter::COMMAND_EXPERT),
+        PARAM_ORF_FILTER(PARAM_ORF_FILTER_ID, "--orf-filter", "ORF filter", "Prefilter query ORFs with non-selective before search", typeid(int), (void *) &orfFilter, "^[0-1]{1}$", MMseqsParameter::COMMAND_HIDDEN),
         // easysearch
         PARAM_GREEDY_BEST_HITS(PARAM_GREEDY_BEST_HITS_ID, "--greedy-best-hits", "Greedy best hits", "Choose the best hits greedily to cover the query", typeid(bool), (void *) &greedyBestHits, ""),
         // extractorfs
@@ -239,7 +240,7 @@ Parameters::Parameters():
         PARAM_PICK_ID_FROM(PARAM_PICK_ID_FROM_ID, "--pick-id-from", "Extract mode", "Query 1, Target 2", typeid(int), (void *) &pickIdFrom, "^[1-2]{1}$"),
         PARAM_LCA_RANKS(PARAM_LCA_RANKS_ID, "--lca-ranks", "LCA ranks", "Add column with specified ranks (',' separated)", typeid(std::string), (void *) &lcaRanks, ""),
         PARAM_BLACKLIST(PARAM_BLACKLIST_ID, "--blacklist", "Taxon blacklist", "Comma separated list of ignored taxa in LCA computation", typeid(std::string), (void *) &blacklist, "([0-9]+,)?[0-9]+"),
-        PARAM_TAXON_ADD_LINEAGE(PARAM_TAXON_ADD_LINEAGE_ID, "--tax-lineage", "Show taxonomic lineage", "Add column with full taxonomy lineage", typeid(bool), (void *) &showTaxLineage, ""),
+        PARAM_TAXON_ADD_LINEAGE(PARAM_TAXON_ADD_LINEAGE_ID, "--tax-lineage", "Column with taxonomic lineage", "0: don't show, 1: add all lineage names, 2: add all lineage taxids", typeid(int), (void *) &showTaxLineage, "^[0-2]{1}$"),
         // aggregatetax
         PARAM_MAJORITY(PARAM_MAJORITY_ID, "--majority", "Majority threshold", "minimal fraction of agreement among taxonomically assigned sequences of a set", typeid(float), (void *) &majorityThr, "^0(\\.[0-9]+)?|^1(\\.0+)?$"),
         PARAM_VOTE_MODE(PARAM_VOTE_MODE_ID, "--vote-mode", "Vote mode", "Mode of assigning weights to compute majority. 0: uniform, 1: minus log e-value", typeid(int), (void *) &voteMode, "^[0-1]{1}$"),
@@ -526,7 +527,6 @@ Parameters::Parameters():
 
     // result2msa
     result2msa.push_back(&PARAM_SUB_MAT);
-    result2msa.push_back(&PARAM_E_PROFILE);
     result2msa.push_back(&PARAM_ALLOW_DELETION);
     result2msa.push_back(&PARAM_ADD_INTERNAL_ID);
     result2msa.push_back(&PARAM_NO_COMP_BIAS_CORR);
@@ -554,6 +554,21 @@ Parameters::Parameters():
     result2dnamsa.push_back(&PARAM_COMPRESSED);
     //result2msa.push_back(&PARAM_FIRST_SEQ_REP_SEQ);
     result2dnamsa.push_back(&PARAM_V);
+
+    // filterresult
+    filterresult.push_back(&PARAM_SUB_MAT);
+    filterresult.push_back(&PARAM_GAP_OPEN);
+    filterresult.push_back(&PARAM_GAP_EXTEND);
+    filterresult.push_back(&PARAM_NO_COMP_BIAS_CORR);
+    filterresult.push_back(&PARAM_ALLOW_DELETION);
+    filterresult.push_back(&PARAM_FILTER_MAX_SEQ_ID);
+    filterresult.push_back(&PARAM_FILTER_QID);
+    filterresult.push_back(&PARAM_FILTER_QSC);
+    filterresult.push_back(&PARAM_FILTER_COV);
+    filterresult.push_back(&PARAM_FILTER_NDIFF);
+    filterresult.push_back(&PARAM_THREADS);
+    filterresult.push_back(&PARAM_COMPRESSED);
+    filterresult.push_back(&PARAM_V);
 
     // convertmsa
     convertmsa.push_back(&PARAM_IDENTIFIER_FIELD);
@@ -1036,6 +1051,7 @@ Parameters::Parameters():
     searchworkflow.push_back(&PARAM_SENS_STEPS);
     searchworkflow.push_back(&PARAM_SLICE_SEARCH);
     searchworkflow.push_back(&PARAM_STRAND);
+    searchworkflow.push_back(&PARAM_ORF_FILTER);
     searchworkflow.push_back(&PARAM_DISK_SPACE_LIMIT);
     searchworkflow.push_back(&PARAM_RUNNER);
     searchworkflow.push_back(&PARAM_REUSELATEST);
@@ -1104,8 +1120,9 @@ Parameters::Parameters():
     taxonomy.push_back(&PARAM_TAX_OUTPUT_MODE);
 
     // taxpercontig
-    taxpercontig = combineList(removeParameter(extractorfs, PARAM_TRANSLATE), removeParameter(taxonomy, PARAM_TAX_OUTPUT_MODE));
-    taxpercontig = combineList(taxpercontig, aggregatetax);
+    taxpercontig = combineList(taxonomy, aggregatetax);
+    removeParameter(taxpercontig, PARAM_TRANSLATE);
+    removeParameter(taxpercontig, PARAM_TAX_OUTPUT_MODE);
 
     // easy taxonomy
     easytaxonomy = combineList(taxonomy, addtaxonomy);
@@ -1259,7 +1276,7 @@ void Parameters::printUsageMessage(const Command& command, const unsigned int ou
                         valueString = SSTR(*(double *) par->value);
                     } else if (par->type == typeid(ByteParser)) {
                         paramString.append(" BYTE");
-                        valueString = ByteParser::format(*((size_t *) par->value));
+                        valueString = ByteParser::format(*((size_t *) par->value), 'a', 'h');
                     } else if (par->type == typeid(bool)) {
                         paramString.append(" BOOL");
                         valueString = SSTR(*(bool *)par->value);
@@ -1489,12 +1506,9 @@ void Parameters::parseParameters(int argc, const char *pargv[], const Command &c
                         }
                         argIdx++;
                     } else if (typeid(std::string) == par[parIdx]->type) {
-                        std::string val(pargv[argIdx+1]);
-                        if(val.length() != 0){
-                            std::string * currVal = ((std::string *)par[parIdx]->value);
-                            currVal->assign( val );
-                            par[parIdx]->wasSet = true;
-                        }
+                        std::string* currVal = (std::string*)par[parIdx]->value;
+                        currVal->assign(pargv[argIdx+1]);
+                        par[parIdx]->wasSet = true;
                         argIdx++;
                     } else if (typeid(bool) == par[parIdx]->type) {
                         bool *value = (bool *) par[parIdx]->value;
@@ -1888,7 +1902,7 @@ void Parameters::printParameters(const std::string &module, int argc, const char
         if(typeid(int) == par[i]->type ){
             ss << *((int *)par[i]->value);
         } else if(typeid(ByteParser) == par[i]->type) {
-            ss << ByteParser::format(*((size_t *)par[i]->value));
+            ss << ByteParser::format(*((size_t *)par[i]->value), 'a', 'h');
         } else if(typeid(MultiParam<char*>) == par[i]->type) {
             ss << MultiParam<char*>::format(*((MultiParam<char*> *)par[i]->value));
         } else if(typeid(MultiParam<int>) == par[i]->type) {
@@ -1939,6 +1953,7 @@ void Parameters::setDefaults() {
     sensSteps = 1;
     sliceSearch = false;
     strand = 1;
+    orfFilter = 0;
 
     greedyBestHits = false;
 
@@ -2014,7 +2029,7 @@ void Parameters::setDefaults() {
 
     // format alignment
     formatAlignmentMode = FORMAT_ALIGNMENT_BLAST_TAB;
-    outfmt = "query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits";
+    outfmt = "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits";
     dbOut = false;
 
     // result2msa
@@ -2191,7 +2206,7 @@ void Parameters::setDefaults() {
     tarExclude = "^$";
 
     lcaRanks = "";
-    showTaxLineage = false;
+    showTaxLineage = 0;
     // bin for all unclassified sequences
     // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=12908
     // other sequences (plasmids, etc)
@@ -2199,8 +2214,8 @@ void Parameters::setDefaults() {
     blacklist = "12908,28384";
 
     // aggregatetax
-    majorityThr = 0;
-    voteMode = 0;
+    majorityThr = 0.5;
+    voteMode = 1;
 
     // taxonomyreport
     reportMode = 0;
@@ -2279,7 +2294,7 @@ std::string Parameters::createParameterString(const std::vector<MMseqsParameter*
             ss << *((int *)par[i]->value) << " ";
         } else if (typeid(ByteParser) == par[i]->type) {
             ss << par[i]->name << " ";
-            ss << ByteParser::format(*((size_t *)par[i]->value)) << " ";
+            ss << ByteParser::format(*((size_t *)par[i]->value), 'a', 'h') << " ";
         } else if (typeid(float) == par[i]->type){
             ss << par[i]->name << " ";
             ss << *((float *)par[i]->value) << " ";
@@ -2354,6 +2369,7 @@ std::vector<int> Parameters::getOutputFormat(int formatMode, const std::string &
         else if (outformatSplit[i].compare("evalue") == 0){ code = Parameters::OUTFMT_EVALUE;}
         else if (outformatSplit[i].compare("gapopen") == 0){ code = Parameters::OUTFMT_GAPOPEN;}
         else if (outformatSplit[i].compare("pident") == 0){ code = Parameters::OUTFMT_PIDENT;}
+        else if (outformatSplit[i].compare("fident") == 0){ code = Parameters::OUTFMT_FIDENT;}
         else if (outformatSplit[i].compare("nident") == 0){ code = Parameters::OUTFMT_NIDENT;}
         else if (outformatSplit[i].compare("qstart") == 0){ code = Parameters::OUTFMT_QSTART;}
         else if (outformatSplit[i].compare("qend") == 0){ code = Parameters::OUTFMT_QEND;}

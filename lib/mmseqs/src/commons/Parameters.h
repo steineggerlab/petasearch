@@ -1,4 +1,4 @@
-// Written by Martin Steinegger martin.steinegger@mpibpc.mpg.de
+// Written by Martin Steinegger martin.steinegger@snu.ac.kr
 //
 // Represents parameters of MMseqs2
 //
@@ -157,6 +157,7 @@ public:
     static const int OUTFMT_QORFEND = 36;
     static const int OUTFMT_TORFSTART = 37;
     static const int OUTFMT_TORFEND = 38;
+    static const int OUTFMT_FIDENT = 39;
 
 
 
@@ -397,6 +398,7 @@ public:
     int sensSteps;
     bool sliceSearch;
     int strand;
+    int orfFilter;
 
     // easysearch
     bool greedyBestHits;
@@ -584,7 +586,7 @@ public:
     // lca
     int pickIdFrom;
     std::string lcaRanks;
-    bool showTaxLineage;
+    int showTaxLineage;
     std::string blacklist;
 
     // aggregatetax
@@ -775,7 +777,7 @@ public:
     PARAMETER(PARAM_SENS_STEPS)
     PARAMETER(PARAM_SLICE_SEARCH)
     PARAMETER(PARAM_STRAND)
-
+    PARAMETER(PARAM_ORF_FILTER)
 
     // easysearch
     PARAMETER(PARAM_GREEDY_BEST_HITS)
@@ -946,6 +948,7 @@ public:
     std::vector<MMseqsParameter*> result2pp;
     std::vector<MMseqsParameter*> result2msa;
     std::vector<MMseqsParameter*> result2dnamsa;
+    std::vector<MMseqsParameter*> filterresult;
     std::vector<MMseqsParameter*> convertmsa;
     std::vector<MMseqsParameter*> msa2profile;
     std::vector<MMseqsParameter*> createtsv;

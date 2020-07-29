@@ -8,6 +8,7 @@ set(FRAMEWORK_ONLY 0 CACHE BOOL "Framework mode (don't create mmseqs executable)
 set(HAVE_SANITIZER 0 CACHE BOOL "Have sanitizers")
 set(INSTALL_UTIL 1 CACHE BOOL "Install utility scripts")
 set(VERSION_OVERRIDE "" CACHE STRING "Override version string in help and usage messages")
+set(DISABLE_IPS4O 0 CACHE BOOL "Disabling IPS4O sorting library requiring 128-bit compare exchange operations")
 set(HAVE_AVX2 0 CACHE BOOL "Have CPU with AVX2")
 set(HAVE_SSE4_1 0 CACHE BOOL "Have CPU with SSE4.1")
 set(HAVE_SSE2 0 CACHE BOOL "Have CPU with SSE2")
@@ -33,7 +34,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_COMPILER_IS_CLANG 1)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     message("-- Compiler is GNU ")
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.8.0")
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.9.0")
         message(FATAL_ERROR "Insufficient gcc version")
     endif ()
 elseif (CMAKE_CXX_COMPILER_ID MATCHES "Intel")
@@ -42,7 +43,8 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "Intel")
 endif ()
 
 # see https://wiki.debian.org/ArchitectureSpecificsMemo for char signedness
-set(MMSEQS_CXX_FLAGS "-std=c++0x -fsigned-char")
+
+set(MMSEQS_CXX_FLAGS "-std=c++1y -fsigned-char")
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm.*|ARM.*|aarch64.*|AARCH64.*)")
     set(ARM 1)
 elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "PPC64*|ppc64*|powerpc64*")
@@ -59,14 +61,15 @@ endif ()
 set(MMSEQS_ARCH "")
 if (HAVE_AVX2)
     if (CMAKE_COMPILER_IS_CLANG)
-        set(MMSEQS_ARCH "${MMSEQS_ARCH} -mavx2")
+        set(MMSEQS_ARCH "${MMSEQS_ARCH} -mavx2 -mcx16")
     else ()
-        set(MMSEQS_ARCH "${MMSEQS_ARCH} -mavx2 -Wa,-q")
+        set(MMSEQS_ARCH "${MMSEQS_ARCH} -mavx2 -mcx16 -Wa,-q")
     endif ()
 elseif (HAVE_SSE4_1)
-    set(MMSEQS_ARCH "${MMSEQS_ARCH} -msse4.1")
+    set(MMSEQS_ARCH "${MMSEQS_ARCH} -msse4.1 -mcx16")
 elseif (HAVE_SSE2)
     set(MMSEQS_ARCH "${MMSEQS_ARCH} -msse2")
+    set(DISABLE_IPS4O 1)
 elseif (HAVE_POWER9)
     set(MMSEQS_ARCH "${MMSEQS_ARCH} -mcpu=power9 -mvsx")
 elseif (HAVE_POWER8)
@@ -137,6 +140,24 @@ if (CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     set(MMSEQS_CXX_FLAGS "${MMSEQS_CXX_FLAGS} -D_WITH_GETLINE")
 endif ()
 
+if (CYGWIN)
+    # default cygwin allocator (dlmalloc) locks on every allocation and destroys MT performance
+    add_subdirectory(lib/nedmalloc)
+    # IPS4O seems to deadlock on cygwin
+    set(DISABLE_IPS4O 1)
+endif()
+
+if ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.0.0")
+        OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.1.0"))
+    # clang before v5 throws compile errors on ips4o
+    set(DISABLE_IPS4O 1)
+endif ()
+
+if (PPC64)
+    # FIXME: investigate why on ppc the regression seems to fail randomly
+    set(DISABLE_IPS4O 1)
+endif ()
+
 # zstd
 # We use ZSTD_findDecompressedSize which is only available with ZSTD_STATIC_LINKING_ONLY
 # Thus we cannot use a system provided libzstd
@@ -164,11 +185,6 @@ add_subdirectory(lib/microtar)
 # simde
 include_directories(lib/simde)
 
-# default cygwin allocator (dlmalloc) locks on every allocation and destroys MT performance
-if (CYGWIN)
-    add_subdirectory(lib/nedmalloc)
-endif()
-
 include_directories(lib)
 include_directories(lib/simd)
 include_directories(lib/gzstream)
@@ -176,6 +192,9 @@ include_directories(lib/alp)
 include_directories(lib/cacode)
 include_directories(lib/ksw2)
 include_directories(lib/xxhash)
+if (NOT DISABLE_IPS4O)
+    include_directories(lib/ips4o)
+endif ()
 
 add_subdirectory(lib/cacode)
 add_subdirectory(lib/alp)
