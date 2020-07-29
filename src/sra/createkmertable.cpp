@@ -8,11 +8,10 @@
 #include "ExtendedSubstitutionMatrix.h"
 #include "KmerGenerator.h"
 #include "BitManipulateMacros.h"
+#include "FastSort.h"
 
 #include <sys/mman.h>
 #include <algorithm>
-
-#include "ips4o/ips4o.hpp"
 
 #ifdef OPENMP
 #include <omp.h>
@@ -125,9 +124,9 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
 #ifdef OPENMP
-    ips4o::parallel::sort(targetTable, targetTable + tableIndex, targetTableSort);
+    SORT_PARALLEL(targetTable, targetTable + tableIndex, targetTableSort);
 #else
-    ips4o::sort(targetTable, targetTable + tableIndex, targetTableSort);
+    SORT_SERIAL(targetTable, targetTable + tableIndex, targetTableSort);
 #endif
     Debug(Debug::INFO) << timer.lap() << "\n";
     writeTargetTables(targetTable, tableIndex, par.db2);
