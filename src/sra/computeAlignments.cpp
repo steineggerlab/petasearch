@@ -188,7 +188,13 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
-        Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer, (bool)par.compBiasCorrection, par.gapOpen.aminoacids, par.gapExtend.aminoacids);
+        if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
+            Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer,
+                            (bool)par.compBiasCorrection, par.gapOpen.nucleotides, par.gapExtend.nucleotides);
+        } else {
+            Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer,
+                            (bool)par.compBiasCorrection, par.gapOpen.aminoacids, par.gapExtend.aminoacids);
+        }
 
         char buffer[1024];
         std::vector<Matcher::result_t> results;
