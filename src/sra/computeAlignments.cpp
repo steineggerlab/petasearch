@@ -167,7 +167,8 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
     BaseMatrix *subMat;
     int seqType = targetSequenceReader.getDbtype();
-    if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
+    bool isNucDB = Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES);
+    if (isNucDB) {
         subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
     }
     else {
@@ -188,13 +189,9 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
-        if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-            Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer,
-                            (bool)par.compBiasCorrection, par.gapOpen.nucleotides, par.gapExtend.nucleotides);
-        } else {
-            Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer,
-                            (bool)par.compBiasCorrection, par.gapOpen.aminoacids, par.gapExtend.aminoacids);
-        }
+        Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer, (bool)par.compBiasCorrection,
+                        isNucDB ? par.gapOpen.nucleotides : par.gapOpen.aminoacids,
+                        isNucDB ? par.gapExtend.nucleotides : par.gapExtend.aminoacids);
 
         char buffer[1024];
         std::vector<Matcher::result_t> results;
