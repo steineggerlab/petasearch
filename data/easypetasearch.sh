@@ -23,7 +23,7 @@ TMP_PATH="$4"
 
 if [ ! -e "${TMP_PATH}/res" ]; then
   # shellcheck disable=SC2086
-  "$MMSEQS" petasearch "$1" "$2" "${TMP_PATH}/res" "${TMP_PATH}/tmp" ${PETASEARCH_PAR} \
+  "$MMSEQS" petasearch "$1" "$2" "${TMP_PATH}/res" "$3" "${TMP_PATH}/tmp" ${PETASEARCH_PAR} \
         || fail "petasearch failed"
 fi
 
