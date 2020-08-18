@@ -333,11 +333,11 @@ bool notFirst = false;
         Debug(Debug::INFO) << "Sorting result table\n";
         SORT_SERIAL(startPosQueryTable, endQueryPos, resultTableSort);
         double timediff2 = timer.getTimediff() - timediff;
-        Debug(Debug::INFO) << timediff2 << " s; Rate " << (((endPosQueryTable - startPosQueryTable + 1) / 1e+9) / timediff2) << " GB/s \n";
+//        Debug(Debug::INFO) << timediff2 << " s; Rate " << (((endPosQueryTable - startPosQueryTable + 1) / 1e+9) / timediff2) << " GB/s \n";
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
         QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
-        Debug(Debug::INFO) << "Truncated table k-mers: " << truncatedResultEndPos - resultTable + 1 <<"\n";
+//        Debug(Debug::INFO) << "Truncated table k-mers: " << truncatedResultEndPos - resultTable + 1 <<"\n";
 
 
         Debug(Debug::INFO) << "Writing result files\n";
