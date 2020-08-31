@@ -228,12 +228,16 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-#pragma omp parallel
+#pragma omp parallel num_threads(targetTables.size())
 {
-
+std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
+bool notFirst = false;
 #pragma omp for schedule(dynamic, 1)
     for (size_t i = 0; i < targetTables.size(); ++i) {
-        std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
+        // TODO: empty the localQTable here, if this is not the first round
+        if (notFirst) {
+            localQTable = qTable;
+        }
         QueryTableEntry *startPosQueryTable = localQTable.data();
         QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
 
@@ -250,6 +254,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         unsigned int *startPosIDTable = (unsigned int *) targetIds.getData();
 
         QueryTableEntry *currentQueryPos = startPosQueryTable;
+        QueryTableEntry *endPosQueryTable = startPosQueryTable;
         unsigned short *currentTargetPos = startPosTargetTable;
         unsigned short *endTargetPos = startPosTargetTable + (targetTable.size() / sizeof(unsigned short));
         unsigned int *currentIDPos = startPosIDTable;
@@ -263,6 +268,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         Timer timer;
         // cover the rare case that the first (real) target entry is larger than USHRT_MAX
         uint64_t currDiffIndex = 0;
+        bool first = true;
         while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
             currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
             currDiffIndex <<= 15U;
@@ -274,6 +280,10 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
         while (LIKELY(currentTargetPos < endTargetPos) && currentQueryPos < endQueryPos) {
             if (currentKmer == currentQueryPos->Query.kmer) {
+                if (first) {
+                    startPosQueryTable = currentQueryPos;
+                    first = false;
+                }
                 ++equalKmers;
                 currentQueryPos->targetSequenceID = *currentIDPos;
                 ++currentQueryPos;
@@ -282,6 +292,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
                     currentQueryPos->targetSequenceID = *currentIDPos;
                     ++currentQueryPos;
                 }
+                endPosQueryTable = currentQueryPos;
                 ++currentTargetPos;
                 ++currentIDPos;
                 while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
@@ -321,10 +332,12 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
         Debug(Debug::INFO) << "Sorting result table\n";
         SORT_SERIAL(startPosQueryTable, endQueryPos, resultTableSort);
-
+        double timediff2 = timer.getTimediff() - timediff;
+//        Debug(Debug::INFO) << timediff2 << " s; Rate " << (((endPosQueryTable - startPosQueryTable + 1) / 1e+9) / timediff2) << " GB/s \n";
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
-        QueryTableEntry *resultTable = new QueryTableEntry[localQTable.size()];
+        QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
+//        Debug(Debug::INFO) << "Truncated table k-mers: " << truncatedResultEndPos - resultTable + 1 <<"\n";
 
 
         Debug(Debug::INFO) << "Writing result files\n";
@@ -353,6 +366,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         writer.close();
 
         delete[] resultTable;
+        notFirst = true;
     }
 }
 
