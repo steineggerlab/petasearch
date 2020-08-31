@@ -8,11 +8,10 @@
 #include "ExtendedSubstitutionMatrix.h"
 #include "KmerGenerator.h"
 #include "BitManipulateMacros.h"
+#include "FastSort.h"
 
 #include <sys/mman.h>
 #include <algorithm>
-
-#include "ips4o/ips4o.hpp"
 
 #ifdef OPENMP
 #include <omp.h>
@@ -88,7 +87,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
         size_t localTableIndex = 0;
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
-            progress.updateProgress();
+//            progress.updateProgress();
             unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
@@ -124,7 +123,11 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
     Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
-    ips4o::parallel::sort(targetTable, targetTable + tableIndex, targetTableSort);
+#ifdef OPENMP
+    SORT_PARALLEL(targetTable, targetTable + tableIndex, targetTableSort);
+#else
+    SORT_SERIAL(targetTable, targetTable + tableIndex, targetTableSort);
+#endif
     Debug(Debug::INFO) << timer.lap() << "\n";
     writeTargetTables(targetTable, tableIndex, par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
@@ -171,11 +174,10 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     size_t lastKmer = 0;
     Debug::Progress progress(kmerCount);
 
-    // TODO: add a buffer array to save the overhead of writing
     uint16_t *kmerLocalBuf = (uint16_t *)malloc(sizeof(uint16_t) * KMER_BUFSIZ);
     unsigned int *IDLocalBuf = (unsigned int *)malloc(sizeof(unsigned int) * ID_BUFSIZ);
     for (size_t i = 0; i < kmerCount; ++i, ++posInTable) {
-        progress.updateProgress();
+//        progress.updateProgress();
         if (posInTable->kmerAsLong != entryToWrite->kmerAsLong) {
             writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable, kmerLocalBuf, IDLocalBuf);
             lastKmer = entryToWrite->kmerAsLong;
@@ -186,7 +188,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     //write last one
     writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable, kmerLocalBuf, IDLocalBuf);
     ++uniqueKmerCount;
-
+    
     flushKmerBuf(kmerLocalBuf, handleKmerTable);
     flushIDBuf(IDLocalBuf, handleIDTable);
     free(kmerLocalBuf);
@@ -217,7 +219,7 @@ static inline void writeKmer(uint16_t *buffer, FILE *handleKmerTable, uint16_t *
 }
 
 static inline void writeID(unsigned int *buffer, FILE *handleIDTable, unsigned int toWrite) {
-    if (IDBufIdx == KMER_BUFSIZ) {
+    if (IDBufIdx == ID_BUFSIZ) {
         flushIDBuf(buffer, handleIDTable);
     }
     buffer[IDBufIdx] = toWrite;
@@ -228,7 +230,7 @@ void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handle
                    uint16_t *kmerBuf, unsigned int *IDBuf) {
     uint64_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
     // Consecutively store 15 bits of information into a short, until kmer diff is all
-    uint16_t buffer[5] = { 0 }; // 15*5 = 75 > 64
+    uint16_t buffer[5]; // 15*5 = 75 > 64
     buffer[4] = SET_END_FLAG(GET_15_BITS(kmerdiff));
     kmerdiff >>= 15U;
     int idx = 3;

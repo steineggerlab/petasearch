@@ -1,6 +1,6 @@
 /*
  * createdb
- * written by Martin Steinegger <martin.steinegger@mpibpc.mpg.de>.
+ * written by Martin Steinegger <martin.steinegger@snu.ac.kr>.
  * modified by Maria Hauser <mhauser@genzentrum.lmu.de> (splitting into sequences/headers databases)
  * modified by Milot Mirdita <milot@mirdita.de>
  */
@@ -137,7 +137,10 @@ int createdb(int argc, const char **argv, const Command& command) {
             hdrWriter.close();
             seqWriter.close();
             delete kseq;
-            fclose(source);
+            if (fclose(source) != 0) {
+                Debug(Debug::ERROR) << "Cannot close file " << sourceFile << "\n";
+                EXIT(EXIT_FAILURE);
+            }
             for (size_t i = 0; i < shuffleSplits; ++i) {
                 sourceLookup[i].clear();
             }
@@ -199,7 +202,10 @@ int createdb(int argc, const char **argv, const Command& command) {
                     hdrWriter.close();
                     seqWriter.close();
                     delete kseq;
-                    fclose(source);
+                    if (fclose(source) != 0) {
+                        Debug(Debug::ERROR) << "Cannot close file " << sourceFile << "\n";
+                        EXIT(EXIT_FAILURE);
+                    }
                     for (size_t i = 0; i < shuffleSplits; ++i) {
                         sourceLookup[i].clear();
                     }
@@ -234,9 +240,12 @@ int createdb(int argc, const char **argv, const Command& command) {
         }
     }
     Debug(Debug::INFO) << "\n";
-    fclose(source);
-    hdrWriter.close(true);
-    seqWriter.close(true);
+    if (fclose(source) != 0) {
+        Debug(Debug::ERROR) << "Cannot close file " << sourceFile << "\n";
+        EXIT(EXIT_FAILURE);
+    }
+    hdrWriter.close(true, false);
+    seqWriter.close(true, false);
     if (dbType == -1) {
         if (isNuclCnt == sampleCount) {
             dbType = Parameters::DBTYPE_NUCLEOTIDES;
@@ -310,7 +319,10 @@ int createdb(int argc, const char **argv, const Command& command) {
             buffer.clear();
             splitCounter++;
         }
-        fclose(file);
+        if (fclose(file) != 0) {
+            Debug(Debug::ERROR) << "Cannot close file " << lookupFile << "\n";
+            EXIT(EXIT_FAILURE);
+        }
         readerHeader.close();
     }
     delete[] sourceLookup;
