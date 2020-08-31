@@ -7,19 +7,32 @@
 #include "TargetTableEntry.h"
 #include "ExtendedSubstitutionMatrix.h"
 #include "KmerGenerator.h"
+#include "BitManipulateMacros.h"
 
-#include "omptl/omptl_algorithm"
 #include <sys/mman.h>
 #include <algorithm>
+
+#include "ips4o/ips4o.hpp"
 
 #ifdef OPENMP
 #include <omp.h>
 #endif
 
+#define KMER_BUFSIZ 500000000
+#define ID_BUFSIZ 250000000
+
 void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::string blockID);
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
-void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable);
+void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable,
+                   uint16_t *kmerBuf, unsigned int *IDBuf);
+static inline void writeKmer(uint16_t *buffer, FILE *handleKmerTable, uint16_t *toWrite, size_t size);
+static inline void writeID(unsigned int *buffer, FILE *handleIDTable, unsigned int toWrite);
+static inline void flushKmerBuf(uint16_t *buffer, FILE *handleKmerTable);
+static inline void flushIDBuf(unsigned int *buffer, FILE *handleIDTable);
+
+static unsigned int kmerBufIdx = 0;
+static unsigned int IDBufIdx = 0;
 
 size_t  diffLargerThenUShortMax = 0;
 size_t entryDiffLargerUShortMax =0;
@@ -47,7 +60,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength >= par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
+        kmerCount += currentSequenceLength >= (unsigned)par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
     }
     TargetTableEntry *targetTable = NULL;
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
@@ -84,7 +97,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
             while (s.hasNextKmer()) {
                 const unsigned char*kmer = s.nextKmer();
                 int xCount = 0;
-                for (size_t pos = 0; pos < par.kmerSize; pos++) {
+                for (size_t pos = 0; pos < (unsigned)par.kmerSize; pos++) {
                     xCount += (kmer[pos] == xIndex);
                 }
                 if (xCount) {
@@ -93,7 +106,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
                 localBuffer[localTableIndex].sequenceID = key;
                 localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
-                localBuffer[localTableIndex].sequenceLength = reader.getSeqLen(i);
+                localBuffer[localTableIndex].sequenceLength = s.L;
                 ++localTableIndex;
                 if (localTableIndex >= threadBufferSize) {
                     size_t writeOffset = __sync_fetch_and_add(&tableIndex, localTableIndex);
@@ -111,7 +124,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
     Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
-    omptl::sort(targetTable, targetTable + tableIndex, targetTableSort);
+    ips4o::parallel::sort(targetTable, targetTable + tableIndex, targetTableSort);
     Debug(Debug::INFO) << timer.lap() << "\n";
     writeTargetTables(targetTable, tableIndex, par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";
@@ -139,7 +152,7 @@ int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &secon
     if (first.sequenceID < second.sequenceID) {
         return true;
     }
-    if (second.sequenceID < first.sequenceID) {  
+    if (second.sequenceID < first.sequenceID) {
         return false;
     }
     return false;
@@ -158,40 +171,73 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     size_t lastKmer = 0;
     Debug::Progress progress(kmerCount);
 
+    // TODO: add a buffer array to save the overhead of writing
+    uint16_t *kmerLocalBuf = (uint16_t *)malloc(sizeof(uint16_t) * KMER_BUFSIZ);
+    unsigned int *IDLocalBuf = (unsigned int *)malloc(sizeof(unsigned int) * ID_BUFSIZ);
     for (size_t i = 0; i < kmerCount; ++i, ++posInTable) {
         progress.updateProgress();
         if (posInTable->kmerAsLong != entryToWrite->kmerAsLong) {
-            writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable);
+            writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable, kmerLocalBuf, IDLocalBuf);
             lastKmer = entryToWrite->kmerAsLong;
             entryToWrite = posInTable;
             ++uniqueKmerCount;
         }
     }
     //write last one
-    writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable);
+    writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable, kmerLocalBuf, IDLocalBuf);
     ++uniqueKmerCount;
 
+    flushKmerBuf(kmerLocalBuf, handleKmerTable);
+    flushIDBuf(IDLocalBuf, handleIDTable);
+    free(kmerLocalBuf);
+    free(IDLocalBuf);
     fclose(handleKmerTable);
     fclose(handleIDTable);
     Debug(Debug::INFO) << "Wrote " << uniqueKmerCount << " unique k-mers.\n";
-    Debug(Debug::INFO) << "For "<< entryDiffLargerUShortMax  << " entries the difference between the previous were larger than max short.\n";
-    Debug(Debug::INFO) << "Created " << diffLargerThenUShortMax << " extra unsigned short max entries to store the diff.\n";
+//    Debug(Debug::INFO) << "For "<< entryDiffLargerUShortMax  << " entries the difference between the previous were larger than max short.\n";
+//    Debug(Debug::INFO) << "Created " << diffLargerThenUShortMax << " extra unsigned short max entries to store the diff.\n";
 }
 
-void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable) {
-    size_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
-    bool first = true;
-    unsigned short maxshort = USHRT_MAX;
-    while (kmerdiff >= maxshort) {
-        if(first) {
-            ++entryDiffLargerUShortMax;
-            first = false;
-        }
-        ++diffLargerThenUShortMax;
-        fwrite(&(maxshort), sizeof(unsigned short), 1, handleKmerTable);
-        fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
-        kmerdiff -= maxshort;
+static inline void flushKmerBuf(uint16_t *buffer, FILE *handleKmerTable) {
+    fwrite(buffer, sizeof(uint16_t), kmerBufIdx, handleKmerTable);
+    kmerBufIdx = 0;
+}
+
+static inline void flushIDBuf(unsigned int *buffer, FILE *handleIDTable) {
+    fwrite(buffer, sizeof(unsigned int), IDBufIdx, handleIDTable);
+    IDBufIdx = 0;
+}
+
+static inline void writeKmer(uint16_t *buffer, FILE *handleKmerTable, uint16_t *toWrite, size_t size) {
+    if (kmerBufIdx + size >= KMER_BUFSIZ) {
+        flushKmerBuf(buffer, handleKmerTable);
     }
-    fwrite((short *)&(kmerdiff), sizeof(unsigned short), 1, handleKmerTable);
-    fwrite(&(entryToWrite->sequenceID), sizeof(unsigned int), 1, handleIDTable);
+    memcpy(buffer + kmerBufIdx, toWrite, sizeof(uint16_t) * size);
+    kmerBufIdx += size;
+}
+
+static inline void writeID(unsigned int *buffer, FILE *handleIDTable, unsigned int toWrite) {
+    if (IDBufIdx == KMER_BUFSIZ) {
+        flushIDBuf(buffer, handleIDTable);
+    }
+    buffer[IDBufIdx] = toWrite;
+    IDBufIdx++;
+}
+
+void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable,
+                   uint16_t *kmerBuf, unsigned int *IDBuf) {
+    uint64_t kmerdiff = entryToWrite->kmerAsLong - lastKmer;
+    // Consecutively store 15 bits of information into a short, until kmer diff is all
+    uint16_t buffer[5] = { 0 }; // 15*5 = 75 > 64
+    buffer[4] = SET_END_FLAG(GET_15_BITS(kmerdiff));
+    kmerdiff >>= 15U;
+    int idx = 3;
+    while (kmerdiff) {
+        uint16_t toWrite = GET_15_BITS(kmerdiff);
+        kmerdiff >>= 15U;
+        buffer[idx] = toWrite;
+        idx--;
+    }
+    writeKmer(kmerBuf, handleKmerTable, (buffer + idx + 1), (4 - idx));
+    writeID(IDBuf, handleIDTable, entryToWrite->sequenceID);
 }
