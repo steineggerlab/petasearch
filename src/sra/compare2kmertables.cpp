@@ -331,7 +331,7 @@ bool notFirst = false;
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
         Debug(Debug::INFO) << "Sorting result table\n";
-        SORT_SERIAL(startPosQueryTable, endQueryPos, resultTableSort);
+        SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
         double timediff2 = timer.getTimediff() - timediff;
 //        Debug(Debug::INFO) << timediff2 << " s; Rate " << (((endPosQueryTable - startPosQueryTable + 1) / 1e+9) / timediff2) << " GB/s \n";
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
