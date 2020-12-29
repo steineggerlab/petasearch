@@ -145,6 +145,7 @@ struct BlockIterator {
 };
 
 int computeAlignments(int argc, const char **argv, const Command &command) {
+    Timer timer;
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
     par.rescoreMode = Parameters::RESCORE_MODE_ALIGNMENT;
@@ -294,6 +295,9 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             result.clear();
         }
     }
+
+    Debug(Debug::INFO) << "Compute Alignment finished, time spent: " << timer.lap() << "\n";
+
     writer.close();
 
     resultReader.close();
