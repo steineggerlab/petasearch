@@ -5,6 +5,7 @@
 
 class LocalParameters : public Parameters {
 public:
+    static const int DBTYPE_SRA_DB = 233;
     static void initInstance() {
         new LocalParameters;
     }
