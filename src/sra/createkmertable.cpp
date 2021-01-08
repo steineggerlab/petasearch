@@ -2,7 +2,6 @@
 #include "Debug.h"
 #include "DBReader.h"
 #include "NucleotideMatrix.h"
-#include "MathUtil.h"
 #include "QueryTableEntry.h"
 #include "TargetTableEntry.h"
 #include "ExtendedSubstitutionMatrix.h"
