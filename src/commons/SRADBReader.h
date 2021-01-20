@@ -19,10 +19,10 @@ public:
     size_t getSeqLen(size_t id);
     unsigned int getDbKey(size_t id);
     char *getData(size_t id, int thread_idx);
-    size_t getAminoAcideDBSize();
+    size_t getAminoAcidDBSize();
 private:
     int closed;
-    DBReader<unsigned int> *__dbreader = NULL;
+    DBReader<unsigned int> *_dbreader = NULL;
     void checkClosed();
     char* dataFileName;
     char* indexFileName;

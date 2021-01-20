@@ -6,23 +6,23 @@
 #include "BitManipulateMacros.h"
 
 SRADBReader::SRADBReader(const char *dataFileName, const char *indexFileName, int threads, int mode) {
-    __dbreader = new DBReader<unsigned int>(dataFileName, indexFileName, threads, mode);
+    _dbreader = new DBReader<unsigned int>(dataFileName, indexFileName, threads, mode);
 }
 
 bool SRADBReader::open(int accessType) {
-    return __dbreader->open(accessType);
+    return _dbreader->open(accessType);
 }
 
 void SRADBReader::close() {
-    __dbreader->close();
+    _dbreader->close();
 }
 
 int SRADBReader::getDbtype() {
-    return __dbreader->getDbtype();
+    return _dbreader->getDbtype();
 }
 
 char *SRADBReader::getData(size_t id, int thread_idx) {
-    char *rawString = __dbreader->getData(id, thread_idx);
+    char *rawString = _dbreader->getData(id, thread_idx);
     unsigned short *packedArray = reinterpret_cast<unsigned short *>(rawString);
     int packedLen = sizeof(rawString) / 2;
     char *resString = (char *)malloc(packedLen * 3);
@@ -49,18 +49,19 @@ char *SRADBReader::getData(size_t id, int thread_idx) {
 }
 
 size_t SRADBReader::getSize() {
-    return __dbreader->getSize();
+    return _dbreader->getSize();
 }
 
 size_t SRADBReader::getSeqLen(size_t id) {
+    return id;
 }
 
 unsigned int SRADBReader::getDbKey(size_t id) {
-    return __dbreader->getDbKey(id);
+    return _dbreader->getDbKey(id);
 }
 
-size_t SRADBReader::getAminoAcideDBSize() {
-    return __dbreader->getAminoAcidDBSize() * 3 / 2;
+size_t SRADBReader::getAminoAcidDBSize() {
+    return _dbreader->getAminoAcidDBSize() * 3 / 2;
 }
 
 void SRADBReader::checkClosed() {
@@ -86,5 +87,5 @@ SRADBReader::~SRADBReader() {
     if (dataFiles != NULL) {
         delete[] dataFiles;
     }
-    delete __dbreader;
+    delete _dbreader;
 }
