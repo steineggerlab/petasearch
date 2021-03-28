@@ -23,7 +23,6 @@ public:
     std::vector<MMseqsParameter*> easypetasearchworkflow;
 
 
-
     PARAMETER(PARAM_REQ_KMER_MATCHES)
     unsigned int requiredKmerMatches;
 
@@ -65,6 +64,7 @@ private:
             petasearchworkflow = combineList(createkmertable, compare2kmertables);
             petasearchworkflow = combineList(petasearchworkflow, computeAlignments);
             petasearchworkflow = combineList(petasearchworkflow, swapresult);
+            petasearchworkflow = combineList(petasearchworkflow, convertalignments);
 
             easypetasearchworkflow = combineList(petasearchworkflow,convertalignments);
 
