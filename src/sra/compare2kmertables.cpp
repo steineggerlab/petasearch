@@ -103,7 +103,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     }
     Debug(Debug::INFO) << "input prepared, time spent: " << timer.lap() << "\n";
     size_t kmerCount = 0;
-#pragma omp parallel for reduction(+:kmerCount)
+#pragma omp parallel for reduction(+:kmerCount) default(none) shared(reader, par)
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
@@ -121,7 +121,9 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     ScoreMatrix twoMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 2);
     ScoreMatrix threeMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 3);
 
-#pragma omp parallel
+#pragma omp parallel default(none) \
+shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, \
+tableCapacity, queryTable)
     {
         unsigned int thread_idx = 0;
         unsigned int total_threads = 1;
@@ -216,7 +218,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     Debug(Debug::INFO) << "mapping query and target files \n";
     std::vector<QueryTableEntry> qTable;
     createQueryTable(par, qTable);
-    
+
     std::vector<std::string> targetTables = getFileNamesFromFile(par.db2);
     std::vector<std::string> resultFiles = getFileNamesFromFile(par.db3);
     if(targetTables.size() == 0){
@@ -228,12 +230,15 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-#pragma omp parallel num_threads(targetTables.size())
+    const size_t numOfTatgetTables = targetTables.size();
+
+#pragma omp parallel num_threads(targetTables.size()) default(none) \
+shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
 {
 std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
 bool notFirst = false;
 #pragma omp for schedule(dynamic, 1)
-    for (size_t i = 0; i < targetTables.size(); ++i) {
+    for (size_t i = 0; i < numOfTatgetTables; ++i) {
         // TODO: empty the localQTable here, if this is not the first round
         if (notFirst) {
             localQTable = qTable;
@@ -332,7 +337,6 @@ bool notFirst = false;
 
         Debug(Debug::INFO) << "Sorting result table\n";
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
-        double timediff2 = timer.getTimediff() - timediff;
 //        Debug(Debug::INFO) << timediff2 << " s; Rate " << (((endPosQueryTable - startPosQueryTable + 1) / 1e+9) / timediff2) << " GB/s \n";
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
         QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];

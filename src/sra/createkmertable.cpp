@@ -33,9 +33,6 @@ static inline void flushIDBuf(unsigned int *buffer, FILE *handleIDTable);
 static unsigned int kmerBufIdx = 0;
 static unsigned int IDBufIdx = 0;
 
-size_t  diffLargerThenUShortMax = 0;
-size_t entryDiffLargerUShortMax =0;
-
 int createkmertable(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
@@ -55,7 +52,8 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     }
     Debug(Debug::INFO) << "input prepared, time spent: " << timer.lap() << "\n";
     size_t kmerCount = 0;
-#pragma omp parallel for reduction(+:kmerCount)
+#pragma omp parallel for reduction(+:kmerCount) default(none) \
+shared(par, reader)
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
@@ -75,7 +73,8 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
     size_t tableIndex = 0;
     Debug::Progress progress(reader.getSize());
-#pragma omp parallel
+#pragma omp parallel default(none) \
+shared(par, subMat, seqType, reader, tableIndex, targetTable)
     {
         unsigned int thread_idx = 0;
 #ifdef OPENMP
