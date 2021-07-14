@@ -327,6 +327,9 @@ bool notFirst = false;
 =======
 >>>>>>> Remove commented lines
 
+        size_t targetTableSize = 0;
+        size_t IDTableSize = 0;
+
         /* Open target table in direct mode */
         int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC );
         if (fdTargetTable < 0) {
@@ -358,6 +361,7 @@ bool notFirst = false;
         Debug(Debug::INFO) << "Loading time: " << timer.lap() << "\n";
 
         read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
+        IDTableSize += MEM_SIZE_32MB;
 
         unsigned short *startPosTargetTable, *endTargetPos, *currentTargetPos;
         startPosTargetTable = (unsigned short *) targetTableReadBuffer;
@@ -380,6 +384,7 @@ bool notFirst = false;
         Timer timer;
 
         while (read(fdTargetTable, targetTableReadBuffer, MEM_SIZE_16MB) > 0) {
+            targetTableSize += MEM_SIZE_16MB;
             currentTargetPos = startPosTargetTable;
             currentIDPos = startPosIDTable;
             // cover the rare case that the first (real) target entry is larger than USHRT_MAX
@@ -411,6 +416,7 @@ bool notFirst = false;
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos > endIDPos)) {
                         read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
+                        IDTableSize += MEM_SIZE_32MB;
                         currentIDPos = startPosIDTable;
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
@@ -438,6 +444,7 @@ bool notFirst = false;
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos > endIDPos)) {
                         read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
+                        IDTableSize += MEM_SIZE_32MB;
                         currentIDPos = startPosIDTable;
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
@@ -456,8 +463,8 @@ bool notFirst = false;
 
         }
 
-//        double timediff = timer.getTimediff();
-//        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
+        double timediff = timer.getTimediff();
+        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTableSize + IDTableSize) / 1e+9) / timediff << " GB/s \n";
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
         free(targetTableReadBuffer);
