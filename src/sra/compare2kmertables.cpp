@@ -369,6 +369,8 @@ bool notFirst = false;
 
         size_t equalKmers = 0;
         unsigned long long currentKmer = 0;
+        bool first = true;
+        uint64_t currDiffIndex = 0;
 
         Debug(Debug::INFO) << "start comparing \n";
 
@@ -378,8 +380,6 @@ bool notFirst = false;
             currentTargetPos = startPosTargetTable;
             currentIDPos = startPosIDTable;
             // cover the rare case that the first (real) target entry is larger than USHRT_MAX
-            uint64_t currDiffIndex = 0;
-            bool first = true;
             while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
                 currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                 currDiffIndex <<= 15U;
@@ -415,6 +415,9 @@ bool notFirst = false;
                         currDiffIndex <<= 15U;
                         ++currentTargetPos;
                     }
+                    if (UNLIKELY(currentTargetPos >= endTargetPos)) {
+                        break;
+                    }
                     currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                     currentKmer += currDiffIndex;
                     currDiffIndex = 0;
@@ -438,6 +441,9 @@ bool notFirst = false;
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                         currDiffIndex <<= 15U;
                         ++currentTargetPos;
+                    }
+                    if (UNLIKELY(currentTargetPos >= endTargetPos)) {
+                        break;
                     }
                     currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                     currentKmer += currDiffIndex;
