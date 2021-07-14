@@ -190,7 +190,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         thread_idx = static_cast<unsigned int>(omp_get_thread_num());
 #endif
         Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, par.kmerSize, par.spacedKmer,
-                          false, useProfileSearch ? false : true);
+                          false, !useProfileSearch);
         Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);

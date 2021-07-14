@@ -8,14 +8,19 @@
 #include "MathUtil.h"
 #include "QueryTableEntry.h"
 #include "DBWriter.h"
-#include "MemoryMapped.h"
+//#include "MemoryMapped.h"
 #include "BitManipulateMacros.h"
 
 #include "FastSort.h"
 
+#include <fcntl.h>
+
 #ifdef OPENMP
 #include <omp.h>
 #endif
+
+#define MEM_SIZE_16MB   ( 16 * 1024 * 1024 )
+#define MEM_SIZE_32MB   ( 31 * 1024 * 1024 )
 
 QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
     QueryTableEntry *currentReadPos = startPos;
@@ -196,7 +201,6 @@ shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapa
                 }
 
                 if (useProfileSearch) {
-                    // TODO: Add profile search method here
                     std::pair<size_t*, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
                     size_t lim = similarKmerList.second;
                     for (size_t j = 0; j < lim; ++j) {
@@ -314,96 +318,211 @@ bool notFirst = false;
         timer.reset();
         Debug(Debug::INFO) << "Loading files into memory...\n";
 
-        MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
-        MemoryMapped targetIds(std::string(targetName + "_ids"),
-                               MemoryMapped::WholeFile,
-                               MemoryMapped::SequentialScan);
+        // FIXME: use direct read instead of mmap
+//        MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
+//        MemoryMapped targetIds(std::string(targetName + "_ids"),
+//                               MemoryMapped::WholeFile,
+//                               MemoryMapped::SequentialScan);
+
+        /* Open target table in direct mode */
+        int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC );
+        if (fdTargetTable < 0) {
+            Debug(Debug::ERROR) << "Open target table file failed\n";
+            EXIT(EXIT_FAILURE);
+        }
+
+        /* Open ID table in direct mode */
+        int fdIDTable = open(std::string(targetName + "_ids").c_str(), O_RDONLY | O_DIRECT | O_SYNC );
+        if (fdIDTable < 0) {
+            Debug(Debug::ERROR) << "Open ID table file failed\n";
+            EXIT(EXIT_FAILURE);
+        }
+
+        /* Create 16MB buffer for target table */
+        void *targetTableReadBuffer = calloc(MEM_SIZE_16MB, sizeof(char));
+        if (targetTableReadBuffer == nullptr) {
+            Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
+            EXIT(EXIT_FAILURE);
+        }
+
+        /* Create 16MB buffer for ID table */
+        void *IDTableReadBuffer = calloc(MEM_SIZE_32MB, sizeof(char));
+        if (IDTableReadBuffer == nullptr) {
+            Debug(Debug::ERROR) << "Cannot allocate memory for id table\n";
+            EXIT(EXIT_FAILURE);
+        }
 
         Debug(Debug::INFO) << "Loading time: " << timer.lap() << "\n";
 
-        if (targetTable.isValid() == false || targetIds.isValid() == false) {
-            Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
-            EXIT(EXIT_FAILURE);
-        }
-        unsigned short *startPosTargetTable = (unsigned short *) targetTable.getData();
-        unsigned int *startPosIDTable = (unsigned int *) targetIds.getData();
+        read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
+
+        unsigned short *startPosTargetTable, *endTargetPos, *currentTargetPos;
+        startPosTargetTable = (unsigned short *) targetTableReadBuffer;
+        endTargetPos = startPosTargetTable + (MEM_SIZE_16MB / sizeof(unsigned short));
+
+        unsigned int *startPosIDTable, *currentIDPos, *endIDPos;
+        startPosIDTable = (unsigned int *) IDTableReadBuffer;
+        endIDPos = startPosIDTable + (MEM_SIZE_32MB / sizeof(unsigned int));
 
         QueryTableEntry *currentQueryPos = startPosQueryTable;
         QueryTableEntry *endPosQueryTable = startPosQueryTable;
-        unsigned short *currentTargetPos = startPosTargetTable;
-        unsigned short *endTargetPos = startPosTargetTable + (targetTable.size() / sizeof(unsigned short));
-        unsigned int *currentIDPos = startPosIDTable;
 
         size_t equalKmers = 0;
         unsigned long long currentKmer = 0;
 
-
         Debug(Debug::INFO) << "start comparing \n";
 
-        timer.reset();
+        Timer timer;
 
-        // cover the rare case that the first (real) target entry is larger than USHRT_MAX
-        uint64_t currDiffIndex = 0;
-        bool first = true;
-        while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
+        while (read(fdTargetTable, targetTableReadBuffer, MEM_SIZE_16MB) > 0) {
+            currentTargetPos = startPosTargetTable;
+            currentIDPos = startPosIDTable;
+            // cover the rare case that the first (real) target entry is larger than USHRT_MAX
+            uint64_t currDiffIndex = 0;
+            bool first = true;
+            while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
+                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                currDiffIndex <<= 15U;
+                ++currentTargetPos;
+            }
             currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-            currDiffIndex <<= 15U;
-            ++currentTargetPos;
-        }
-        currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-        currentKmer += currDiffIndex;
-        currDiffIndex = 0;
+            currentKmer += currDiffIndex;
+            currDiffIndex = 0;
 
-        while (LIKELY(currentTargetPos < endTargetPos) && currentQueryPos < endQueryPos) {
-            if (currentKmer == currentQueryPos->Query.kmer) {
-                if (first) {
-                    startPosQueryTable = currentQueryPos;
-                    first = false;
-                }
-                ++equalKmers;
-                currentQueryPos->targetSequenceID = *currentIDPos;
-                ++currentQueryPos;
-                while (LIKELY(currentQueryPos < endQueryPos) &&
-                       currentQueryPos->Query.kmer == currentKmer){
+            while (LIKELY(currentTargetPos < endTargetPos) && currentQueryPos < endQueryPos) {
+                if (currentKmer == currentQueryPos->Query.kmer) {
+                    if (first) {
+                        startPosQueryTable = currentQueryPos;
+                        first = false;
+                    }
+                    ++equalKmers;
                     currentQueryPos->targetSequenceID = *currentIDPos;
                     ++currentQueryPos;
-                }
-                endPosQueryTable = currentQueryPos;
-                ++currentTargetPos;
-                ++currentIDPos;
-                while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
-                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-                    currDiffIndex <<= 15U;
+                    while (LIKELY(currentQueryPos < endQueryPos) &&
+                           currentQueryPos->Query.kmer == currentKmer){
+                        currentQueryPos->targetSequenceID = *currentIDPos;
+                        ++currentQueryPos;
+                    }
+                    endPosQueryTable = currentQueryPos;
                     ++currentTargetPos;
+                    ++currentIDPos;
+                    if (UNLIKELY(currentIDPos > endIDPos)) {
+                        read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
+                        currentIDPos = startPosIDTable;
+                    }
+                    while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
+                        currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                        currDiffIndex <<= 15U;
+                        ++currentTargetPos;
+                    }
+                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                    currentKmer += currDiffIndex;
+                    currDiffIndex = 0;
                 }
-                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-                currentKmer += currDiffIndex;
-                currDiffIndex = 0;
+
+                while (LIKELY(currentQueryPos < endQueryPos) &&
+                       currentQueryPos->Query.kmer < currentKmer) {
+                    ++currentQueryPos;
+                }
+
+                while (currentQueryPos < endQueryPos &&
+                       currentTargetPos < endTargetPos &&
+                       currentKmer < currentQueryPos->Query.kmer) {
+                    ++currentTargetPos;
+                    ++currentIDPos;
+                    if (UNLIKELY(currentIDPos > endIDPos)) {
+                        read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
+                        currentIDPos = startPosIDTable;
+                    }
+                    while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
+                        currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                        currDiffIndex <<= 15U;
+                        ++currentTargetPos;
+                    }
+                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+                    currentKmer += currDiffIndex;
+                    currDiffIndex = 0;
+                }
             }
 
-            while (LIKELY(currentQueryPos < endQueryPos) &&
-                   currentQueryPos->Query.kmer < currentKmer) {
-                ++currentQueryPos;
-            }
-
-            while (currentQueryPos < endQueryPos &&
-                   currentTargetPos < endTargetPos &&
-                   currentKmer < currentQueryPos->Query.kmer) {
-                ++currentTargetPos;
-                ++currentIDPos;
-                while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
-                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-                    currDiffIndex <<= 15U;
-                    ++currentTargetPos;
-                }
-                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-                currentKmer += currDiffIndex;
-                currDiffIndex = 0;
-            }
         }
 
-        double timediff = timer.getTimediff();
-        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
+//        if (targetTable.isValid() == false || targetIds.isValid() == false) {
+//            Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
+//            EXIT(EXIT_FAILURE);
+//        }
+//        unsigned short *startPosTargetTable = (unsigned short *) targetTable.getData();
+//        unsigned int *startPosIDTable = (unsigned int *) targetIds.getData();
+//
+//        QueryTableEntry *currentQueryPos = startPosQueryTable;
+//        QueryTableEntry *endPosQueryTable = startPosQueryTable;
+//        unsigned short *currentTargetPos = startPosTargetTable;
+//        unsigned short *endTargetPos = startPosTargetTable + (targetTable.size() / sizeof(unsigned short));
+//        unsigned int *currentIDPos = startPosIDTable;
+
+//        Timer timer;
+//        // cover the rare case that the first (real) target entry is larger than USHRT_MAX
+//        uint64_t currDiffIndex = 0;
+//        bool first = true;
+//        while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
+//            currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+//            currDiffIndex <<= 15U;
+//            ++currentTargetPos;
+//        }
+//        currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+//        currentKmer += currDiffIndex;
+//        currDiffIndex = 0;
+//
+//        while (LIKELY(currentTargetPos < endTargetPos) && currentQueryPos < endQueryPos) {
+//            if (currentKmer == currentQueryPos->Query.kmer) {
+//                if (first) {
+//                    startPosQueryTable = currentQueryPos;
+//                    first = false;
+//                }
+//                ++equalKmers;
+//                currentQueryPos->targetSequenceID = *currentIDPos;
+//                ++currentQueryPos;
+//                while (LIKELY(currentQueryPos < endQueryPos) &&
+//                       currentQueryPos->Query.kmer == currentKmer){
+//                    currentQueryPos->targetSequenceID = *currentIDPos;
+//                    ++currentQueryPos;
+//                }
+//                endPosQueryTable = currentQueryPos;
+//                ++currentTargetPos;
+//                ++currentIDPos;
+//                while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
+//                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+//                    currDiffIndex <<= 15U;
+//                    ++currentTargetPos;
+//                }
+//                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+//                currentKmer += currDiffIndex;
+//                currDiffIndex = 0;
+//            }
+//
+//            while (LIKELY(currentQueryPos < endQueryPos) &&
+//                   currentQueryPos->Query.kmer < currentKmer) {
+//                ++currentQueryPos;
+//            }
+//
+//            while (currentQueryPos < endQueryPos &&
+//                   currentTargetPos < endTargetPos &&
+//                   currentKmer < currentQueryPos->Query.kmer) {
+//                ++currentTargetPos;
+//                ++currentIDPos;
+//                while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
+//                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+//                    currDiffIndex <<= 15U;
+//                    ++currentTargetPos;
+//                }
+//                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
+//                currentKmer += currDiffIndex;
+//                currDiffIndex = 0;
+//            }
+//        }
+
+//        double timediff = timer.getTimediff();
+//        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
         Debug(Debug::INFO) << "Sorting result table\n";
@@ -412,7 +531,6 @@ bool notFirst = false;
         Debug(Debug::INFO) << "Required time for sorting result table: " << timer.lap() << "\n";
         QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
-
 
         Debug(Debug::INFO) << "Writing result files\n";
         std::string resultDB = resultFiles[i];
