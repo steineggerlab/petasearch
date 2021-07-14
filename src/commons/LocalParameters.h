@@ -24,11 +24,18 @@ public:
 
 
     PARAMETER(PARAM_REQ_KMER_MATCHES)
+
     unsigned int requiredKmerMatches;
 
 private:
     LocalParameters() : Parameters(),
-        PARAM_REQ_KMER_MATCHES(PARAM_REQ_KMER_MATCHES_ID, "--req-kmer-matches", "required k-mer matches per query and target sequence pair", "amount of required k-mer matches per query/target pair to increase specificity of matches [0-4]", typeid(int), (void*) &requiredKmerMatches, "^[0-4]{1}$")
+        PARAM_REQ_KMER_MATCHES(PARAM_REQ_KMER_MATCHES_ID,
+                               "--req-kmer-matches",
+                               "required k-mer matches per query and target sequence pair",
+                               "amount of required k-mer matches per query/target pair to increase specificity of matches [0-4]",
+                               typeid(int),
+                               (void*) &requiredKmerMatches,
+                               "^[0-4]{1}$")
         {
             createkmertable.push_back(&PARAM_SEED_SUB_MAT);
 
@@ -66,9 +73,7 @@ private:
             petasearchworkflow = combineList(petasearchworkflow, swapresult);
             petasearchworkflow = combineList(petasearchworkflow, convertalignments);
 
-            easypetasearchworkflow = combineList(petasearchworkflow,convertalignments);
-
-
+            easypetasearchworkflow = combineList(petasearchworkflow, convertalignments);
 
             requiredKmerMatches = 2;
 

@@ -14,11 +14,11 @@
 #include "omptl/omptl_algorithm"
 
 #ifdef OPENMP
+
 #include <omp.h>
 #include <QueryTableEntry.h>
 
 #endif
-
 
 
 std::string printAlnFromBt(const char *seq, unsigned int offset, const std::string &bt, bool reverse) {
@@ -54,9 +54,9 @@ std::string printAlnFromBt(const char *seq, unsigned int offset, const std::stri
 
 int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second);
 
-const unsigned int INVALID_DIAG = (unsigned int)-1;
+const unsigned int INVALID_DIAG = (unsigned int) -1;
 
-bool isWithinNDiagonals(const std::vector<QueryTableEntry>& queries, unsigned int N) {
+bool isWithinNDiagonals(const std::vector<QueryTableEntry> &queries, unsigned int N) {
     unsigned int shortestDiagDistance = UINT_MAX;
     for (size_t i = 1; i < queries.size() && shortestDiagDistance > N; ++i) {
         shortestDiagDistance = std::min(shortestDiagDistance, queries[i].Result.diag - queries[i - 1].Result.diag);
@@ -66,15 +66,15 @@ bool isWithinNDiagonals(const std::vector<QueryTableEntry>& queries, unsigned in
     return shortestDiagDistance <= N;
 }
 
-unsigned int ungappedDiagFilter(std::vector<QueryTableEntry>& queries,
-        const char* querySeqData,
-        size_t querySeqLen,
-        const char* targetSeqData,
-        size_t targetSeqLen,
-        const char** matrix,
-        EvalueComputation& evaluer,
-        int rescoreMode,
-        double evalThr) {
+unsigned int ungappedDiagFilter(std::vector<QueryTableEntry> &queries,
+                                const char *querySeqData,
+                                size_t querySeqLen,
+                                const char *targetSeqData,
+                                size_t targetSeqLen,
+                                const char **matrix,
+                                EvalueComputation &evaluer,
+                                int rescoreMode,
+                                double evalThr) {
 
     int maxScore = INT_MIN;
     unsigned int lastDiagonal = (unsigned int) -1;
@@ -116,12 +116,12 @@ unsigned int ungappedDiagFilter(std::vector<QueryTableEntry>& queries,
 }
 
 struct BlockIterator {
-    void reset(char* data) {
+    void reset(char *data) {
         buffer = data;
-        lastId = (unsigned int)-1;
+        lastId = (unsigned int) -1;
     }
 
-    bool getNext(std::vector<QueryTableEntry>& block) {
+    bool getNext(std::vector<QueryTableEntry> &block) {
         block.clear();
         if (*buffer == '\0') {
             return false;
@@ -140,8 +140,9 @@ struct BlockIterator {
         } while (*buffer != '\0');
         return true;
     }
+
     unsigned int lastId;
-    char* buffer;
+    char *buffer;
 };
 
 int computeAlignments(int argc, const char **argv, const Command &command) {
@@ -152,18 +153,22 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     par.evalThr = 1000000;
     par.parseParameters(argc, argv, command, true, 0, 0);
 
+    int inputSeqType = FileUtil::parseDbType(par.db1.c_str());
+    bool useProfileSearch = Parameters::isEqualDbtype(inputSeqType, Parameters::DBTYPE_HMM_PROFILE);
+
     // query target prev_result new_result is the order
-
-    DBReader<unsigned int> querySequenceReader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
+    DBReader<unsigned int> querySequenceReader(par.db1.c_str(), par.db1Index.c_str(), par.threads,
+                                               DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     querySequenceReader.open(DBReader<unsigned int>::NOSORT);
-
-    DBReader<unsigned int> targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
+    DBReader<unsigned int> targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(), par.threads,
+                                                DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     targetSequenceReader.open(DBReader<unsigned int>::NOSORT);
-
-    DBReader<unsigned int> resultReader(par.db3.c_str(), par.db3Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_WRITABLE);
+    DBReader<unsigned int> resultReader(par.db3.c_str(), par.db3Index.c_str(), par.threads,
+                                        DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX |
+                                        DBReader<unsigned int>::USE_WRITABLE);
     resultReader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
-
-    DBWriter writer(par.db4.c_str(), par.db4Index.c_str(), par.threads, par.compressed, Parameters::DBTYPE_ALIGNMENT_RES);
+    DBWriter writer(par.db4.c_str(), par.db4Index.c_str(), par.threads, par.compressed,
+                    Parameters::DBTYPE_ALIGNMENT_RES);
     writer.open();
 
     BaseMatrix *subMat;
@@ -171,8 +176,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     bool isNucDB = Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES);
     if (isNucDB) {
         subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
-    }
-    else {
+    } else {
         subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
     }
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
@@ -185,12 +189,13 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 #ifdef OPENMP
         thread_idx = static_cast<unsigned int>(omp_get_thread_num());
 #endif
-        Sequence querySeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
+        Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, par.kmerSize, par.spacedKmer,
+                          false, useProfileSearch ? false : true);
         Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
-        Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer, (bool)par.compBiasCorrection,
+        Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer, (bool) par.compBiasCorrection,
                         isNucDB ? par.gapOpen.nucleotides : par.gapOpen.aminoacids,
                         isNucDB ? par.gapExtend.nucleotides : par.gapExtend.aminoacids);
 
@@ -216,18 +221,16 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             const unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetId);
             targetSeq.mapSequence(targetId, targetKey, targetSeqData, targetSeqLen);
 
-//            Debug(Debug::INFO) << std::string(targetSeqData, targetSeqLen) << "\n";
-
             // TODO: this might be wasted if no single hit hit the target
             matcher.initQuery(&targetSeq);
 
             // TODO: prefetch next sequence
 
-            char* data = resultReader.getData(i, thread_idx);
+            char *data = resultReader.getData(i, thread_idx);
             it.reset(data);
             while (it.getNext(queries)) {
                 for (size_t j = 0; j < queries.size(); ++j) {
-                    QueryTableEntry& query = queries[j];
+                    QueryTableEntry &query = queries[j];
 //                    Debug(Debug::INFO) << SSTR(queries.size()) << "\n";
 //                    Debug(Debug::INFO) << SSTR(targetKey) << "\n";
 //                    Debug(Debug::INFO) << SSTR(query.querySequenceId) << "\n";
@@ -263,13 +266,25 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 unsigned int queryId = querySequenceReader.getId(queryKey);
                 const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
-                unsigned int diag = ungappedDiagFilter(queries, querySeqData, querySeqLen, targetSeqData, targetSeqLen, fastMatrix.matrix, evaluer, par.rescoreMode, par.evalThr);
+                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
+                std::string realSeq;
+                querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
+                
+                unsigned int diag = ungappedDiagFilter(queries,
+                                                       realSeq.c_str(),
+                                                       querySeqLen,
+                                                       targetSeqData,
+                                                       targetSeqLen,
+                                                       fastMatrix.matrix,
+                                                       evaluer,
+                                                       par.rescoreMode,
+                                                       par.evalThr);
                 if (diag == INVALID_DIAG) {
                     continue;
                 }
 
                 // TODO we have to swap coverage mode either here or already in workflow etc
-                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
+//                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
                 Matcher::result_t res = matcher.getSWResult(&querySeq, diag, false, par.covMode, par.covThr, par.evalThr,
                                                             Matcher::SCORE_COV_SEQID, par.seqIdMode, false);
                 results.emplace_back(res);
@@ -307,38 +322,38 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 }
 
 int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second) {
-    if (first.Result.diag < second.Result.diag){
+    if (first.Result.diag < second.Result.diag) {
         return true;
     }
-    if (second.Result.diag < first.Result.diag){
+    if (second.Result.diag < first.Result.diag) {
         return false;
     }
 
-    if (first.Result.score < second.Result.score){
+    if (first.Result.score < second.Result.score) {
         return true;
     }
-    if (second.Result.score < first.Result.score){
+    if (second.Result.score < first.Result.score) {
         return false;
     }
 
-    if (first.Result.eval > second.Result.eval){
+    if (first.Result.eval > second.Result.eval) {
         return true;
     }
-    if (second.Result.eval > first.Result.eval){
+    if (second.Result.eval > first.Result.eval) {
         return false;
     }
 
-    if (first.querySequenceId < second.querySequenceId){
+    if (first.querySequenceId < second.querySequenceId) {
         return true;
     }
-    if (second.querySequenceId < first.querySequenceId){
+    if (second.querySequenceId < first.querySequenceId) {
         return false;
     }
 
-    if (first.targetSequenceID < second.targetSequenceID){
+    if (first.targetSequenceID < second.targetSequenceID) {
         return true;
     }
-    if (second.targetSequenceID < first.targetSequenceID){
+    if (second.targetSequenceID < first.targetSequenceID) {
         return false;
     }
 

@@ -88,20 +88,43 @@ int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second) 
     return false;
 }
 
+inline bool isFileExisted(const std::string &fname) {
+    if (FILE *file = fopen(fname.c_str(), "r")) {
+        fclose(file);
+        return true;
+    } else {
+        return false;
+    }
+}
 
 void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryTable) {
     Timer timer;
+
+    int seqType = FileUtil::parseDbType(par.db1.c_str());
+
+    bool useProfileSearch = Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_HMM_PROFILE);
+
+    BaseMatrix *subMat;
+
+    if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
+        subMat = new NucleotideMatrix(par.seedScoringMatrixFile.nucleotides, 1.0, 0.0);
+    }
+    else if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_AMINO_ACIDS)){
+        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.aminoacids, 8.0, -0.2f);
+    }
+    else if (useProfileSearch) {
+        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.aminoacids, 2.0f, 0.0);
+    }
+    else {
+        Debug(Debug::ERROR) << "Invalid input type (Support: nucleotide, amino acid, profile)\n";
+        EXIT(EXIT_FAILURE);
+    }
+
     DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
 
-    BaseMatrix *subMat;
-    int seqType = reader.getDbtype();
-    if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.seedScoringMatrixFile.nucleotides, 1.0, 0.0);
-    } else {
-        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.aminoacids, 8.0, -0.2f);
-    }
     Debug(Debug::INFO) << "input prepared, time spent: " << timer.lap() << "\n";
+
     size_t kmerCount = 0;
 #pragma omp parallel for reduction(+:kmerCount) default(none) shared(reader, par)
     for (size_t i = 0; i < reader.getSize(); ++i) {
@@ -109,20 +132,26 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
         kmerCount += currentSequenceLength >= (size_t)par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
     }
+
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n";
-    float similarKmerFactor = 1.5 ;
+
+    // FIXME: should not be hard coded. This is only good for k = 9
+    float similarKmerFactor = 1.5 * (useProfileSearch ? 5 : 1) ;
     size_t tableCapacity = (size_t) (similarKmerFactor * (kmerCount + 1));
     queryTable.reserve(tableCapacity);
 
     const int xIndex = subMat->aa2num[(int)'X'];
 
+    ScoreMatrix twoMatrix, threeMatrix;
+    if (!useProfileSearch) {
+        twoMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 2);
+        threeMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 3);
+    }
+
     Debug::Progress progress(reader.getSize());
 
-    ScoreMatrix twoMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 2);
-    ScoreMatrix threeMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 3);
-
 #pragma omp parallel default(none) \
-shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable)
+shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch)
     {
         unsigned int thread_idx = 0;
         unsigned int total_threads = 1;
@@ -131,9 +160,17 @@ shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapa
         total_threads = (unsigned int)omp_get_num_threads();
 #endif
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
-        Sequence sequence(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
-        KmerGenerator kmerGenerator(par.kmerSize, subMat->alphabetSize - 1, par.kmerScore);
-        kmerGenerator.setDivideStrategy(&threeMatrix, &twoMatrix);
+        Sequence sequence(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false,
+                          useProfileSearch ? false : true);
+
+        KmerGenerator kmerGenerator(par.kmerSize, subMat->alphabetSize - 1,
+                                    par.kmerScore + (useProfileSearch ? 25 : 0));
+
+        if (useProfileSearch && sequence.profile_matrix != NULL) {
+            kmerGenerator.setDivideStrategy(sequence.profile_matrix);
+        } else {
+            kmerGenerator.setDivideStrategy(&threeMatrix, &twoMatrix);
+        }
 
         std::vector<QueryTableEntry> localTable;
         localTable.reserve(tableCapacity / total_threads);
@@ -153,21 +190,44 @@ shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapa
                 for (int pos = 0; pos < par.kmerSize; ++pos) {
                     xCount += (kmer[pos] == xIndex);
                 }
+
                 if (xCount) {
                     continue;
                 }
-                if (par.exactKmerMatching) {
+
+                if (useProfileSearch) {
+                    // TODO: Add profile search method here
+                    std::pair<size_t*, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
+                    size_t lim = similarKmerList.second;
+                    for (size_t j = 0; j < lim; ++j) {
+                        QueryTableEntry entry;
+                        entry.querySequenceId = key;
+                        entry.targetSequenceID = UINT_MAX;
+                        entry.Query.kmer = similarKmerList.first[j];
+                        entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
+                        localTable.emplace_back(entry);
+                    }
                     QueryTableEntry entry;
                     entry.querySequenceId = key;
                     entry.targetSequenceID = UINT_MAX;
                     entry.Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
                     entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
                     localTable.emplace_back(entry);
-                } else {
+                }
+                else if (par.exactKmerMatching) {
+                    QueryTableEntry entry;
+                    entry.querySequenceId = key;
+                    entry.targetSequenceID = UINT_MAX;
+                    entry.Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
+                    entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
+                    localTable.emplace_back(entry);
+                }
+                else {
                     // FIXME: too memory consuming when k = 11, need to adjust
                     //  (at least make the program does not terminate with an bad_alloc() error)
                     std::pair<size_t*, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
-                    for (size_t j = 0; j < similarKmerList.second; ++j) {
+                    size_t lim = similarKmerList.second;
+                    for (size_t j = 0; j < lim; ++j) {
                         QueryTableEntry entry;
                         entry.querySequenceId = key;
                         entry.targetSequenceID = UINT_MAX;
@@ -212,12 +272,15 @@ std::vector<std::string> getFileNamesFromFile(const std::string &filename){
 int compare2kmertables(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
+
     par.parseParameters(argc, argv, command, true, 0, LocalParameters::PARSE_VARIADIC);
 
     Debug(Debug::INFO) << "mapping query and target files \n";
     std::vector<QueryTableEntry> qTable;
+
     createQueryTable(par, qTable);
 
+    // FIXME: accept single file input also
     std::vector<std::string> targetTables = getFileNamesFromFile(par.db2);
     std::vector<std::string> resultFiles = getFileNamesFromFile(par.db3);
     if(targetTables.size() == 0){
@@ -237,7 +300,6 @@ std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the 
 bool notFirst = false;
 #pragma omp for schedule(dynamic, 1)
     for (size_t i = 0; i < targetTables.size(); ++i) {
-        // TODO: empty the localQTable here, if this is not the first round
         if (notFirst) {
             localQTable = qTable;
         }
