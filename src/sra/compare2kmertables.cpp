@@ -314,6 +314,7 @@ bool notFirst = false;
         QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
 
         std::string targetName = targetTables[i];
+<<<<<<< 7d5c239736751e860fb310b310505fb54aac5fbf
 
         timer.reset();
         Debug(Debug::INFO) << "Loading files into memory...\n";
@@ -323,6 +324,8 @@ bool notFirst = false;
 //        MemoryMapped targetIds(std::string(targetName + "_ids"),
 //                               MemoryMapped::WholeFile,
 //                               MemoryMapped::SequentialScan);
+=======
+>>>>>>> Remove commented lines
 
         /* Open target table in direct mode */
         int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC );
@@ -452,80 +455,6 @@ bool notFirst = false;
             }
 
         }
-
-//        if (targetTable.isValid() == false || targetIds.isValid() == false) {
-//            Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
-//            EXIT(EXIT_FAILURE);
-//        }
-//        unsigned short *startPosTargetTable = (unsigned short *) targetTable.getData();
-//        unsigned int *startPosIDTable = (unsigned int *) targetIds.getData();
-//
-//        QueryTableEntry *currentQueryPos = startPosQueryTable;
-//        QueryTableEntry *endPosQueryTable = startPosQueryTable;
-//        unsigned short *currentTargetPos = startPosTargetTable;
-//        unsigned short *endTargetPos = startPosTargetTable + (targetTable.size() / sizeof(unsigned short));
-//        unsigned int *currentIDPos = startPosIDTable;
-
-//        Timer timer;
-//        // cover the rare case that the first (real) target entry is larger than USHRT_MAX
-//        uint64_t currDiffIndex = 0;
-//        bool first = true;
-//        while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
-//            currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-//            currDiffIndex <<= 15U;
-//            ++currentTargetPos;
-//        }
-//        currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-//        currentKmer += currDiffIndex;
-//        currDiffIndex = 0;
-//
-//        while (LIKELY(currentTargetPos < endTargetPos) && currentQueryPos < endQueryPos) {
-//            if (currentKmer == currentQueryPos->Query.kmer) {
-//                if (first) {
-//                    startPosQueryTable = currentQueryPos;
-//                    first = false;
-//                }
-//                ++equalKmers;
-//                currentQueryPos->targetSequenceID = *currentIDPos;
-//                ++currentQueryPos;
-//                while (LIKELY(currentQueryPos < endQueryPos) &&
-//                       currentQueryPos->Query.kmer == currentKmer){
-//                    currentQueryPos->targetSequenceID = *currentIDPos;
-//                    ++currentQueryPos;
-//                }
-//                endPosQueryTable = currentQueryPos;
-//                ++currentTargetPos;
-//                ++currentIDPos;
-//                while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
-//                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-//                    currDiffIndex <<= 15U;
-//                    ++currentTargetPos;
-//                }
-//                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-//                currentKmer += currDiffIndex;
-//                currDiffIndex = 0;
-//            }
-//
-//            while (LIKELY(currentQueryPos < endQueryPos) &&
-//                   currentQueryPos->Query.kmer < currentKmer) {
-//                ++currentQueryPos;
-//            }
-//
-//            while (currentQueryPos < endQueryPos &&
-//                   currentTargetPos < endTargetPos &&
-//                   currentKmer < currentQueryPos->Query.kmer) {
-//                ++currentTargetPos;
-//                ++currentIDPos;
-//                while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
-//                    currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-//                    currDiffIndex <<= 15U;
-//                    ++currentTargetPos;
-//                }
-//                currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
-//                currentKmer += currDiffIndex;
-//                currDiffIndex = 0;
-//            }
-//        }
 
 //        double timediff = timer.getTimediff();
 //        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
