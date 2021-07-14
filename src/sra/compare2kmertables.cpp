@@ -531,6 +531,9 @@ bool notFirst = false;
 //        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTable.size() + targetIds.size()) / 1e+9) / timediff << " GB/s \n";
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
+        free(targetTableReadBuffer);
+        free(IDTableReadBuffer);
+
         Debug(Debug::INFO) << "Sorting result table\n";
         timer.reset();
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
