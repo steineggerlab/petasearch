@@ -339,14 +339,14 @@ bool notFirst = false;
         }
 
         /* Create 16MB buffer for target table */
-        void *targetTableReadBuffer = calloc(MEM_SIZE_16MB, sizeof(char));
+        void *targetTableReadBuffer = calloc(MEM_SIZE_16MB, 1);
         if (targetTableReadBuffer == nullptr) {
             Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
             EXIT(EXIT_FAILURE);
         }
 
         /* Create 16MB buffer for ID table */
-        void *IDTableReadBuffer = calloc(MEM_SIZE_32MB, sizeof(char));
+        void *IDTableReadBuffer = calloc(MEM_SIZE_32MB, 1);
         if (IDTableReadBuffer == nullptr) {
             Debug(Debug::ERROR) << "Cannot allocate memory for id table\n";
             EXIT(EXIT_FAILURE);
