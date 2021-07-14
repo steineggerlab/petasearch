@@ -20,7 +20,7 @@
 #define KMER_BUFSIZ 500000000
 #define ID_BUFSIZ 250000000
 
-void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::string blockID);
+void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const std::string& blockID);
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
 int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable,
@@ -132,7 +132,6 @@ shared(par, subMat, seqType, reader, tableIndex, targetTable)
     Debug(Debug::INFO) << timer.lap() << "\n";
     free(targetTable);
 
-
     delete subMat;
     reader.close();
     return EXIT_SUCCESS;
@@ -160,8 +159,8 @@ int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &secon
     return false;
 }
 
-void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::string blockID) {
-    std::string kmerTableFileName = blockID;
+void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const std::string& blockID) {
+    const std::string& kmerTableFileName = blockID;
     std::string idTableFileName = blockID + "_ids";
     Debug(Debug::INFO) << "Writing k-mer target table to file: " << kmerTableFileName << "\n";
     Debug(Debug::INFO) << "Writing target ID table to file:  " << idTableFileName << "\n";
@@ -171,7 +170,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
     TargetTableEntry *posInTable = targetTable;
     size_t uniqueKmerCount = 0;
     size_t lastKmer = 0;
-    Debug::Progress progress(kmerCount);
+//    Debug::Progress progress(kmerCount);
 
     uint16_t *kmerLocalBuf = (uint16_t *)malloc(sizeof(uint16_t) * KMER_BUFSIZ);
     unsigned int *IDLocalBuf = (unsigned int *)malloc(sizeof(unsigned int) * ID_BUFSIZ);
@@ -184,7 +183,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, std::str
             ++uniqueKmerCount;
         }
     }
-    //write last one
+    // write last one
     writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable, kmerLocalBuf, IDLocalBuf);
     ++uniqueKmerCount;
     
