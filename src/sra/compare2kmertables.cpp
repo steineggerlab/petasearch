@@ -254,6 +254,9 @@ shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapa
     SORT_PARALLEL(queryTable.begin(), queryTable.end(), queryTableSort);
     Debug(Debug::INFO) << "Required time for sorting: " << timer.lap() << "\n";
 
+    delete subMat;
+    subMat = nullptr;
+
     reader.close();
 }
 
