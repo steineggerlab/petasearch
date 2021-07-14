@@ -178,7 +178,7 @@ shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapa
         }
 
         std::vector<QueryTableEntry> localTable;
-        localTable.reserve(tableCapacity / total_threads);
+        localTable.reserve(tableCapacity/total_threads);
 
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
@@ -327,14 +327,14 @@ bool notFirst = false;
         /* Open target table in direct mode */
         int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC );
         if (fdTargetTable < 0) {
-            Debug(Debug::ERROR) << "Open target table file failed\n";
+            Debug(Debug::ERROR) << "Open target table " << targetName << "failed\n";
             EXIT(EXIT_FAILURE);
         }
 
         /* Open ID table in direct mode */
         int fdIDTable = open(std::string(targetName + "_ids").c_str(), O_RDONLY | O_DIRECT | O_SYNC );
         if (fdIDTable < 0) {
-            Debug(Debug::ERROR) << "Open ID table file failed\n";
+            Debug(Debug::ERROR) << "Open ID table " << targetName << "_ids" << "failed\n";
             EXIT(EXIT_FAILURE);
         }
 
