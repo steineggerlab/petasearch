@@ -122,8 +122,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     ScoreMatrix threeMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 3);
 
 #pragma omp parallel default(none) \
-shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, \
-tableCapacity, queryTable)
+shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable)
     {
         unsigned int thread_idx = 0;
         unsigned int total_threads = 1;
@@ -230,7 +229,6 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-    const size_t numOfTatgetTables = targetTables.size();
 
 #pragma omp parallel num_threads(targetTables.size()) default(none) \
 shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
@@ -238,7 +236,7 @@ shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
 std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
 bool notFirst = false;
 #pragma omp for schedule(dynamic, 1)
-    for (size_t i = 0; i < numOfTatgetTables; ++i) {
+    for (size_t i = 0; i < targetTables.size(); ++i) {
         // TODO: empty the localQTable here, if this is not the first round
         if (notFirst) {
             localQTable = qTable;
@@ -309,12 +307,12 @@ bool notFirst = false;
                 currentKmer += currDiffIndex;
                 currDiffIndex = 0;
             }
-//
+
             while (LIKELY(currentQueryPos < endQueryPos) &&
                    currentQueryPos->Query.kmer < currentKmer) {
                 ++currentQueryPos;
             }
-//
+
             while (currentQueryPos < endQueryPos &&
                    currentTargetPos < endTargetPos &&
                    currentKmer < currentQueryPos->Query.kmer) {
@@ -337,11 +335,9 @@ bool notFirst = false;
 
         Debug(Debug::INFO) << "Sorting result table\n";
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
-//        Debug(Debug::INFO) << timediff2 << " s; Rate " << (((endPosQueryTable - startPosQueryTable + 1) / 1e+9) / timediff2) << " GB/s \n";
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
         QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
-//        Debug(Debug::INFO) << "Truncated table k-mers: " << truncatedResultEndPos - resultTable + 1 <<"\n";
 
 
         Debug(Debug::INFO) << "Writing result files\n";
