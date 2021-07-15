@@ -14,7 +14,7 @@ std::vector<Command> baseCommands = {
                 "mmseqs databases PFAM pfam_db tmp\n"
                 "mmseqs easy-search examples/QUERY.fasta pfam_db res.m8 tmp\n\n"
                 "# Exhaustive search against sequences or profiles (works for large DBs)\n"
-                "mmseqs easy-search examples/QUERY.fasta targetProfiles res.m8 tmp --slice-search\n\n"
+                "mmseqs easy-search examples/QUERY.fasta targetProfiles res.m8 tmp --exhaustive-search\n\n"
                 "# Increasing sensitivity search (from 2 to 7 in 3 steps)\n"
                 "mmseqs easy-search examples/QUERY.fasta examples/DB.fasta result.m8 tmp --start-sens 2 -s 7 --sens-steps 3\n",
                 "Milot Mirdita <milot@mirdita.de> & Martin Steinegger <martin.steinegger@snu.ac.kr>",
@@ -84,13 +84,16 @@ std::vector<Command> baseCommands = {
                 "  - result_report: kraken style report\n"
                 "# Download a sequence database with taxonomy information\n"
                 "mmseqs databases UniProtKB/Swiss-Prot swissprotDB tmp\n\n"
-                "# Assign taxonomy based on top hit\n"
+                "# Assign taxonomy based on 2bLCA hit\n"
                 "mmseqs easy-taxonomy examples/DB.fasta swissprotDB result tmp\n\n"
-                "# Assign taxonomy based on 2bLCA\n"
-                "mmseqs easy-taxonomy examples/DB.fasta swissprotDB result tmp --lca-mode 2\n",
+                "# Assign taxonomy based on top hit\n"
+                "mmseqs easy-taxonomy examples/DB.fasta swissprotDB result tmp --lca-mode 4\n\n"
+                "# Assign taxonomy without ORF prefilter\n"
+                "# Classifies higher percentage for short nucleotide input (e.g. short reads) at the cost of speed\n"
+                "mmseqs easy-taxonomy queryNuclDB swissprotDB result tmp --orf-filter 0\n",
                 "Martin Steinegger <martin.steinegger@snu.ac.kr>",
                 "<i:fastaFile1[.gz|.bz2]> ... <i:fastaFileN[.gz|.bz2]> <i:targetDB> <o:taxReports> <tmpDir>",
-                CITATION_MMSEQS2, {{"queryFastaFile[.gz]", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_DATA|DbType::VARIADIC, &DbValidator::flatfileAndStdin },
+                CITATION_TAXONOMY|CITATION_MMSEQS2, {{"queryFastaFile[.gz]", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_DATA|DbType::VARIADIC, &DbValidator::flatfileAndStdin },
                                                            {"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_HEADER|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
                                                            {"taxReports",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile },
                                                            {"tmpDir", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
@@ -109,7 +112,7 @@ std::vector<Command> baseCommands = {
                 NULL,
                 "Milot Mirdita <milot@mirdita.de>",
                 "<name> <o:sequenceDB> <tmpDir>",
-                CITATION_MMSEQS2, {{"selection", 0, DbType::ZERO_OR_ALL, &DbValidator::empty },
+                CITATION_TAXONOMY|CITATION_MMSEQS2, {{"selection", 0, DbType::ZERO_OR_ALL, &DbValidator::empty },
                                                            {"sequenceDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
                                                            {"tmpDir",     DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
         {"createdb",             createdb,             &par.createdb,             COMMAND_DATABASE_CREATION,
@@ -122,7 +125,7 @@ std::vector<Command> baseCommands = {
                 "mmseqs createdb seq.fasta sequenceDB --createdb-mode 1\n",
                 "Martin Steinegger <martin.steinegger@snu.ac.kr>",
                 "<i:fastaFile1[.gz|.bz2]> ... <i:fastaFileN[.gz|.bz2]>|<i:stdin> <o:sequenceDB>",
-                CITATION_MMSEQS2, {{"fast[a|q]File[.gz|bz2]|stdin", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::flatfileAndStdin },
+                CITATION_MMSEQS2, {{"fast[a|q]File[.gz|bz2]|stdin", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::flatfileStdinAndGeneric },
                                                            {"sequenceDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile }}},
         {"indexdb",              indexdb,              &par.indexdb,              COMMAND_HIDDEN,
                 NULL,
@@ -187,7 +190,7 @@ std::vector<Command> baseCommands = {
                 "mmseqs databases PFAM pfam_db tmp\n"
                 "mmseqs search queryDB pfam_db resultDB tmp\n\n"
                 "# Exhaustive search against sequences or profiles (works for large DBs)\n"
-                "mmseqs search queryDB targetDB resultDB tmp --slice-search\n\n"
+                "mmseqs search queryDB targetDB resultDB tmp --exhaustive-search\n\n"
                 "# Increasing sensitivity search (from 2 to 7 in 3 steps)\n"
                 "mmseqs search queryDB targetDB resultDB --start-sens 2 -s 7 --sens-steps 3\n",
                 "Martin Steinegger <martin.steinegger@snu.ac.kr>",
@@ -286,15 +289,18 @@ std::vector<Command> baseCommands = {
                 "Taxonomic classification",
                 "# Download a sequence database with taxonomy information\n"
                 "mmseqs databases UniProtKB/Swiss-Prot swissprotDB tmp\n\n"
-                "# Assign taxonomy based on top hit\n"
-                "mmseqs taxonomy queryDB swissprotDB result tmp\n\n"
                 "# Assign taxonomy based on 2bLCA\n"
-                "mmseqs taxonomy queryDB swissprotDB result tmp --lca-mode 2\n\n"
+                "mmseqs taxonomy queryDB swissprotDB result tmp\n\n"
+                "# Assign taxonomy based on top hit\n"
+                "mmseqs taxonomy queryDB swissprotDB result tmp --lca-mode 4\n\n"
+                "# Assign taxonomy without ORF prefilter\n"
+                "# Classifies higher percentage for short nucleotide input (e.g. short reads) at the cost of speed\n"
+                "mmseqs taxonomy queryNuclDB swissprotDB result tmp --orf-filter 0\n\n"
                 "# Create a Krona report\n"
                 "mmseqs taxonomyreport swissprotDB result report.html --report-mode 1\n",
-                "Milot Mirdita <milot@mirdita.de> & Martin Steinegger <martin.steinegger@snu.ac.kr>",
+                "Milot Mirdita <milot@mirdita.de> & Martin Steinegger <martin.steinegger@snu.ac.kr> & Eli Levy Karin <eli.levy.karin@gmail.com>",
                 "<i:queryDB> <i:targetDB> <o:taxaDB> <tmpDir>",
-                CITATION_MMSEQS2, {{"queryDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                CITATION_TAXONOMY|CITATION_MMSEQS2, {{"queryDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
                                                           {"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
                                                           {"taxaDB",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::taxResult },
                                                           {"tmpDir", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
@@ -365,23 +371,32 @@ std::vector<Command> baseCommands = {
                 NULL,
                 "Martin Steinegger <martin.steinegger@snu.ac.kr>",
                 "<i:sequenceDB> <tmpDir>",
-                CITATION_MMSEQS2, {{"sequenceDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                CITATION_TAXONOMY, {{"sequenceDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
                                                            {"tmpDir", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
+        {"createbintaxonomy",    createbintaxonomy,    &par.onlyverbosity,        COMMAND_TAXONOMY | COMMAND_EXPERT,
+                "Create binary taxonomy from NCBI input",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:names.dmp> <i:nodes.dmp> <i:merged.dmp> <o:taxonomyFile>",
+                CITATION_TAXONOMY, {{"names.dmp", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
+                                   {"nodes.dmp", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
+                                   {"merged.dmp", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
+                                   {"taxonomyFile",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile }}},
         {"addtaxonomy",          addtaxonomy,          &par.addtaxonomy,          COMMAND_TAXONOMY | COMMAND_EXPERT,
                 "Add taxonomic labels to result DB",
                 NULL,
                 "Martin Steinegger <martin.steinegger@snu.ac.kr>",
                 "<i:targetDB> <i:resultDB> <o:resultDB>",
-                CITATION_MMSEQS2, {{"targetDB", DbType::ACCESS_MODE_INPUT|DbType::NEED_TAXONOMY, DbType::NEED_DATA, &DbValidator::taxSequenceDb },
+                CITATION_TAXONOMY, {{"targetDB", DbType::ACCESS_MODE_INPUT|DbType::NEED_TAXONOMY, DbType::NEED_DATA, &DbValidator::taxSequenceDb },
                                                            {"resultDB",   DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
                                                            {"resultDB",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb }}},
         {"taxonomyreport",       taxonomyreport,       &par.taxonomyreport,       COMMAND_TAXONOMY | COMMAND_FORMAT_CONVERSION,
                 "Create a taxonomy report in Kraken or Krona format",
                 NULL,
                 "Milot Mirdita <milot@mirdita.de> & Florian Breitwieser <florian.bw@gmail.com>",
-                "<i:targetDB> <i:taxDB> <o:taxonomyReport>",
-                CITATION_MMSEQS2, {{"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
-                                                           {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC,  &DbValidator::taxResult },
+                "<i:seqTaxDB> <i:taxResultDB/resultDB/sequenceDB> <o:taxonomyReport>",
+                CITATION_TAXONOMY, {{"seqTaxDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
+                                                           {"taxResultDB/resultDB/sequenceDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC,  &DbValidator::taxonomyReportInput },
                                                            {"taxonomyReport",    DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile }}},
         {"filtertaxdb",          filtertaxdb,          &par.filtertaxdb,          COMMAND_TAXONOMY,
                 "Filter taxonomy result database",
@@ -398,7 +413,7 @@ std::vector<Command> baseCommands = {
                 "mmseqs filtertaxdb swissprotDB taxDB filteredTaxDB --taxon-list '9606||810'\n",
                 "Martin Steinegger <martin.steinegger@snu.ac.kr>",
                 "<i:targetDB> <i:taxDB> <o:taxDB>",
-                CITATION_MMSEQS2, {{"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
+                CITATION_TAXONOMY, {{"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
                                                            {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::taxResult },
                                                            {"taxDB",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::taxResult }}},
         // TODO make consistent with seqTaxDB -> taxSeqDb in Wiki
@@ -414,22 +429,8 @@ std::vector<Command> baseCommands = {
                 "mmseqs filtertaxseqdb swissprotDB swissprotDB_human_and_chlamydia --taxon-list '9606||810'\n\n",
                 "Eli Levy Karin <eli.levy.karin@gmail.com> & Martin Steinegger <martin.steinegger@snu.ac.kr>",
                 "<i:taxSeqDB> <o:taxSeqDB>",
-                CITATION_MMSEQS2, {{"taxSeqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
+                CITATION_TAXONOMY, {{"taxSeqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
                                                            {"taxSeqDB",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::taxSequenceDb }}},
-        {"taxpercontig",             taxpercontig,             &par.taxpercontig,             COMMAND_TAXONOMY,
-                "Taxonomic assignment to contigs",
-                "# Download a sequence database with taxonomy information\n"
-                "mmseqs databases UniProtKB/Swiss-Prot swissprotDB tmp\n\n"
-                "# Create a nucleotide sequence database from FASTA\n"
-                "mmseqs createdb contigs.fasta contigsDb\n\n"
-                "# Assign taxonomy to each contig based on majority voting\n"
-                "mmseqs taxpercontig contigsDb swissprotDB result tmp --lca-mode 2 --tax-lineage 1 --majority 0.4 --vote-mode 1\n\n",
-                "Eli Levy Karin <eli.levy.karin@gmail.com>",
-                "<i:contigsDb> <i:taxSeqDB> <o:taxPerContigDb> <tmpDir>",
-                CITATION_MMSEQS2, {{"contigsDb", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::nuclDb },
-                                                          {"taxSeqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
-                                                          {"taxPerContigDb",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::taxResult },
-                                                          {"tmpDir", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
         {"aggregatetax",         aggregatetax,         &par.aggregatetax,         COMMAND_TAXONOMY,
                 "Aggregate multiple taxon labels to a single label",
                 "# Download a sequence database with taxonomy information\n"
@@ -444,11 +445,11 @@ std::vector<Command> baseCommands = {
                 "mmseqs aggregatetax swissprotDB orfsAaDb_h taxPerOrf taxPerContig --majority 0.5\n\n",
                 "Eli Levy Karin <eli.levy.karin@gmail.com>",
                 "<i:taxSeqDB> <i:setToSeqMap> <i:taxResPerSeqDB> <o:taxResPerSetDB>",
-                CITATION_MMSEQS2, {{"taxSeqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
+                CITATION_TAXONOMY, {{"taxSeqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
                                                            {"setToSeqMap",   DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
                                                            {"taxResPerSeqDB",   DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::taxResult },
                                                            {"taxResPerSetDB",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::taxResult }}},
-        {"aggregatetaxweights",         aggregatetaxweights,         &par.aggregatetax,         COMMAND_TAXONOMY,
+        {"aggregatetaxweights",  aggregatetaxweights,  &par.aggregatetaxweights,  COMMAND_TAXONOMY,
                 "Aggregate multiple taxon labels to a single label",
                 "# Download a sequence database with taxonomy information\n"
                 "mmseqs databases UniProtKB/Swiss-Prot swissprotDB tmp\n\n"
@@ -462,20 +463,36 @@ std::vector<Command> baseCommands = {
                 "mmseqs aggregatetaxweights swissprotDB orfsAaDb_h taxPerOrf taxPerOrf_aln taxPerContig --majority 0.5\n\n",
                 "Eli Levy Karin <eli.levy.karin@gmail.com>",
                 "<i:taxSeqDB> <i:setToSeqMap> <i:taxResPerSeqDB> <i:taxAlnResPerSeqDB> <o:taxResPerSetDB>",
-                CITATION_MMSEQS2, {{"taxSeqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
+                CITATION_TAXONOMY, {{"taxSeqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
                                                            {"setToSeqMap",   DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
                                                            {"taxResPerSeqDB",   DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::taxResult },
                                                            {"taxAlnResPerSeqDB",   DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
                                                            {"taxResPerSetDB",   DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::taxResult }}},
+        {"lcaalign",             lcaalign,             &par.align,                COMMAND_TAXONOMY,
+                "Efficient gapped alignment for lca computation",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:queryDB> <i:targetDB> <i:resultDB> <o:alignmentDB>",
+                CITATION_TAXONOMY, {{"queryDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                                          {"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::taxSequenceDb },
+                                          {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
+                                          {"alignmentDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::alignmentDb }}},
         {"lca",                  lca,                  &par.lca,                  COMMAND_TAXONOMY,
                 "Compute the lowest common ancestor",
                 NULL,
                 "Milot Mirdita <milot@mirdita.de>",
                 "<i:targetDB> <i:resultDB> <o:taxaDB>",
-                CITATION_MMSEQS2, {{"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
+                CITATION_TAXONOMY|CITATION_MMSEQS2, {{"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
                                           {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
                                           {"taxDB",    DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::taxResult }}},
-
+        {"majoritylca",          majoritylca,          &par.majoritylca,          COMMAND_TAXONOMY | COMMAND_EXPERT,
+                "Compute the lowest common ancestor using majority voting",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:targetDB> <i:resultDB> <o:taxaDB>",
+                CITATION_TAXONOMY, {{"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::NEED_TAXONOMY, &DbValidator::taxSequenceDb },
+                                          {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
+                                          {"taxDB",    DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::taxResult }}},
 
 
         {"multihitdb",           multihitdb,           &par.multihitdb,           COMMAND_MULTIHIT,
@@ -667,6 +684,27 @@ std::vector<Command> baseCommands = {
                 "<i:srcDB> <o:dstDB>",
                 CITATION_MMSEQS2, {{"DB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, NULL },
                                           {"DB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb }}},
+        {"cpdb",                 cpdb,                 &par.onlyverbosity,        COMMAND_STORAGE,
+                "Copy a DB",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:srcDB> <o:dstDB>",
+                CITATION_MMSEQS2, {{"DB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, NULL },
+                                          {"DB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb }}},
+        {"lndb",                 lndb,                 &par.onlyverbosity,        COMMAND_STORAGE,
+                "Symlink a DB",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:srcDB> <o:dstDB>",
+                CITATION_MMSEQS2, {{"DB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, NULL },
+                                          {"DB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb }}},
+        {"unpackdb",             unpackdb,             &par.onlyverbosity,        COMMAND_STORAGE,
+                "Unpack a DB into separate files",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:DB> <o:outDir>",
+                CITATION_MMSEQS2, {{"DB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, NULL },
+                                          {"outDir", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
         {"touchdb",              touchdb,              &par.onlythreads,          COMMAND_STORAGE,
                 "Preload DB into memory (page cache)",
                 NULL,
@@ -683,10 +721,10 @@ std::vector<Command> baseCommands = {
                 "mmseqs cluster sequenceDB clusterDB tmp\n"
                 "mmseqs createsubdb clusterDB sequenceDB representativesDB\n",
                 "Milot Mirdita <milot@mirdita.de>",
-                "<i:subsetFile|DB> <i:resultDB> <o:resultDB>",
+                "<i:subsetFile|DB> <i:DB> <o:DB>",
                 CITATION_MMSEQS2, {{"subsetFile", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDbAndFlat },
-                                          {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
-                                          {"resultDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb }}},
+                                          {"DB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
+                                          {"DB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb }}},
         {"concatdbs",            concatdbs,            &par.concatdbs,            COMMAND_SET,
                 "Concatenate two DBs, giving new IDs to entries from 2nd DB",
 //                "If exist, the auxillary files: _mapping, source and lookup are also concatenated after IDs update of the 2nd DB",
@@ -717,7 +755,7 @@ std::vector<Command> baseCommands = {
                                           {"DB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb },
                                           {"DB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::allDb }}},
         {"subtractdbs",          subtractdbs,          &par.subtractdbs,          COMMAND_SET,
-                "Remove all entries from first DB occuring in second DB by key",
+                "Remove all entries from first DB occurring in second DB by key",
                 NULL,
                 "Martin Steinegger <martin.steinegger@snu.ac.kr>",
                 "<i:resultDBLeft> <i:resultDBRight> <o:resultDB>",
@@ -788,7 +826,14 @@ std::vector<Command> baseCommands = {
                 "<i:resultDB> <o:resultDB>",
                 CITATION_MMSEQS2, {{"DB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
                                           {"DB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb }}},
-
+        {"renamedbkeys",         renamedbkeys,         &par.renamedbkeys,         COMMAND_DB,
+                "Create a new DB with original keys renamed",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:idMapFile|stdin> <i:DB> <o:DB>",
+                CITATION_MMSEQS2, {{"idMapFile", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfileAndStdin },
+                                          {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
+                                          {"resultDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::allDb }}},
 
         {"extractorfs",          extractorfs,          &par.extractorfs,          COMMAND_SEQUENCE,
                 "Six-frame extraction of open reading frames",
@@ -923,7 +968,7 @@ std::vector<Command> baseCommands = {
                                           {"targetOrfDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
                                           {"alnDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::alignmentDb },
                                           {"alnDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::alignmentDb }}},
-        {"proteinaln2nucl",      proteinaln2nucl,      &par.threadsandcompression,COMMAND_RESULT,
+        {"proteinaln2nucl",      proteinaln2nucl,      &par.proteinaln2nucl,      COMMAND_RESULT,
                 "Transform protein alignments to nucleotide alignments",
                 NULL,
                 "Martin Steinegger <martin.steinegger@snu.ac.kr> ",
@@ -934,7 +979,7 @@ std::vector<Command> baseCommands = {
                                           {"aaTargetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
                                           {"alnDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::alignmentDb },
                                           {"alnDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::alignmentDb }}},
-        {"result2repseq",       result2repseq,         &par.threadsandcompression,COMMAND_RESULT,
+        {"result2repseq",       result2repseq,         &par.result2repseq,        COMMAND_RESULT,
                 "Get representative sequences from result DB",
                 NULL,
                 "Milot Mirdita <milot@mirdita.de> & Martin Steinegger <martin.steinegger@snu.ac.kr>",
@@ -1015,7 +1060,7 @@ std::vector<Command> baseCommands = {
                 NULL,
                 "Milot Mirdita <milot@mirdita.de>",
                 "<i:profileDB> <o:sequenceDB>",
-                CITATION_MMSEQS2, {{"profileDB",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::aaDb },
+                CITATION_MMSEQS2, {{"profileDB",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::profileDb },
                                                            {"sequenceDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::aaDb }}},
         {"convertprofiledb",     convertprofiledb,     &par.convertprofiledb,     COMMAND_PROFILE,
                 "Convert a HH-suite HHM DB to a profile DB",
@@ -1068,7 +1113,16 @@ std::vector<Command> baseCommands = {
                                           {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
                                           {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
                                           {"alignmentDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::alignmentDb }}},
-
+        {"expand2profile",      expand2profile,        &par.expand2profile,       COMMAND_PROFILE_PROFILE,
+                "Expand an alignment result based on another and create a profile",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:queryDB> <i:targetDB> <i:resultDB> <i:resultDB|ca3mDB> <o:profileDB>",
+                CITATION_MMSEQS2, {{"queryDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                                          {"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                                          {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
+                                          {"resultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
+                                          {"profileDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::profileDb }}},
 
 
         {"diffseqdbs",           diffseqdbs,           &par.diff,                 COMMAND_SPECIAL,
@@ -1092,8 +1146,8 @@ std::vector<Command> baseCommands = {
                 "Extract regions from a sequence database based on a GFF3 file",
                 NULL,
                 "Milot Mirdita <milot@mirdita.de>",
-                "<i:gff3File> <i:sequenceDB> <o:sequenceDB>",
-                CITATION_MMSEQS2, {{"gff3File", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
+                "<i:gff3File1> ... <i:gff3FileN> <i:sequenceDB> <o:sequenceDB>",
+                CITATION_MMSEQS2, {{"gff3File", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::flatfile },
                                                            {"sequenceDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
                                                            {"sequenceDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::sequenceDb }}},
         {"maskbygff",            maskbygff,            &par.gff2db,               COMMAND_SPECIAL,
@@ -1120,6 +1174,14 @@ std::vector<Command> baseCommands = {
                                                            {"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
                                                            {"resultDb", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
                                                            {"headerDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::genericDb}}},
+        {"nrtotaxmapping",       nrtotaxmapping,       &par.onlythreads,          COMMAND_SPECIAL,
+                "Create taxonomy mapping for NR database",
+                NULL,
+                "Milot Mirdita <milot@mirdita.de>",
+                "<i:accession2taxid1> ... <i:accession2taxidN> <i:seqDB> <o:tsvFile>",
+                CITATION_TAXONOMY, {{"ncbiTaxDir", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::VARIADIC, &DbValidator::flatfileAndStdin },
+                                    {"nrSeqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                                    {"mappingTSV", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile }}},
         {"extractdomains",       extractdomains,       &par.extractdomains,       COMMAND_SPECIAL,
                 "Extract highest scoring alignment regions for each sequence from BLAST-tab file",
                 NULL,

@@ -9,6 +9,7 @@ set(commons_header_files
         commons/DBConcat.h
         commons/DBReader.h
         commons/DBWriter.h
+        commons/IntervalArray.h
         commons/Debug.h
         commons/Domain.h
         commons/ExpressionParser.h
@@ -31,6 +32,7 @@ set(commons_header_files
         commons/PatternCompiler.h
         commons/ScoreMatrix.h
         commons/Sequence.h
+        commons/StringBlock.h
         commons/SubstitutionMatrix.h
         commons/SubstitutionMatrixProfileStates.h
         commons/tantan.h

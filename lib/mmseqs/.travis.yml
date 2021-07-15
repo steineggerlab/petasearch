@@ -21,7 +21,7 @@ jobs:
         - g++-8
         - gcc-8
     arch: arm64
-    env: CC=gcc-8 CXX=g++-8 MMSEQS_NUM_THREADS=8
+    env: CC=gcc-8 CXX=g++-8 MMSEQS_NUM_THREADS=4
     dist: bionic
   - addons:
       apt:
@@ -32,7 +32,7 @@ jobs:
           - gcc-8
     arch: ppc64le
     dist: bionic
-    env: CC=gcc-8 CXX=g++-8 MMSEQS_NUM_THREADS=8
+    env: CC=gcc-8 CXX=g++-8 MMSEQS_NUM_THREADS=4
   - addons:
       apt:
         packages:
@@ -121,7 +121,7 @@ script:
     if [ -e "/opt/intel/inteloneapi/setvars.sh" ]; then source /opt/intel/inteloneapi/setvars.sh; fi; \
     mkdir build; cd build; \
     cmake -DHAVE_MPI="$([[ -z "$MPI" ]]; echo $?)" -DENABLE_WERROR=1 -DHAVE_TESTS=1 ..; \
-    make -j $(nproc --all); \
+    make -j ${MMSEQS_NUM_THREADS:-$(nproc --all)}; \
     mkdir path; \
     printf '#!/bin/sh\n/usr/bin/tee "$@" | tail\n' > path/tee; \
     chmod +x path/tee; \

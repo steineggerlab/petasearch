@@ -23,11 +23,11 @@ void AlignmentSymmetry::readInData(DBReader<unsigned int>*alnDbr, DBReader<unsig
     const int alnType = alnDbr->getDbtype();
     const size_t dbSize = seqDbr->getSize();
     const size_t flushSize = 1000000;
+    Debug::Progress progress(dbSize);
     size_t iterations = static_cast<int>(ceil(static_cast<double>(dbSize)/static_cast<double>(flushSize)));
     for(size_t it = 0; it < iterations; it++) {
         size_t start = it * flushSize;
         size_t bucketSize = std::min(dbSize - (it * flushSize), flushSize);
-        Debug::Progress progress(bucketSize);
 #pragma omp parallel
         {
             unsigned int thread_idx = 0;
@@ -56,6 +56,8 @@ void AlignmentSymmetry::readInData(DBReader<unsigned int>*alnDbr, DBReader<unsig
                         } else if (Parameters::isEqualDbtype(alnType, Parameters::DBTYPE_PREFILTER_RES) ||
                                    Parameters::isEqualDbtype(alnType, Parameters::DBTYPE_PREFILTER_REV_RES)) {
                             //column 1 = alignment score or sequence identity [0-100]
+                            elementScoreTable[i][0] = (unsigned short) (USHRT_MAX);
+                        } else if (Parameters::isEqualDbtype(alnType, Parameters::DBTYPE_CLUSTER_RES)) {
                             elementScoreTable[i][0] = (unsigned short) (USHRT_MAX);
                         }
                     }
@@ -93,6 +95,9 @@ void AlignmentSymmetry::readInData(DBReader<unsigned int>*alnDbr, DBReader<unsig
                             Util::parseByColumnNumber(data, similarity, 1);
                             short sim = atoi(similarity);
                             elementScoreTable[i][writePos] = (unsigned short) (sim >0 ? sim : -sim);
+                        }
+                        else if (Parameters::isEqualDbtype(alnType, Parameters::DBTYPE_CLUSTER_RES)) {
+                            elementScoreTable[i][writePos] = (unsigned short) (USHRT_MAX);
                         }
                         else {
                             Debug(Debug::ERROR) << "Alignment format is not supported!\n";

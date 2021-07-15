@@ -13,12 +13,15 @@
 #define M_PI (3.14159265358979323846264338327950288)
 #endif
 
-#ifndef __has_attribute
-#define __has_attribute(x) 0
+#if defined(__has_attribute)
+#  define HAS_ATTRIBUTE(x) __has_attribute(x)
+#else
+#  define HAS_ATTRIBUTE(x) (0)
 #endif
 
+
 #ifndef MAY_ALIAS
-#if defined(__GNUC__) || __has_attribute(__may_alias__)
+#if HAS_ATTRIBUTE(__may_alias__)
 #  define MAY_ALIAS(x) x __attribute__((__may_alias__))
 #else
 #  define MAY_ALIAS(x) x
@@ -155,13 +158,6 @@ public:
 
     static inline unsigned short sadd16(const unsigned short a, const unsigned short b) {
         return (a > 0xFFFF - b) ? 0xFFFF : a + b;
-    }
-
-    // Compute the sum of bits of one or two integers
-    static inline int popCount(int i) {
-        i = i - ((i >> 1) & 0x55555555);
-        i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
-        return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
     }
 
     static inline float getCoverage(size_t start, size_t end, size_t length) {

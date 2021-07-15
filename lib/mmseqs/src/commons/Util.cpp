@@ -389,7 +389,7 @@ uint64_t Util::getL2CacheSize() {
 
 char Util::touchMemory(const char *memory, size_t size) {
 #ifdef HAVE_POSIX_MADVISE
-    if (posix_madvise ((void*)memory, size, POSIX_MADV_WILLNEED) != 0){
+    if (size > 0 && posix_madvise ((void*)memory, size, POSIX_MADV_WILLNEED) != 0){
         Debug(Debug::ERROR) << "posix_madvise returned an error (touchMemory)\n";
     }
 #endif
@@ -578,6 +578,8 @@ int Util::swapCoverageMode(int covMode) {
             return Parameters::COV_MODE_LENGTH_TARGET;
         case Parameters::COV_MODE_LENGTH_TARGET:
             return Parameters::COV_MODE_LENGTH_QUERY;
+        case Parameters::COV_MODE_LENGTH_SHORTER:
+            return Parameters::COV_MODE_LENGTH_SHORTER;
     }
     Debug(Debug::ERROR) << "Unknown coverage mode " << covMode << ".\n";
     EXIT(EXIT_FAILURE);

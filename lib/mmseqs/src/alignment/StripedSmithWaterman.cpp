@@ -51,8 +51,8 @@ SmithWaterman::SmithWaterman(size_t maxSequenceLength, int aaSize, bool aaBiasCo
 	profile->composition_bias_rev   = new int8_t[maxSequenceLength];
 	profile->profile_word_linear = new short*[aaSize];
 	profile_word_linear_data = new short[aaSize*maxSequenceLength];
-	profile->mat_rev            = new int8_t[maxSequenceLength * aaSize * 2];
-	profile->mat                = new int8_t[maxSequenceLength * aaSize * 2];
+	profile->mat_rev            = new int8_t[std::max(maxSequenceLength, (size_t)aaSize) * aaSize * 2];
+	profile->mat                = new int8_t[std::max(maxSequenceLength, (size_t)aaSize) * aaSize * 2];
 	tmp_composition_bias   = new float[maxSequenceLength];
 	/* array to record the largest score of each reference position */
 	maxColumn = new uint8_t[maxSequenceLength*sizeof(uint16_t)];
@@ -1053,7 +1053,7 @@ unsigned short SmithWaterman::sse2_extract_epi16(__m128i v, int pos) {
 }
 
 float SmithWaterman::computeCov(unsigned int startPos, unsigned int endPos, unsigned int len) {
-	return (std::min(len, endPos) - startPos + 1) / (float) len;
+	return (std::min(len, std::max(startPos, endPos)) - std::min(startPos, endPos) + 1) / (float) len;
 }
 
 s_align SmithWaterman::scoreIdentical(unsigned char *dbSeq, int L, EvalueComputation * evaluer, int alignmentMode) {

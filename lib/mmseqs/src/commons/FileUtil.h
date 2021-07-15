@@ -62,6 +62,11 @@ public:
     static int parseDbType(const char *name);
 
     static std::string createTemporaryDirectory(const std::string& basePath, const std::string& subDirectory);
+
+    static void fixRlimitNoFile();
+
+    // remove forbidden symbols in from filenames
+    static std::string sanitizeFilename(std::string name);
 };
 
 
