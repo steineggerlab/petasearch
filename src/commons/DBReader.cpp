@@ -117,7 +117,7 @@ template <typename T> bool DBReader<T>::open(int accessType){
         for(size_t fileIdx = 0; fileIdx < dataFileNames.size(); fileIdx++){
             FILE* dataFile = fopen(dataFileNames[fileIdx].c_str(), "r");
             if (dataFile == NULL) {
-                Debug(Debug::ERROR) << "Can not open data file " << dataFileName << "!\n";
+                Debug(Debug::ERROR) << "Cannot open data file " << dataFileName << "!\n";
                 EXIT(EXIT_FAILURE);
             }
             size_t dataSize;
@@ -137,13 +137,13 @@ template <typename T> bool DBReader<T>::open(int accessType){
     }
     if (dataMode & USE_LOOKUP || dataMode & USE_LOOKUP_REV) {
         std::string lookupFilename = (std::string(dataFileName) + ".lookup");
-        if(FileUtil::fileExists(lookupFilename.c_str()) == false){
-            Debug(Debug::ERROR) << "Can not open lookup file " << lookupFilename << "!\n";
+        MemoryMapped lookupData(lookupFilename, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
+        if (lookupData.isValid() == false) {
+            Debug(Debug::ERROR) << "Cannot open lookup file " << lookupFilename << "!\n";
             EXIT(EXIT_FAILURE);
         }
-        MemoryMapped indexData(lookupFilename, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
-        char* lookupDataChar = (char *) indexData.getData();
-        size_t lookupDataSize = indexData.size();
+        char* lookupDataChar = (char *) lookupData.getData();
+        size_t lookupDataSize = lookupData.size();
         lookupSize = Util::ompCountLines(lookupDataChar, lookupDataSize, threads);
         lookup = new(std::nothrow) LookupEntry[this->lookupSize];
         incrementMemory(sizeof(LookupEntry) * this->lookupSize);
@@ -153,27 +153,22 @@ template <typename T> bool DBReader<T>::open(int accessType){
         } else {
             SORT_PARALLEL(lookup, lookup + lookupSize, LookupEntry::compareByAccession);
         }
-        indexData.close();
+        lookupData.close();
     }
     bool isSortedById = false;
     if (externalData == false) {
-        if(FileUtil::fileExists(indexFileName)==false){
-            Debug(Debug::ERROR) << "Can not open index file " << indexFileName << "!\n";
-            EXIT(EXIT_FAILURE);
-        }
         MemoryMapped indexData(indexFileName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
         if (!indexData.isValid()){
-            Debug(Debug::ERROR) << "Can map open index file " << indexFileName << "\n";
+            Debug(Debug::ERROR) << "Cannot open index file " << indexFileName << "\n";
             EXIT(EXIT_FAILURE);
         }
         char* indexDataChar = (char *) indexData.getData();
         size_t indexDataSize = indexData.size();
         size = Util::ompCountLines(indexDataChar, indexDataSize, threads);
 
-        index = new(std::nothrow) Index[this->size];
+        index = new(std::nothrow) Index[size];
+        Util::checkAllocation(index, "Cannot allocate index memory in DBReader");
         incrementMemory(sizeof(Index) * size);
-
-        Util::checkAllocation(index, "Can not allocate index memory in DBReader");
 
         bool isSortedById = readIndex(indexDataChar, indexDataSize, index, dataSize);
         indexData.close();
@@ -200,7 +195,7 @@ template <typename T> bool DBReader<T>::open(int accessType){
             compressedBuffers[i] = (char*) malloc(compressedBufferSizes[i]);
             incrementMemory(compressedBufferSizes[i]);
             if(compressedBuffers[i]==NULL){
-                Debug(Debug::ERROR) << "Can not allocate compressedBuffer!\n";
+                Debug(Debug::ERROR) << "Cannot allocate compressedBuffer!\n";
                 EXIT(EXIT_FAILURE);
             }
             dstream[i] = ZSTD_createDStream();
@@ -233,7 +228,7 @@ void DBReader<std::string>::sortIndex(bool isSortedById) {
         SORT_PARALLEL(index, index + size, Index::compareById);
     } else {
         if(accessType != NOSORT && accessType != HARDNOSORT){
-            Debug(Debug::ERROR) << "DBReader<std::string> can not be opened in sort mode\n";
+            Debug(Debug::ERROR) << "DBReader<std::string> cannot be opened in sort mode\n";
             EXIT(EXIT_FAILURE);
         }
     }
@@ -432,8 +427,9 @@ template <typename T> char* DBReader<T>::mmapData(FILE * file, size_t *dataSize)
             }
         } else {
             ret = static_cast<char*>(malloc(*dataSize));
-            incrementMemory(*dataSize);
             Util::checkAllocation(ret, "Not enough system memory to read in the whole data file.");
+            incrementMemory(*dataSize);
+
             size_t result = fread(ret, 1, *dataSize, file);
             if (result != *dataSize) {
                 Debug(Debug::ERROR) << "Failed to read in datafile (" << dataFileName << "). Error " << errno << "\n";
@@ -452,7 +448,7 @@ template <typename T> void DBReader<T>::remapData(){
         for(size_t fileIdx = 0; fileIdx < dataFileNames.size(); fileIdx++){
             FILE* dataFile = fopen(dataFileNames[fileIdx].c_str(), "r");
             if (dataFile == NULL) {
-                Debug(Debug::ERROR) << "Can not open data file " << dataFileNames[fileIdx] << "!\n";
+                Debug(Debug::ERROR) << "Cannot open data file " << dataFileNames[fileIdx] << "!\n";
                 EXIT(EXIT_FAILURE);
             }
             size_t dataSize = 0;
@@ -654,9 +650,9 @@ template <typename T> size_t DBReader<T>::getLookupIdByAccession(const std::stri
     }
     LookupEntry val;
     val.entryName = accession;
-    size_t id = std::upper_bound(lookup, lookup + lookupSize, val, LookupEntry::compareByAccession) - lookup;
+    size_t id = std::upper_bound(lookup, lookup + lookupSize, val, LookupEntry::compareByAccessionOnly) - lookup;
 
-    return (id < lookupSize && lookup[id].entryName == accession) ? id : SIZE_MAX;
+    return (id < lookupSize && lookup[id].entryName.compare(accession) == 0) ? id : SIZE_MAX;
 }
 
 template <typename T> T DBReader<T>::getLookupKey(size_t id){
@@ -1000,7 +996,7 @@ void DBReader<T>::setSequentialAdvice() {
 #ifdef HAVE_POSIX_MADVISE
     for(size_t i = 0; i < dataFileCnt; i++){
         size_t dataSize = dataSizeOffset[i+1] - dataSizeOffset[i];
-        if (posix_madvise (dataFiles[i], dataSize, POSIX_MADV_SEQUENTIAL) != 0){
+        if (dataSize > 0 && posix_madvise (dataFiles[i], dataSize, POSIX_MADV_SEQUENTIAL) != 0){
             Debug(Debug::ERROR) << "posix_madvise returned an error " << dataFileName << "\n";
         }
     }
@@ -1090,12 +1086,15 @@ void DBReader<T>::removeDb(const std::string &databaseName){
     }
 }
 
-template<typename T>
-void DBReader<T>::softlinkDb(const std::string &databaseName, const std::string &outDb, DBFiles::Files dbFilesFlags) {
+void copyLinkDb(const std::string &databaseName, const std::string &outDb, DBFiles::Files dbFilesFlags, bool link) {
     if (dbFilesFlags & DBFiles::DATA) {
         std::vector<std::string> names = FileUtil::findDatafiles(databaseName.c_str());
         if (names.size() == 1) {
-            FileUtil::symlinkAbs(names[0], outDb);
+            if (link) {
+                FileUtil::symlinkAbs(names[0].c_str(), outDb.c_str());
+            } else {
+                FileUtil::copyFile(names[0].c_str(), outDb.c_str());
+            }
         } else {
             for (size_t i = 0; i < names.size(); i++) {
                 std::string::size_type idx = names[i].rfind('.');
@@ -1103,11 +1102,15 @@ void DBReader<T>::softlinkDb(const std::string &databaseName, const std::string 
                 if (idx != std::string::npos) {
                     ext = names[i].substr(idx);
                 } else {
-                    Debug(Debug::ERROR) << "File extention was not found but it is expected to be there!\n"
+                    Debug(Debug::ERROR) << "File extension was not found but it is expected to be there!\n"
                                         << "Filename: " << names[i] << ".\n";
                     EXIT(EXIT_FAILURE);
                 }
-                FileUtil::symlinkAbs(names[i], outDb + ext);
+                if (link) {
+                    FileUtil::symlinkAbs(names[i], outDb + ext);
+                } else {
+                    FileUtil::copyFile(names[i].c_str(), (outDb + ext).c_str());
+                }
             }
         }
     }
@@ -1140,9 +1143,24 @@ void DBReader<T>::softlinkDb(const std::string &databaseName, const std::string 
     for (size_t i = 0; i < ARRAY_SIZE(suffices); ++i) {
         std::string file = databaseName + suffices[i].suffix;
         if (dbFilesFlags & suffices[i].flag && FileUtil::fileExists(file.c_str())) {
-            FileUtil::symlinkAbs(file, outDb + suffices[i].suffix);
+            if (link) {
+                FileUtil::symlinkAbs(file, outDb + suffices[i].suffix);
+            } else {
+                FileUtil::copyFile(file.c_str(), (outDb + suffices[i].suffix).c_str());
+            }
         }
     }
+}
+
+
+template<typename T>
+void DBReader<T>::softlinkDb(const std::string &databaseName, const std::string &outDb, DBFiles::Files dbFilesFlags) {
+    copyLinkDb(databaseName, outDb, dbFilesFlags, true);
+}
+
+template<typename T>
+void DBReader<T>::copyDb(const std::string &databaseName, const std::string &outDb, DBFiles::Files dbFilesFlags) {
+    copyLinkDb(databaseName, outDb, dbFilesFlags, false);
 }
 
 template<typename T>

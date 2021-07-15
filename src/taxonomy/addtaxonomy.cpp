@@ -70,10 +70,10 @@ int addtaxonomy(int argc, const char **argv, const Command &command) {
             if (par.pickIdFrom == Parameters::EXTRACT_QUERY) {
                 val.first = key;
                 mappingIt = std::upper_bound(mapping.begin(), mapping.end(), val, compareToFirstInt);
-            }
-            if (mappingIt == mapping.end() || mappingIt->first != val.first) {
-                taxonNotFound++;
-                continue;
+                if (mappingIt == mapping.end() || mappingIt->first != val.first) {
+                    taxonNotFound++;
+                    continue;
+                }
             }
 
             while (*data != '\0') {
@@ -87,11 +87,11 @@ int addtaxonomy(int argc, const char **argv, const Command &command) {
                     unsigned int id = Util::fast_atoi<unsigned int>(entry[0]);
                     val.first = id;
                     mappingIt = std::upper_bound(mapping.begin(), mapping.end(), val, compareToFirstInt);
-                }
-                if (mappingIt == mapping.end() || mappingIt->first != val.first) {
-                    taxonNotFound++;
-                    data = Util::skipLine(data);
-                    continue;
+                    if (mappingIt == mapping.end() || mappingIt->first != val.first) {
+                        taxonNotFound++;
+                        data = Util::skipLine(data);
+                        continue;
+                    }
                 }
                 unsigned int taxon = mappingIt->second;
                 TaxonNode const *node = t->taxonNode(taxon, false);
@@ -103,18 +103,25 @@ int addtaxonomy(int argc, const char **argv, const Command &command) {
                 char *nextData = Util::skipLine(data);
                 size_t dataSize = nextData - data;
                 result.append(data, dataSize - 1);
-                result += '\t' + SSTR(node->taxId) + '\t' + node->rank + '\t' + node->name;
+                result.append(1, '\t');
+                result.append(SSTR(node->taxId));
+                result.append(1, '\t');
+                result.append(t->getString(node->rankIdx));
+                result.append(1, '\t');
+                result.append(t->getString(node->nameIdx));
                 if (!ranks.empty()) {
-                    std::string lcaRanks = Util::implode(t->AtRanks(node, ranks), ';');
-                    result += '\t' + lcaRanks;
+                    result.append(1, '\t');
+                    result.append(Util::implode(t->AtRanks(node, ranks), ';'));
                 }
                 if (par.showTaxLineage == 1) {
-                    result += '\t' + t->taxLineage(node, true);
+                    result.append(1, '\t');
+                    result.append(t->taxLineage(node, true));
                 }
                 if (par.showTaxLineage == 2) {
-                    result += '\t' + t->taxLineage(node, false);
+                    result.append(1, '\t');
+                    result.append(t->taxLineage(node, false));
                 }
-                result += '\n';
+                result.append(1, '\n');
                 data = Util::skipLine(data);
             }
             writer.writeData(result.c_str(), result.size(), key, thread_idx);

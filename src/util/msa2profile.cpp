@@ -195,6 +195,11 @@ int msa2profile(int argc, const char **argv, const Command &command) {
                 }
             }
 
+            // allow skipping first sequence in case of consensus, etc
+            if (par.skipQuery == true) {
+                kseq_read(seq);
+            }
+
             while (kseq_read(seq) >= 0) {
                 if (seq->name.l == 0 || seq->seq.l == 0) {
                     Debug(Debug::WARNING) << "Invalid fasta sequence " << setSize << " in entry " << queryKey << "\n";
@@ -206,6 +211,10 @@ int msa2profile(int argc, const char **argv, const Command &command) {
                     Debug(Debug::WARNING) << "Member sequence " << setSize << " in entry " << queryKey << " too long\n";
                     fastaError = true;
                     break;
+                }
+
+                if ((par.msaType == 0 || par.msaType == 1) && strncmp("ss_", seq->name.s, strlen("ss_")) == 0) {
+                    continue;
                 }
 
                 // first sequence is always the query
@@ -326,15 +335,7 @@ int msa2profile(int argc, const char **argv, const Command &command) {
             PSSMCalculator::Profile pssmRes =
                     calculator.computePSSMFromMSA(filteredSetSize, centerLength,
                                                   (const char **) msaSequences, par.wg);
-            for(size_t pos = 0; pos < centerLength; pos++){
-                for (size_t aa = 0; aa < Sequence::PROFILE_AA_SIZE; aa++) {
-                    result.push_back(Sequence::scoreMask(pssmRes.prob[pos*Sequence::PROFILE_AA_SIZE + aa]));
-                }
-                // write query, consensus sequence and neffM
-                result.push_back(static_cast<unsigned char>(msaSequences[0][pos]));
-                result.push_back(subMat.aa2num[static_cast<int>(pssmRes.consensus[pos])]);
-                result += MathUtil::convertNeffToChar(pssmRes.neffM[pos]);
-            }
+            pssmRes.toBuffer((const unsigned char*)msaSequences[0], centerLength, subMat, result);
 
             if (mode & DBReader<unsigned int>::USE_LOOKUP) {
                 size_t lookupId = qDbr.getLookupIdByKey(queryKey);
@@ -356,7 +357,7 @@ int msa2profile(int argc, const char **argv, const Command &command) {
     resultWriter.close(true);
     qDbr.close();
 
-    DBReader<unsigned int>::softlinkDb(par.db1, par.db2, (DBFiles::Files)(DBFiles::LOOKUP | DBFiles::SOURCE));
+    DBReader<unsigned int>::copyDb(par.db1, par.db2, (DBFiles::Files)(DBFiles::LOOKUP | DBFiles::SOURCE));
 
     if (sequenceReader != NULL) {
         sequenceReader->close();

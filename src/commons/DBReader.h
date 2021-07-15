@@ -125,8 +125,24 @@ public:
             return false;
         }
 
-        static bool compareByAccession(const LookupEntry& x, const LookupEntry& y){
-            return x.entryName.compare(y.entryName);
+        static bool compareByAccessionOnly(const LookupEntry& x, const LookupEntry& y){
+            return x.entryName.compare(y.entryName) <= 0;
+        }
+
+        static bool compareByAccession(const LookupEntry& x, const LookupEntry& y) {
+            if (x.entryName < y.entryName)
+                return true;
+            if (y.entryName < x.entryName)
+                return false;
+            if (x.id < y.id)
+                return true;
+            if (y.id < x.id)
+                return false;
+            if (x.fileNumber < y.fileNumber)
+                return true;
+            if (y.fileNumber < x.fileNumber)
+                return false;
+            return false;
         }
     };
 
@@ -278,6 +294,7 @@ public:
     static void removeDb(const std::string &databaseName);
 
     static void softlinkDb(const std::string &databaseName, const std::string &outDb, DBFiles::Files dbFilesFlags = DBFiles::ALL);
+    static void copyDb(const std::string &databaseName, const std::string &outDb, DBFiles::Files dbFilesFlags = DBFiles::ALL);
 
     char *mmapData(FILE *file, size_t *dataSize);
 

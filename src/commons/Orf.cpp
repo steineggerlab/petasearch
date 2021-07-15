@@ -146,7 +146,7 @@ bool Orf::setSequence(const char* seq, size_t length) {
     for(size_t i = 0; i < sequenceLength; ++i) {
         reverseComplement[i] = complement(sequence[sequenceLength - i - 1]);
         if(reverseComplement[i] == '.') {
-            return false;
+            reverseComplement[i] = 'N';
         }
     }
 
@@ -207,7 +207,11 @@ inline bool isInCodons(const char* sequence, simd_int codons, simd_int) {
     // s: ATGA GTGA TGAT GAGT
     // c: ATGA ATGA ATGA ATGA
     simd_int c = simdi32_set(*(unsigned int*)sequence);
+#if SIMDE_ENDIAN_ORDER == SIMDE_ENDIAN_LITTLE
     simd_int mask = simdi32_set(0x00FFFFFF);
+#else
+    simd_int mask = simdi32_set(0xFFFFFF00);
+#endif
     // c: ATG0 ATG0 ATG0 ATG0
     c = simdi_and(mask, c);
     // t: FFFF 0000 0000 0000
@@ -246,12 +250,15 @@ void Orf::findForward(const char *sequence, const size_t sequenceLength, std::ve
 
     // Offset the start position by reading frame
     size_t from[FRAMES] = {frameOffset[0], frameOffset[1], frameOffset[2]};
-
     simd_int startCodonsHi = simdi_load((simd_int*)startCodons);
+    simd_int stopCodonsHi  = simdi_load((simd_int*)stopCodons);
+#ifdef AVX2
+    simd_int startCodonsLo = simdi_setzero();
+    simd_int stopCodonsLo  = simdi_setzero();
+#else
     simd_int startCodonsLo = simdi_loadu((simd_int*)(startCodons + 16));
-
-    simd_int stopCodonsHi = simdi_load((simd_int*)stopCodons);
-    simd_int stopCodonsLo = simdi_loadu((simd_int*)(stopCodons + 16));
+    simd_int stopCodonsLo  = simdi_loadu((simd_int*)(stopCodons + 16));
+#endif
     for (size_t i = 0;  i < sequenceLength - (FRAMES - 1);  i += FRAMES) {
         for(size_t position = i; position < i + FRAMES; position++) {
             // make everything that is not CHAR_MAX upper case

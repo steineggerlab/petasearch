@@ -72,7 +72,7 @@ std::vector<DatabaseDownload> downloads = {{
     "Non-redundant protein sequences from GenPept, Swissprot, PIR, PDF, PDB, and NCBI RefSeq.",
     "NCBI Resource Coordinators: Database resources of the National Center for Biotechnology Information. Nucleic Acids Res 46(D1), D8-D13 (2018)",
     "https://ftp.ncbi.nlm.nih.gov/blast/db/FASTA",
-    false, Parameters::DBTYPE_AMINO_ACIDS, databases_sh, databases_sh_len,
+    true, Parameters::DBTYPE_AMINO_ACIDS, databases_sh, databases_sh_len,
     { }
 }, {
     "NT",
@@ -80,6 +80,13 @@ std::vector<DatabaseDownload> downloads = {{
     "NCBI Resource Coordinators: Database resources of the National Center for Biotechnology Information. Nucleic Acids Res 46(D1), D8-D13 (2018)",
     "https://ftp.ncbi.nlm.nih.gov/blast/db/FASTA",
     false, Parameters::DBTYPE_NUCLEOTIDES, databases_sh, databases_sh_len,
+    { }
+}, {
+    "GTDB",
+    "Genome Taxonomy Database is a phylogenetically consistent, genome-based taxonomy that provides rank-normalized classifications for ~150,000 bacterial and archaeal genomes from domain to genus.",
+    "Parks et al: A complete domain-to-species taxonomy for Bacteria and Archaea. Nat Biotechnol 38(9), 1079–1086 (2020)",
+    "https://gtdb.ecogenomic.org",
+    true, Parameters::DBTYPE_AMINO_ACIDS, databases_sh, databases_sh_len,
     { }
 }, {
     "PDB",
@@ -117,10 +124,24 @@ std::vector<DatabaseDownload> downloads = {{
     false, Parameters::DBTYPE_HMM_PROFILE, databases_sh, databases_sh_len,
     { }
 }, {
+    "CDD",
+    "Conserved Domain Database is a protein annotation resource consisting of well-annotated MSAs for ancient domains and full-length proteins.",
+    "Lu et al: CDD/SPARCLE: the conserved domain database in 2020. Nucleic Acids Res 48(D1), D265–D268 (2020)",
+    "https://www.ncbi.nlm.nih.gov/Structure/cdd/cdd.shtml",
+    false, Parameters::DBTYPE_HMM_PROFILE, databases_sh, databases_sh_len,
+    { }
+}, {
     "eggNOG",
     "eggNOG is a hierarchical, functionally and phylogenetically annotated orthology resource",
     "Huerta-Cepas et al: eggNOG 5.0: a hierarchical, functionally and phylogenetically annotated orthology resource based on 5090 organisms and 2502 viruses. Nucleic Acids Res 47(D1), D309–D314 (2019)",
     "http://eggnog5.embl.de",
+    false, Parameters::DBTYPE_HMM_PROFILE, databases_sh, databases_sh_len,
+    { }
+}, {
+    "VOGDB",
+    "VOGDB is a continously updated resource of Virus Orthologous Groups",
+    "Marz et al: Challenges in RNA virus bioinformatics. Bioinformatics 30, 1793–9 (2014)",
+    "https://vogdb.org",
     false, Parameters::DBTYPE_HMM_PROFILE, databases_sh, databases_sh_len,
     { }
 }, {
@@ -204,7 +225,9 @@ std::string listDatabases(const Command &command, bool detailed) {
         description.append(1, '\t');
         appendPadded(description, (downloads[i].hasTaxonomy ? "yes" : "-"), 8, PAD_RIGHT);
         description.append(1, '\t');
-        appendPadded(description, downloads[i].url, urlWidth);
+        // last field in line should not be padded
+        //appendPadded(description, downloads[i].url, urlWidth);
+        description.append(downloads[i].url);
         description.append(1, '\n');
         if (detailed) {
             if (strlen(downloads[i].description) > 0) {
@@ -217,6 +240,7 @@ std::string listDatabases(const Command &command, bool detailed) {
                 description.append(downloads[i].citation);
                 description.append(1, '\n');
             }
+            description.append(1, '\n');
         }
     }
 
@@ -247,7 +271,7 @@ int databases(int argc, const char **argv, const Command &command) {
     }
     par.printParameters(command.cmd, argc, argv, par.databases);
     std::string tmpDir = par.db3;
-    std::string hash = SSTR(par.hashParameter(par.filenames, par.databases));
+    std::string hash = SSTR(par.hashParameter(command.databases, par.filenames, par.databases));
     if (par.reuseLatest) {
         hash = FileUtil::getHashFromSymLink(tmpDir + "/latest");
     }
