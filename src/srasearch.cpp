@@ -9,6 +9,8 @@ const char* main_author = "Jonas Huegel";
 const char* show_extended_help = "1";
 const char* show_bash_info = "1";
 bool hide_base_commands = true;
+void updateValidation();
+void (*validatorUpdate)(void) = updateValidation;
 
 LocalParameters& localPar = LocalParameters::getLocalInstance();
 
@@ -71,4 +73,4 @@ std::vector<struct Command> commands = {
         }
 };
 
-
+void updateValidation() {}
