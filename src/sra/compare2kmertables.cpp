@@ -389,7 +389,6 @@ bool notFirst = false;
         while (read(fdTargetTable, targetTableReadBuffer, MEM_SIZE_16MB) > 0) {
             targetTableSize += MEM_SIZE_16MB;
             currentTargetPos = startPosTargetTable;
-            currentIDPos = startPosIDTable;
             // cover the rare case that the first (real) target entry is larger than USHRT_MAX
             while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
                 currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
