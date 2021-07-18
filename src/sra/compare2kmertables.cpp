@@ -383,6 +383,8 @@ bool notFirst = false;
         bool first = true;
         uint64_t currDiffIndex = 0;
 
+        bool breakOut = false;
+
         Debug(Debug::INFO) << "start comparing \n";
 
         Timer timer;
@@ -417,7 +419,7 @@ bool notFirst = false;
                     endPosQueryTable = currentQueryPos;
                     ++currentTargetPos;
                     ++currentIDPos;
-                    if (UNLIKELY(currentIDPos > endIDPos)) {
+                    if (UNLIKELY(currentIDPos >= endIDPos)) {
                         read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
                         IDTableSize += MEM_SIZE_32MB;
                         currentIDPos = startPosIDTable;
@@ -445,7 +447,7 @@ bool notFirst = false;
                        currentKmer < currentQueryPos->Query.kmer) {
                     ++currentTargetPos;
                     ++currentIDPos;
-                    if (UNLIKELY(currentIDPos > endIDPos)) {
+                    if (UNLIKELY(currentIDPos >= endIDPos)) {
                         read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
                         IDTableSize += MEM_SIZE_32MB;
                         currentIDPos = startPosIDTable;
@@ -456,14 +458,18 @@ bool notFirst = false;
                         ++currentTargetPos;
                     }
                     if (UNLIKELY(currentTargetPos >= endTargetPos)) {
+                        breakOut = true;
                         break;
                     }
                     currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
                     currentKmer += currDiffIndex;
                     currDiffIndex = 0;
                 }
+                if (UNLIKELY(breakOut)) {
+                    breakOut = false;
+                    break;
+                }
             }
-
         }
 
         double timediff = timer.getTimediff();
