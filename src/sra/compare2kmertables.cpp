@@ -372,6 +372,7 @@ bool notFirst = false;
 
         unsigned int *startPosIDTable, *currentIDPos, *endIDPos;
         startPosIDTable = (unsigned int *) IDTableReadBuffer;
+        currentIDPos = startPosIDTable;
         endIDPos = startPosIDTable + (MEM_SIZE_32MB / sizeof(unsigned int));
 
         QueryTableEntry *currentQueryPos = startPosQueryTable;
