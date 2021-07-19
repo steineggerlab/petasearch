@@ -68,13 +68,13 @@ shared(par, reader)
                        << timer.lap() << "\n"
                        << "Extracting k-mers\n";
 
-    const size_t pageSize = Util::getPageSize();
-    const size_t threadBufferSize = 16 * pageSize;
+    size_t pageSize = Util::getPageSize();
+    size_t threadBufferSize = 16 * pageSize;
 
     size_t tableIndex = 0;
     Debug::Progress progress(reader.getSize());
 #pragma omp parallel default(none) \
-shared(par, subMat, seqType, reader, tableIndex, targetTable)
+shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBufferSize)
     {
         unsigned int thread_idx = 0;
 #ifdef OPENMP

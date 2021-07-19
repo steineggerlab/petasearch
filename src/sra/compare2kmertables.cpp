@@ -145,7 +145,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     size_t tableCapacity = (size_t) (similarKmerFactor * (kmerCount + 1));
     queryTable.reserve(tableCapacity);
 
-    const int xIndex = subMat->aa2num[(int)'X'];
+    int xIndex = subMat->aa2num[(int)'X'];
 
     ScoreMatrix twoMatrix, threeMatrix;
     if (!useProfileSearch) {
@@ -156,7 +156,8 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     Debug::Progress progress(reader.getSize());
 
 #pragma omp parallel default(none) \
-shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch)
+shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch, \
+xIndex)
     {
         unsigned int thread_idx = 0;
         unsigned int total_threads = 1;
