@@ -16,7 +16,7 @@ targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-pc-windows
 rustdoc-args = ["-C", "target-feature=+avx2,+simd128"]
 
 [lib]
-crate-type = ["lib", "cdylib"]
+crate-type = ["lib", "staticlib"]
 
 [features]
 debug = ["debug_size"]
