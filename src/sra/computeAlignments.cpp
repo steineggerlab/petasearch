@@ -10,6 +10,7 @@
 #include "DistanceCalculator.h"
 #include "Matcher.h"
 #include "QueryTableEntry.h"
+#include "block_aligner.h"
 
 #include "omptl/omptl_algorithm"
 
