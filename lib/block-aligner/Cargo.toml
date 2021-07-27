@@ -1,0 +1,48 @@
+[package]
+name = "block-aligner"
+version = "0.1.5"
+authors = ["c0deb0t <daniel.liu02@gmail.com>"]
+edition = "2018"
+license = "MIT"
+description = "SIMD-accelerated library for computing global and X-drop affine gap sequence alignments using an adaptive block-based algorithm."
+homepage = "https://github.com/Daniel-Liu-c0deb0t/block-aligner"
+repository = "https://github.com/Daniel-Liu-c0deb0t/block-aligner"
+readme = "README.md"
+keywords = ["SIMD", "string-distance", "alignment", "biology", "edit-distance"]
+categories = ["algorithms", "hardware-support", "science", "text-processing"]
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "i686-pc-windows-msvc", "wasm32-wasi"]
+rustdoc-args = ["-C", "target-feature=+avx2,+simd128"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[features]
+debug = ["debug_size"]
+debug_size = []
+mca = []
+
+[profile.release]
+debug-assertions = false
+lto = "thin"
+panic = "abort"
+
+[profile.bench]
+debug-assertions = false
+lto = "thin"
+
+[dependencies]
+#wee_alloc = "^0.4"
+rand = { version = "^0.8", default-features = false, features = ["std_rng", "alloc"] }
+
+[dev-dependencies]
+bio = "^0.33"
+
+[build-dependencies]
+cbindgen = "^0.19.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+parasailors = "^0.3.1"
+image = "^0.23.14"
+imageproc = "^0.22.0"
