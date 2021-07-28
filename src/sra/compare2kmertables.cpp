@@ -14,13 +14,14 @@
 #include "FastSort.h"
 
 #include <fcntl.h>
+#include <unistd.h>
 
 #ifdef OPENMP
 #include <omp.h>
 #endif
 
-#define MEM_SIZE_16MB   ( 16 * 1024 * 1024 )
-#define MEM_SIZE_32MB   ( 31 * 1024 * 1024 )
+#define MEM_SIZE_16MB   ( (size_t) ( 16 * 1024 * 1024 ))
+#define MEM_SIZE_32MB   ( (size_t) ( 31 * 1024 * 1024 ))
 
 QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
     QueryTableEntry *currentReadPos = startPos;
@@ -380,6 +381,8 @@ bool notFirst = false;
         unsigned long long currentKmer = 0;
         bool first = true;
         uint64_t currDiffIndex = 0;
+        off_t currentKmerOffset = 0;
+        off_t currentIDOffset = 0;
 
         bool breakOut = false;
 
@@ -387,7 +390,7 @@ bool notFirst = false;
 
         Timer timer;
 
-        while (read(fdTargetTable, targetTableReadBuffer, MEM_SIZE_16MB) > 0) {
+        while (pread(fdTargetTable, targetTableReadBuffer, MEM_SIZE_16MB, currentKmerOffset) > 0) {
             targetTableSize += MEM_SIZE_16MB;
             currentTargetPos = startPosTargetTable;
             // cover the rare case that the first (real) target entry is larger than USHRT_MAX
@@ -418,7 +421,8 @@ bool notFirst = false;
                     ++currentTargetPos;
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos >= endIDPos)) {
-                        read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
+                        pread(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB, currentIDOffset);
+                        currentIDOffset += MEM_SIZE_32MB;
                         IDTableSize += MEM_SIZE_32MB;
                         currentIDPos = startPosIDTable;
                     }
@@ -446,7 +450,8 @@ bool notFirst = false;
                     ++currentTargetPos;
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos >= endIDPos)) {
-                        read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
+                        pread(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB, currentIDOffset);
+                        currentIDOffset += MEM_SIZE_32MB;
                         IDTableSize += MEM_SIZE_32MB;
                         currentIDPos = startPosIDTable;
                     }
@@ -468,6 +473,7 @@ bool notFirst = false;
                     break;
                 }
             }
+            currentKmerOffset += MEM_SIZE_16MB;
         }
 
         double timediff = timer.getTimediff();
