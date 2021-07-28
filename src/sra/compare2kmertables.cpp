@@ -318,7 +318,6 @@ bool notFirst = false;
         QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
 
         std::string targetName = targetTables[i];
-<<<<<<< 7d5c239736751e860fb310b310505fb54aac5fbf
 
         timer.reset();
         Debug(Debug::INFO) << "Loading files into memory...\n";
@@ -328,8 +327,6 @@ bool notFirst = false;
 //        MemoryMapped targetIds(std::string(targetName + "_ids"),
 //                               MemoryMapped::WholeFile,
 //                               MemoryMapped::SequentialScan);
-=======
->>>>>>> Remove commented lines
 
         size_t targetTableSize = 0;
         size_t IDTableSize = 0;
@@ -480,10 +477,21 @@ bool notFirst = false;
         free(targetTableReadBuffer);
         free(IDTableReadBuffer);
 
+        if (close(fdIDTable) < 0) {
+            Debug(Debug::ERROR) << "Cannot close ID table\n";
+            EXIT(EXIT_FAILURE);
+        }
+
+        if (close(fdTargetTable) < 0) {
+            Debug(Debug::ERROR) << "Cannot close target table\n";
+            EXIT(EXIT_FAILURE);
+        }
+
         Debug(Debug::INFO) << "Sorting result table\n";
         timer.reset();
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
         Debug(Debug::INFO) << "Required time for sorting result table: " << timer.lap() << "\n";
+        Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
         QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
 
