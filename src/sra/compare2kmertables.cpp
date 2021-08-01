@@ -13,8 +13,9 @@
 
 #include "FastSort.h"
 
-#include <fcntl.h>
+#include <fcntl.h>  // open, read
 #include <unistd.h>
+#include <stdlib.h> // aligned_alloc
 
 #ifdef OPENMP
 #include <omp.h>
@@ -333,7 +334,7 @@ bool notFirst = false;
         size_t IDTableSize = 0;
 
         /* Open target table in direct mode */
-        int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC );
+        int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC  );
         if (fdTargetTable < 0) {
             Debug(Debug::ERROR) << "Open target table " << targetName << "failed\n";
             EXIT(EXIT_FAILURE);
@@ -347,14 +348,15 @@ bool notFirst = false;
         }
 
         /* Create 16MB buffer for target table */
-        void *targetTableReadBuffer = calloc(MEM_SIZE_16MB, 1);
+        // TODO: determine the alignment dynamically
+        void *targetTableReadBuffer = aligned_alloc(512, MEM_SIZE_16MB);
         if (targetTableReadBuffer == nullptr) {
             Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
             EXIT(EXIT_FAILURE);
         }
 
         /* Create 16MB buffer for ID table */
-        void *IDTableReadBuffer = calloc(MEM_SIZE_32MB, 1);
+        void *IDTableReadBuffer = aligned_alloc(512, MEM_SIZE_32MB);
         if (IDTableReadBuffer == nullptr) {
             Debug(Debug::ERROR) << "Cannot allocate memory for id table\n";
             EXIT(EXIT_FAILURE);
@@ -497,6 +499,7 @@ bool notFirst = false;
         timer.reset();
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
         Debug(Debug::INFO) << "Required time for sorting result table: " << timer.lap() << "\n";
+
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
         QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
