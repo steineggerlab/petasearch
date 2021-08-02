@@ -15,7 +15,7 @@
 
 #include <fcntl.h>  // open, read
 #include <unistd.h>
-#include <stdlib.h> // aligned_alloc
+#include <cstdlib> // aligned_alloc
 
 #ifdef OPENMP
 #include <omp.h>
@@ -95,15 +95,6 @@ int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second) 
     return false;
 }
 
-inline bool isFileExisted(const std::string &fname) {
-    if (FILE *file = fopen(fname.c_str(), "r")) {
-        fclose(file);
-        return true;
-    } else {
-        return false;
-    }
-}
-
 void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryTable) {
     Timer timer;
 
@@ -143,8 +134,8 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n";
 
     // FIXME: should not be hard coded. This is only good for k = 9
-    float similarKmerFactor = 1.5 * (useProfileSearch ? 5 : 1) ;
-    size_t tableCapacity = (size_t) (similarKmerFactor * (kmerCount + 1));
+    double similarKmerFactor = 1.5 * (useProfileSearch ? 5 : 1) ;
+    size_t tableCapacity = (size_t) (similarKmerFactor * (double)(kmerCount + 1));
     queryTable.reserve(tableCapacity);
 
     int xIndex = subMat->aa2num[(int)'X'];
@@ -174,7 +165,7 @@ xIndex)
         KmerGenerator kmerGenerator(par.kmerSize, subMat->alphabetSize - 1,
                                     par.kmerScore + (useProfileSearch ? 25 : 0));
 
-        if (useProfileSearch && sequence.profile_matrix != NULL) {
+        if (useProfileSearch && sequence.profile_matrix != nullptr) {
             kmerGenerator.setDivideStrategy(sequence.profile_matrix);
         } else {
             kmerGenerator.setDivideStrategy(&threeMatrix, &twoMatrix);
@@ -187,7 +178,7 @@ xIndex)
         for (size_t i = 0; i < reader.getSize(); ++i) {
             progress.updateProgress();
             unsigned int key = reader.getDbKey(i);
-            char *data = reader.getData(i, thread_idx);
+            char *data = reader.getData(i, (int) thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
             sequence.mapSequence(i, 0, data, seqLen);
 
@@ -207,14 +198,14 @@ xIndex)
                     std::pair<size_t*, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
                     size_t lim = similarKmerList.second;
                     for (size_t j = 0; j < lim; ++j) {
-                        QueryTableEntry entry;
+                        QueryTableEntry entry{};
                         entry.querySequenceId = key;
                         entry.targetSequenceID = UINT_MAX;
                         entry.Query.kmer = similarKmerList.first[j];
                         entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
                         localTable.emplace_back(entry);
                     }
-                    QueryTableEntry entry;
+                    QueryTableEntry entry{};
                     entry.querySequenceId = key;
                     entry.targetSequenceID = UINT_MAX;
                     entry.Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
@@ -222,7 +213,7 @@ xIndex)
                     localTable.emplace_back(entry);
                 }
                 else if (par.exactKmerMatching) {
-                    QueryTableEntry entry;
+                    QueryTableEntry entry{};
                     entry.querySequenceId = key;
                     entry.targetSequenceID = UINT_MAX;
                     entry.Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
@@ -235,7 +226,7 @@ xIndex)
                     std::pair<size_t*, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
                     size_t lim = similarKmerList.second;
                     for (size_t j = 0; j < lim; ++j) {
-                        QueryTableEntry entry;
+                        QueryTableEntry entry{};
                         entry.querySequenceId = key;
                         entry.targetSequenceID = UINT_MAX;
                         entry.Query.kmer = similarKmerList.first[j];
@@ -265,7 +256,7 @@ xIndex)
 
 std::vector<std::string> getFileNamesFromFile(const std::string &filename){
     std::vector<std::string> files;
-    char *line = NULL;
+    char *line = nullptr;
     size_t len = 0;
     FILE *handle = FileUtil::openFileOrDie(filename.c_str(), "r", true);
     char buffer[PATH_MAX];
@@ -288,12 +279,14 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     Debug(Debug::INFO) << "mapping query and target files \n";
     std::vector<QueryTableEntry> qTable;
 
+#ifdef NDEBUG
     createQueryTable(par, qTable);
+#endif
 
     // FIXME: accept single file input also
     std::vector<std::string> targetTables = getFileNamesFromFile(par.db2);
     std::vector<std::string> resultFiles = getFileNamesFromFile(par.db3);
-    if(targetTables.size() == 0){
+    if(targetTables.empty()){
         Debug(Debug::ERROR) << "Expected at least one targetTable entry in the target table file \n";
         EXIT(EXIT_FAILURE);
     }
@@ -353,15 +346,15 @@ bool notFirst = false;
         size_t numOfTargetBlocks = targetTableSize / MEM_SIZE_16MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
         size_t numOfIDBlocks = idTableSize / MEM_SIZE_32MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
 
-        void *targetTableBlocks[numOfTargetBlocks];
-        ssize_t targetTableBlockSize[numOfTargetBlocks] = {-1};
-        void *IDTableBlocks[numOfIDBlocks];
-        ssize_t IDTableBlockSize[numOfIDBlocks] = {-1};
+        std::vector<void *> targetTableBlocks(numOfTargetBlocks);
+        std::vector<ssize_t> targetTableBlockSize(numOfTargetBlocks, -1);
+        std::vector<void *> IDTableBlocks(numOfIDBlocks);
+        std::vector<ssize_t> IDTableBlockSize(numOfIDBlocks, -1);
 
         /* Read in 16MB chunks for target table */
 #pragma omp parallel for default(none) \
 shared(fdTargetTable, targetTableBlocks, targetTableBlockSize, numOfTargetBlocks, std::cerr, std::cout) \
-schedule(dynamic, 1)
+num_threads(omp_get_num_threads() / targetTables.size()) schedule(dynamic, 1)
         for (size_t j = 0; j < numOfTargetBlocks; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
             targetTableBlocks[j] = aligned_alloc(512, MEM_SIZE_16MB);
@@ -369,7 +362,7 @@ schedule(dynamic, 1)
                 Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
                 EXIT(EXIT_FAILURE);
             }
-            off_t offset = j * MEM_SIZE_16MB;
+            off_t offset = (off_t) (j * MEM_SIZE_16MB);
             if ((targetTableBlockSize[j] = pread(fdTargetTable, targetTableBlocks[j], MEM_SIZE_16MB, offset)) < 0) {
                 Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
                 EXIT(EXIT_FAILURE);
@@ -379,7 +372,7 @@ schedule(dynamic, 1)
         /* Read in 32MB chunks for ID table */
 #pragma omp parallel for default(none) \
 shared(fdIDTable, IDTableBlocks, IDTableBlockSize, numOfIDBlocks, std::cerr, std::cout) \
-schedule(dynamic, 1)
+num_threads(omp_get_num_threads() / targetTables.size()) schedule(dynamic, 1)
         for (size_t j = 0; j < numOfIDBlocks; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
             IDTableBlocks[j] = aligned_alloc(512, MEM_SIZE_32MB);
@@ -387,7 +380,7 @@ schedule(dynamic, 1)
                 Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
                 EXIT(EXIT_FAILURE);
             }
-            off_t offset = j * MEM_SIZE_32MB;
+            off_t offset = (off_t) (j * MEM_SIZE_32MB);
             if ((IDTableBlockSize[j] = pread(fdIDTable, IDTableBlocks[j], MEM_SIZE_32MB, offset)) < 0) {
                 Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
                 EXIT(EXIT_FAILURE);
