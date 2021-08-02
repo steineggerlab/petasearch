@@ -22,7 +22,7 @@
 #endif
 
 #define MEM_SIZE_16MB   ( (size_t) ( 16 * 1024 * 1024 ))
-#define MEM_SIZE_32MB   ( (size_t) ( 31 * 1024 * 1024 ))
+#define MEM_SIZE_32MB   ( (size_t) ( 32 * 1024 * 1024 ))
 
 QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
     QueryTableEntry *currentReadPos = startPos;
@@ -352,7 +352,8 @@ bool notFirst = false;
         /* Read in 16MB chunks for target table */
 #pragma omp parallel for default(none) \
 shared(fdTargetTable, targetTableBlocks, targetTableBlockSize, numOfTargetBlocks, std::cerr, std::cout) \
-num_threads(omp_get_num_threads() / targetTables.size()) schedule(dynamic, 1)
+num_threads(omp_get_num_threads() / targetTables.size()) \
+schedule(dynamic, 1)
         for (size_t j = 0; j < numOfTargetBlocks; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
             targetTableBlocks[j] = aligned_alloc(512, MEM_SIZE_16MB);
@@ -370,7 +371,8 @@ num_threads(omp_get_num_threads() / targetTables.size()) schedule(dynamic, 1)
         /* Read in 32MB chunks for ID table */
 #pragma omp parallel for default(none) \
 shared(fdIDTable, IDTableBlocks, IDTableBlockSize, numOfIDBlocks, std::cerr, std::cout) \
-num_threads(omp_get_num_threads() / targetTables.size()) schedule(dynamic, 1)
+num_threads(omp_get_num_threads() / targetTables.size()) \
+schedule(dynamic, 1)
         for (size_t j = 0; j < numOfIDBlocks; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
             IDTableBlocks[j] = aligned_alloc(512, MEM_SIZE_32MB);
@@ -498,6 +500,13 @@ num_threads(omp_get_num_threads() / targetTables.size()) schedule(dynamic, 1)
         " GB/s \n";
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
+        for (size_t j = 0; j < numOfTargetBlocks; j++) {
+            free(targetTableBlocks[j]);
+        }
+        for (size_t j = 0; j < numOfTargetBlocks; j++) {
+            free(IDTableBlocks[j]);
+        }
+
         if (close(fdIDTable) < 0) {
             Debug(Debug::ERROR) << "Cannot close ID table\n";
             EXIT(EXIT_FAILURE);
@@ -508,9 +517,15 @@ num_threads(omp_get_num_threads() / targetTables.size()) schedule(dynamic, 1)
             EXIT(EXIT_FAILURE);
         }
 
+
         Debug(Debug::INFO) << "Sorting result table\n";
         timer.reset();
+        // FIXME: this is not marked as parallel sort
+#pragma omp parallel num_threads(omp_get_num_threads() / targetTables.size()) \
+default(none) shared(startPosQueryTable,endQueryPos)
+{
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
+};
         Debug(Debug::INFO) << "Required time for sorting result table: " << timer.lap() << "\n";
 
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
@@ -542,12 +557,6 @@ num_threads(omp_get_num_threads() / targetTables.size()) schedule(dynamic, 1)
         }
         writer.close();
 
-        for (size_t j = 0; j < numOfTargetBlocks; j++) {
-            free(targetTableBlocks[j]);
-        }
-        for (size_t j = 0; j < numOfTargetBlocks; j++) {
-            free(IDTableBlocks[j]);
-        }
         delete[] resultTable;
         notFirst = true;
     }
