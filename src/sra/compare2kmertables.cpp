@@ -279,9 +279,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     Debug(Debug::INFO) << "mapping query and target files \n";
     std::vector<QueryTableEntry> qTable;
 
-#ifdef NDEBUG
     createQueryTable(par, qTable);
-#endif
 
     // FIXME: accept single file input also
     std::vector<std::string> targetTables = getFileNamesFromFile(par.db2);
