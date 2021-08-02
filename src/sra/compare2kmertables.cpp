@@ -503,7 +503,7 @@ schedule(dynamic, 1)
         for (size_t j = 0; j < numOfTargetBlocks; j++) {
             free(targetTableBlocks[j]);
         }
-        for (size_t j = 0; j < numOfTargetBlocks; j++) {
+        for (size_t j = 0; j < numOfIDBlocks; j++) {
             free(IDTableBlocks[j]);
         }
 
