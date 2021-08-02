@@ -302,9 +302,8 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-
-#pragma omp parallel num_threads(targetTables.size()) default(none) \
-shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
+// TODO: parallel read and sorting
+#pragma omp parallel default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
 {
 Timer timer;
 std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
@@ -334,47 +333,75 @@ bool notFirst = false;
         size_t IDTableSize = 0;
 
         /* Open target table in direct mode */
-        int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC  );
+        int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC);
         if (fdTargetTable < 0) {
             Debug(Debug::ERROR) << "Open target table " << targetName << "failed\n";
             EXIT(EXIT_FAILURE);
         }
 
         /* Open ID table in direct mode */
-        int fdIDTable = open(std::string(targetName + "_ids").c_str(), O_RDONLY | O_DIRECT | O_SYNC );
+        int fdIDTable = open(std::string(targetName + "_ids").c_str(), O_RDONLY | O_DIRECT | O_SYNC);
         if (fdIDTable < 0) {
             Debug(Debug::ERROR) << "Open ID table " << targetName << "_ids" << "failed\n";
             EXIT(EXIT_FAILURE);
         }
 
-        /* Create 16MB buffer for target table */
-        // TODO: determine the alignment dynamically
-        void *targetTableReadBuffer = aligned_alloc(512, MEM_SIZE_16MB);
-        if (targetTableReadBuffer == nullptr) {
-            Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
-            EXIT(EXIT_FAILURE);
+        /* Get file size in bytes */
+        size_t targetTableSize = FileUtil::getFileSize(targetName);
+        size_t idTableSize = FileUtil::getFileSize((targetName + "_ids"));
+
+        size_t numOfTargetBlocks = targetTableSize / MEM_SIZE_16MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
+        size_t numOfIDBlocks = idTableSize / MEM_SIZE_32MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
+
+        void *targetTableBlocks[numOfTargetBlocks];
+        ssize_t targetTableBlockSize[numOfTargetBlocks] = {-1};
+        void *IDTableBlocks[numOfIDBlocks];
+        ssize_t IDTableBlockSize[numOfIDBlocks] = {-1};
+
+        /* Read in 16MB chunks for target table */
+#pragma omp parallel for default(none) \
+shared(fdTargetTable, targetTableBlocks, targetTableBlockSize, numOfTargetBlocks, std::cerr, std::cout) \
+schedule(dynamic, 1)
+        for (size_t j = 0; j < numOfTargetBlocks; j++) {
+            // TODO: determine the alignment dynamically instead of using hard-coded 512
+            targetTableBlocks[j] = aligned_alloc(512, MEM_SIZE_16MB);
+            if (targetTableBlocks[j] == nullptr) {
+                Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
+                EXIT(EXIT_FAILURE);
+            }
+            off_t offset = j * MEM_SIZE_16MB;
+            if ((targetTableBlockSize[j] = pread(fdTargetTable, targetTableBlocks[j], MEM_SIZE_16MB, offset)) < 0) {
+                Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
+                EXIT(EXIT_FAILURE);
+            }
         }
 
-        /* Create 16MB buffer for ID table */
-        void *IDTableReadBuffer = aligned_alloc(512, MEM_SIZE_32MB);
-        if (IDTableReadBuffer == nullptr) {
-            Debug(Debug::ERROR) << "Cannot allocate memory for id table\n";
-            EXIT(EXIT_FAILURE);
+        /* Read in 32MB chunks for ID table */
+#pragma omp parallel for default(none) \
+shared(fdIDTable, IDTableBlocks, IDTableBlockSize, numOfIDBlocks, std::cerr, std::cout) \
+schedule(dynamic, 1)
+        for (size_t j = 0; j < numOfIDBlocks; j++) {
+            // TODO: determine the alignment dynamically instead of using hard-coded 512
+            IDTableBlocks[j] = aligned_alloc(512, MEM_SIZE_32MB);
+            if (IDTableBlocks[j] == nullptr) {
+                Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
+                EXIT(EXIT_FAILURE);
+            }
+            off_t offset = j * MEM_SIZE_32MB;
+            if ((IDTableBlockSize[j] = pread(fdIDTable, IDTableBlocks[j], MEM_SIZE_32MB, offset)) < 0) {
+                Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
+                EXIT(EXIT_FAILURE);
+            }
         }
 
         Debug(Debug::INFO) << "Loading time: " << timer.lap() << "\n";
 
-        read(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB);
-        IDTableSize += MEM_SIZE_32MB;
-
-        unsigned short *startPosTargetTable, *endTargetPos, *currentTargetPos;
-        startPosTargetTable = (unsigned short *) targetTableReadBuffer;
-        endTargetPos = startPosTargetTable + (MEM_SIZE_16MB / sizeof(unsigned short));
+        int IDTableIndex = 0;
 
         unsigned int *startPosIDTable, *currentIDPos, *endIDPos;
-        startPosIDTable = (unsigned int *) IDTableReadBuffer;
+        startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
         currentIDPos = startPosIDTable;
-        endIDPos = startPosIDTable + (MEM_SIZE_32MB / sizeof(unsigned int));
+        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
 
         QueryTableEntry *currentQueryPos = startPosQueryTable;
         QueryTableEntry *endPosQueryTable = startPosQueryTable;
@@ -383,8 +410,6 @@ bool notFirst = false;
         unsigned long long currentKmer = 0;
         bool first = true;
         uint64_t currDiffIndex = 0;
-        off_t currentKmerOffset = 0;
-        off_t currentIDOffset = 0;
 
         bool breakOut = false;
 
@@ -392,8 +417,10 @@ bool notFirst = false;
 
         Timer timer;
 
-        while (pread(fdTargetTable, targetTableReadBuffer, MEM_SIZE_16MB, currentKmerOffset) > 0) {
-            targetTableSize += MEM_SIZE_16MB;
+        for (size_t j = 0; j < numOfTargetBlocks; j++) {
+            unsigned short *startPosTargetTable, *endTargetPos, *currentTargetPos;
+            startPosTargetTable = (unsigned short *) targetTableBlocks[j];
+            endTargetPos = startPosTargetTable + (targetTableBlockSize[j] / sizeof(unsigned short));
             currentTargetPos = startPosTargetTable;
             // cover the rare case that the first (real) target entry is larger than USHRT_MAX
             while (currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos)) {
@@ -423,10 +450,9 @@ bool notFirst = false;
                     ++currentTargetPos;
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos >= endIDPos)) {
-                        pread(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB, currentIDOffset);
-                        currentIDOffset += MEM_SIZE_32MB;
-                        IDTableSize += MEM_SIZE_32MB;
+                        startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
                         currentIDPos = startPosIDTable;
+                        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
@@ -452,10 +478,9 @@ bool notFirst = false;
                     ++currentTargetPos;
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos >= endIDPos)) {
-                        pread(fdIDTable, IDTableReadBuffer, MEM_SIZE_32MB, currentIDOffset);
-                        currentIDOffset += MEM_SIZE_32MB;
-                        IDTableSize += MEM_SIZE_32MB;
+                        startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
                         currentIDPos = startPosIDTable;
+                        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
@@ -475,15 +500,12 @@ bool notFirst = false;
                     break;
                 }
             }
-            currentKmerOffset += MEM_SIZE_16MB;
         }
 
         double timediff = timer.getTimediff();
-        Debug(Debug::INFO) << timediff << " s; Rate " << ((targetTableSize + IDTableSize) / 1e+9) / timediff << " GB/s \n";
+        Debug(Debug::INFO) << timediff << " s; Rate " << ((double)(targetTableSize + idTableSize) / 1e+9) / timediff <<
+        " GB/s \n";
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
-
-        free(targetTableReadBuffer);
-        free(IDTableReadBuffer);
 
         if (close(fdIDTable) < 0) {
             Debug(Debug::ERROR) << "Cannot close ID table\n";
@@ -529,6 +551,12 @@ bool notFirst = false;
         }
         writer.close();
 
+        for (size_t j = 0; j < numOfTargetBlocks; j++) {
+            free(targetTableBlocks[j]);
+        }
+        for (size_t j = 0; j < numOfTargetBlocks; j++) {
+            free(IDTableBlocks[j]);
+        }
         delete[] resultTable;
         notFirst = true;
     }
