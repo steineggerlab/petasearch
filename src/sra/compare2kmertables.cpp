@@ -411,7 +411,7 @@ schedule(dynamic, 1)
 
         Debug(Debug::INFO) << "start comparing \n";
 
-        Timer timer;
+        timer.reset();
 
         for (size_t j = 0; j < numOfTargetBlocks; j++) {
             unsigned short *startPosTargetTable, *endTargetPos, *currentTargetPos;
