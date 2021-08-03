@@ -307,10 +307,17 @@ bool notFirst = false;
         QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
 
         std::string targetName = targetTables[i];
+
+        Timer timer;
+        Debug(Debug::INFO) << "Loading files into memory...\n";
+
         MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
         MemoryMapped targetIds(std::string(targetName + "_ids"),
                                MemoryMapped::WholeFile,
                                MemoryMapped::SequentialScan);
+
+        Debug(Debug::INFO) << "Loading time: " << timer.lap() << "\n";
+
         if (targetTable.isValid() == false || targetIds.isValid() == false) {
             Debug(Debug::ERROR) << "Could not open target database " << targetName << "\n";
             EXIT(EXIT_FAILURE);
@@ -330,7 +337,8 @@ bool notFirst = false;
 
         Debug(Debug::INFO) << "start comparing \n";
 
-        Timer timer;
+        timer.reset();
+
         // cover the rare case that the first (real) target entry is larger than USHRT_MAX
         uint64_t currDiffIndex = 0;
         bool first = true;
