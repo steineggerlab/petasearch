@@ -337,7 +337,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         size_t idTableSize = FileUtil::getFileSize((targetName + "_ids"));
 
         size_t numOfTargetBlocks = targetTableSize / MEM_SIZE_16MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
-        size_t numOfIDBlocks = idTableSize / MEM_SIZE_32MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
+        size_t numOfIDBlocks = idTableSize / MEM_SIZE_32MB + (targetTableSize % MEM_SIZE_32MB == 0 ? 0 : 1);
 
         std::vector<void *> targetTableBlocks(numOfTargetBlocks);
         std::vector<ssize_t> targetTableBlockSize(numOfTargetBlocks, -1);
