@@ -296,7 +296,10 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 #pragma omp parallel num_threads(targetTables.size()) default(none) \
 shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
 {
+Timer timer;
 std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
+Debug(Debug::INFO) << "Deep copy creating time: " << timer.lap() << "\n";
+
 bool notFirst = false;
 #pragma omp for schedule(dynamic, 1)
     for (size_t i = 0; i < targetTables.size(); ++i) {
@@ -308,7 +311,7 @@ bool notFirst = false;
 
         std::string targetName = targetTables[i];
 
-        Timer timer;
+        timer.reset();
         Debug(Debug::INFO) << "Loading files into memory...\n";
 
         MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
