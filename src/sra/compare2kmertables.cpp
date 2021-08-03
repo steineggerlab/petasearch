@@ -146,11 +146,12 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
         threeMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 3);
     }
 
+#ifdef NDEBUG
     Debug::Progress progress(reader.getSize());
+#endif
 
 #pragma omp parallel default(none) \
-shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch, \
-xIndex)
+shared(par, reader, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch, xIndex)
     {
         unsigned int thread_idx = 0;
         unsigned int total_threads = 1;
@@ -176,7 +177,9 @@ xIndex)
 
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
+#ifdef NDEBUG
             progress.updateProgress();
+#endif
             unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, (int) thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
@@ -294,18 +297,14 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     }
 
 // TODO: parallel read and sorting
-#pragma omp parallel default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
+#pragma omp parallel num_threads(omp_get_num_threads() / targetTables.size()) \
+default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
 {
-Timer timer;
-std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
-Debug(Debug::INFO) << "Deep copy creating time: " << timer.lap() << "\n";
-
-bool notFirst = false;
 #pragma omp for schedule(dynamic, 1)
     for (size_t i = 0; i < targetTables.size(); ++i) {
-        if (notFirst) {
-            localQTable = qTable;
-        }
+        Timer timer;
+        std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
+        Debug(Debug::INFO) << "Deep copy creating time: " << timer.lap() << "\n";
         QueryTableEntry *startPosQueryTable = localQTable.data();
         QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
 
@@ -349,11 +348,6 @@ bool notFirst = false;
         std::vector<void *> IDTableBlocks(numOfIDBlocks);
         std::vector<ssize_t> IDTableBlockSize(numOfIDBlocks, -1);
 
-        /* Read in 16MB chunks for target table */
-#pragma omp parallel for default(none) \
-shared(fdTargetTable, targetTableBlocks, targetTableBlockSize, numOfTargetBlocks, std::cerr, std::cout) \
-num_threads(omp_get_num_threads() / targetTables.size()) \
-schedule(dynamic, 1)
         for (size_t j = 0; j < numOfTargetBlocks; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
             targetTableBlocks[j] = aligned_alloc(512, MEM_SIZE_16MB);
@@ -361,6 +355,24 @@ schedule(dynamic, 1)
                 Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
                 EXIT(EXIT_FAILURE);
             }
+        }
+
+        for (size_t j = 0; j < numOfIDBlocks; j++) {
+            // TODO: determine the alignment dynamically instead of using hard-coded 512
+            IDTableBlocks[j] = aligned_alloc(512, MEM_SIZE_32MB);
+            if (IDTableBlocks[j] == nullptr) {
+                Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
+                EXIT(EXIT_FAILURE);
+            }
+        }
+
+        /* Read in 16MB chunks for target table */
+#pragma omp parallel for default(none) \
+shared(fdTargetTable, targetTableBlocks, targetTableBlockSize, numOfTargetBlocks, std::cerr, std::cout) \
+num_threads(std::min(numOfTargetBlocks, omp_get_num_threads() / targetTables.size())) \
+schedule(dynamic, 1)
+        for (size_t j = 0; j < numOfTargetBlocks; j++) {
+            // TODO: determine the alignment dynamically instead of using hard-coded 512
             off_t offset = (off_t) (j * MEM_SIZE_16MB);
             if ((targetTableBlockSize[j] = pread(fdTargetTable, targetTableBlocks[j], MEM_SIZE_16MB, offset)) < 0) {
                 Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
@@ -371,15 +383,10 @@ schedule(dynamic, 1)
         /* Read in 32MB chunks for ID table */
 #pragma omp parallel for default(none) \
 shared(fdIDTable, IDTableBlocks, IDTableBlockSize, numOfIDBlocks, std::cerr, std::cout) \
-num_threads(omp_get_num_threads() / targetTables.size()) \
+num_threads(std::min(numOfIDBlocks, omp_get_num_threads() / targetTables.size())) \
 schedule(dynamic, 1)
         for (size_t j = 0; j < numOfIDBlocks; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
-            IDTableBlocks[j] = aligned_alloc(512, MEM_SIZE_32MB);
-            if (IDTableBlocks[j] == nullptr) {
-                Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
-                EXIT(EXIT_FAILURE);
-            }
             off_t offset = (off_t) (j * MEM_SIZE_32MB);
             if ((IDTableBlockSize[j] = pread(fdIDTable, IDTableBlocks[j], MEM_SIZE_32MB, offset)) < 0) {
                 Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
@@ -517,7 +524,7 @@ schedule(dynamic, 1)
             EXIT(EXIT_FAILURE);
         }
 
-
+#ifndef NDEBUG
         Debug(Debug::INFO) << "Sorting result table\n";
         timer.reset();
         // FIXME: this is not marked as parallel sort
@@ -558,7 +565,7 @@ default(none) shared(startPosQueryTable,endQueryPos)
         writer.close();
 
         delete[] resultTable;
-        notFirst = true;
+#endif
     }
 }
 
