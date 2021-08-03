@@ -445,10 +445,11 @@ schedule(dynamic, 1)
                     endPosQueryTable = currentQueryPos;
                     ++currentTargetPos;
                     ++currentIDPos;
-                    if (UNLIKELY(currentIDPos >= endIDPos)) {
-                        startPosIDTable = (unsigned int *) IDTableBlocks[++IDTableIndex];
+                    if (UNLIKELY(currentIDPos > endIDPos)) {
+                        ++IDTableIndex;
+                        startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
                         currentIDPos = startPosIDTable;
-                        endIDPos = startPosIDTable + (IDTableBlockSize[++IDTableIndex] / sizeof(unsigned int));
+                        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
@@ -473,10 +474,11 @@ schedule(dynamic, 1)
                        currentKmer < currentQueryPos->Query.kmer) {
                     ++currentTargetPos;
                     ++currentIDPos;
-                    if (UNLIKELY(currentIDPos >= endIDPos)) {
-                        startPosIDTable = (unsigned int *) IDTableBlocks[++IDTableIndex];
+                    if (UNLIKELY(currentIDPos > endIDPos)) {
+                        ++IDTableIndex;
+                        startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
                         currentIDPos = startPosIDTable;
-                        endIDPos = startPosIDTable + (IDTableBlockSize[++IDTableIndex] / sizeof(unsigned int));
+                        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
