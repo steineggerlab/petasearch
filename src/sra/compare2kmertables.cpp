@@ -146,12 +146,10 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
         threeMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 3);
     }
 
-#ifdef NDEBUG
     Debug::Progress progress(reader.getSize());
-#endif
 
 #pragma omp parallel default(none) \
-shared(par, reader, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch, xIndex)
+shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch, xIndex)
     {
         unsigned int thread_idx = 0;
         unsigned int total_threads = 1;
@@ -177,9 +175,7 @@ shared(par, reader, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, quer
 
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
-#ifdef NDEBUG
             progress.updateProgress();
-#endif
             unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, (int) thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
@@ -450,9 +446,9 @@ schedule(dynamic, 1)
                     ++currentTargetPos;
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos >= endIDPos)) {
-                        startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
+                        startPosIDTable = (unsigned int *) IDTableBlocks[++IDTableIndex];
                         currentIDPos = startPosIDTable;
-                        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
+                        endIDPos = startPosIDTable + (IDTableBlockSize[++IDTableIndex] / sizeof(unsigned int));
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
@@ -478,9 +474,9 @@ schedule(dynamic, 1)
                     ++currentTargetPos;
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos >= endIDPos)) {
-                        startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
+                        startPosIDTable = (unsigned int *) IDTableBlocks[++IDTableIndex];
                         currentIDPos = startPosIDTable;
-                        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
+                        endIDPos = startPosIDTable + (IDTableBlockSize[++IDTableIndex] / sizeof(unsigned int));
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
@@ -524,15 +520,10 @@ schedule(dynamic, 1)
             EXIT(EXIT_FAILURE);
         }
 
-#ifndef NDEBUG
         Debug(Debug::INFO) << "Sorting result table\n";
         timer.reset();
         // FIXME: this is not marked as parallel sort
-#pragma omp parallel num_threads(omp_get_num_threads() / targetTables.size()) \
-default(none) shared(startPosQueryTable,endQueryPos)
-{
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
-};
         Debug(Debug::INFO) << "Required time for sorting result table: " << timer.lap() << "\n";
 
         Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
@@ -565,7 +556,6 @@ default(none) shared(startPosQueryTable,endQueryPos)
         writer.close();
 
         delete[] resultTable;
-#endif
     }
 }
 
