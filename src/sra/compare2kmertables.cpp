@@ -53,9 +53,6 @@ inline void parallelReadIntoVec(
     bool allocateNewSpace = true,
     size_t offsetBlock = 0) {
         size_t end = destBlocks.size();
-        Debug(Debug::INFO) << "Input vars: "
-                           << "allocateNewSpace: " << allocateNewSpace
-                           << "; offsetBlock: " << offsetBlock << "\n";
 #pragma omp parallel for schedule(dynamic, 1)
         for (size_t j = 0; j < end; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
@@ -360,7 +357,8 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         size_t numOfTargetBlocks = targetTableSize / MEM_SIZE_16MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
         size_t totalNumOfIDBlocks = idTableSize / MEM_SIZE_32MB + (idTableSize % MEM_SIZE_32MB == 0 ? 0 : 1);
 
-        size_t numOfIDBlocks = std::min(320UL, totalNumOfIDBlocks);
+        // TODO: determine this dynamically
+        size_t numOfIDBlocks = std::min(128UL, totalNumOfIDBlocks);
 
         std::vector<void *> targetTableBlocks(numOfTargetBlocks);
         std::vector<ssize_t> targetTableBlockSize(numOfTargetBlocks, -1);
