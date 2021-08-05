@@ -24,8 +24,6 @@
 #define MEM_SIZE_16MB   ( (size_t) ( 16 * 1024 * 1024 ))
 #define MEM_SIZE_32MB   ( (size_t) ( 32 * 1024 * 1024 ))
 
-#define _FILE_OFFSET_BITS 64
-
 QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
     QueryTableEntry *currentReadPos = startPos;
     QueryTableEntry *currentWritePos = resultTable;
@@ -55,6 +53,9 @@ inline void parallelReadIntoVec(
     bool allocateNewSpace = true,
     size_t offsetBlock = 0) {
         size_t end = destBlocks.size();
+        Debug(Debug::INFO) << "Input vars: "
+                           << "allocateNewSpace: " << allocateNewSpace
+                           << "; offsetBlock: " << offsetBlock << "\n";
 #pragma omp parallel for schedule(dynamic, 1)
         for (size_t j = 0; j < end; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
@@ -71,6 +72,7 @@ inline void parallelReadIntoVec(
                 EXIT(EXIT_FAILURE);
             }
         }
+        Debug(Debug::INFO) << *(unsigned int *) destBlocks[0] <<"\n";
 }
 
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
@@ -431,7 +433,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                         ++IDTableIndex;
                         if (UNLIKELY(IDTableIndex >= numOfIDBlocks)) {
                             // parallel read
-                            parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB, false, readGroup++);
+                            parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB, false, ++readGroup);
                             IDTableIndex = 0;
                         }
                         startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
@@ -465,7 +467,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                         ++IDTableIndex;
                         if (UNLIKELY(IDTableIndex >= numOfIDBlocks)) {
                             // parallel read
-                            parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB, false, readGroup++);
+                            parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB, false, ++readGroup);
                             IDTableIndex = 0;
                         }
                         startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
