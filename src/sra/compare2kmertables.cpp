@@ -49,6 +49,7 @@ inline void parallelReadIntoVec(
     int fd,
     std::vector<void *> &destBlocks,
     std::vector<ssize_t> &destBlockSize,
+    size_t blockSize,
     bool allocateNewSpace = true,
     size_t offsetBlock = 0) {
         size_t end = destBlocks.size();
@@ -56,14 +57,14 @@ inline void parallelReadIntoVec(
         for (size_t j = 0; j < end; j++) {
             // TODO: determine the alignment dynamically instead of using hard-coded 512
             if (allocateNewSpace) {
-            destBlocks[j] = aligned_alloc(512, MEM_SIZE_32MB);
+            destBlocks[j] = aligned_alloc(512, blockSize);
                 if (destBlocks[j] == nullptr) {
                     Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
                     EXIT(EXIT_FAILURE);
                 }
             }
-            off_t offset = (off_t) ((offsetBlock * end + j) * MEM_SIZE_32MB);
-            if ((destBlockSize[j] = pread(fd, destBlocks[j], MEM_SIZE_32MB, offset)) < 0) {
+            off_t offset = (off_t) ((offsetBlock * end + j) * blockSize);
+            if ((destBlockSize[j] = pread(fd, destBlocks[j], blockSize, offset)) < 0) {
                 Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
                 EXIT(EXIT_FAILURE);
             }
@@ -363,10 +364,10 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         std::vector<ssize_t> IDTableBlockSize(numOfIDBlocks, -1);
 
         /* Read in 16MB chunks for target table */
-        parallelReadIntoVec(fdTargetTable, targetTableBlocks, targetTableBlockSize);
+        parallelReadIntoVec(fdTargetTable, targetTableBlocks, targetTableBlockSize, MEM_SIZE_16MB);
 
         /* Read in 32MB chunks for ID table */
-        parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize);
+        parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB);
 
         Debug(Debug::INFO) << "Loading time: " << timer.lap() << "\n";
 
@@ -376,7 +377,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         unsigned int *startPosIDTable, *currentIDPos, *endIDPos;
         startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
         currentIDPos = startPosIDTable;
-        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
+        endIDPos = startPosIDTable + (MEM_SIZE_32MB / sizeof(unsigned int));
 
         QueryTableEntry *currentQueryPos = startPosQueryTable;
         QueryTableEntry *endPosQueryTable = startPosQueryTable;
@@ -424,16 +425,16 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                     endPosQueryTable = currentQueryPos;
                     ++currentTargetPos;
                     ++currentIDPos;
-                    if (UNLIKELY(currentIDPos > endIDPos)) {
+                    if (UNLIKELY(currentIDPos >= endIDPos)) {
                         ++IDTableIndex;
                         if (UNLIKELY(IDTableIndex >= numOfIDBlocks)) {
                             // parallel read
-                            parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, false, readGroup++);
+                            parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB, false, readGroup++);
                             IDTableIndex = 0;
                         }
                         startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
                         currentIDPos = startPosIDTable;
-                        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
+                        endIDPos = startPosIDTable + (MEM_SIZE_32MB/ sizeof(unsigned int));
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
@@ -458,11 +459,16 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                        currentKmer < currentQueryPos->Query.kmer) {
                     ++currentTargetPos;
                     ++currentIDPos;
-                    if (UNLIKELY(currentIDPos > endIDPos)) {
+                    if (UNLIKELY(currentIDPos >= endIDPos)) {
                         ++IDTableIndex;
+                        if (UNLIKELY(IDTableIndex >= numOfIDBlocks)) {
+                            // parallel read
+                            parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB, false, readGroup++);
+                            IDTableIndex = 0;
+                        }
                         startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
                         currentIDPos = startPosIDTable;
-                        endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
+                        endIDPos = startPosIDTable + (MEM_SIZE_32MB / sizeof(unsigned int));
                     }
                     while (UNLIKELY(currentTargetPos < endTargetPos && !IS_LAST_15_BITS(*currentTargetPos))) {
                         currDiffIndex = DECODE_15_BITS(currDiffIndex, *currentTargetPos);
