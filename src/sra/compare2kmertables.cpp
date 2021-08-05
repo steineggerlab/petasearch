@@ -45,6 +45,31 @@ QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntr
     return currentWritePos;
 }
 
+inline void parallelReadIntoVec(
+    int fd,
+    std::vector<void *> &destBlocks,
+    std::vector<ssize_t> &destBlockSize,
+    bool allocateNewSpace = true,
+    size_t offsetBlock = 0) {
+        size_t end = destBlocks.size();
+#pragma omp parallel for schedule(dynamic, 1)
+        for (size_t j = 0; j < end; j++) {
+            // TODO: determine the alignment dynamically instead of using hard-coded 512
+            if (allocateNewSpace) {
+            destBlocks[j] = aligned_alloc(512, MEM_SIZE_32MB);
+                if (destBlocks[j] == nullptr) {
+                    Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
+                    EXIT(EXIT_FAILURE);
+                }
+            }
+            off_t offset = (off_t) ((offsetBlock * end + j) * MEM_SIZE_32MB);
+            if ((destBlockSize[j] = pread(fd, destBlocks[j], MEM_SIZE_32MB, offset)) < 0) {
+                Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
+                EXIT(EXIT_FAILURE);
+            }
+        }
+}
+
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
     if (first.targetSequenceID < second.targetSequenceID) {
         return true;
@@ -337,62 +362,25 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         size_t idTableSize = FileUtil::getFileSize((targetName + "_ids"));
 
         size_t numOfTargetBlocks = targetTableSize / MEM_SIZE_16MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
-        size_t numOfIDBlocks = idTableSize / MEM_SIZE_32MB + (idTableSize % MEM_SIZE_32MB == 0 ? 0 : 1);
+        size_t totalNumOfIDBlocks = idTableSize / MEM_SIZE_32MB + (idTableSize % MEM_SIZE_32MB == 0 ? 0 : 1);
+
+        size_t numOfIDBlocks = std::min(320UL, totalNumOfIDBlocks);
 
         std::vector<void *> targetTableBlocks(numOfTargetBlocks);
         std::vector<ssize_t> targetTableBlockSize(numOfTargetBlocks, -1);
         std::vector<void *> IDTableBlocks(numOfIDBlocks);
         std::vector<ssize_t> IDTableBlockSize(numOfIDBlocks, -1);
 
-        for (size_t j = 0; j < numOfTargetBlocks; j++) {
-            // TODO: determine the alignment dynamically instead of using hard-coded 512
-            targetTableBlocks[j] = aligned_alloc(512, MEM_SIZE_16MB);
-            if (targetTableBlocks[j] == nullptr) {
-                Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
-                EXIT(EXIT_FAILURE);
-            }
-        }
-
-        for (size_t j = 0; j < numOfIDBlocks; j++) {
-            // TODO: determine the alignment dynamically instead of using hard-coded 512
-            IDTableBlocks[j] = aligned_alloc(512, MEM_SIZE_32MB);
-            if (IDTableBlocks[j] == nullptr) {
-                Debug(Debug::ERROR) << "Cannot allocate memory for target table\n";
-                EXIT(EXIT_FAILURE);
-            }
-        }
-
         /* Read in 16MB chunks for target table */
-#pragma omp parallel for default(none) \
-shared(fdTargetTable, targetTableBlocks, targetTableBlockSize, numOfTargetBlocks, std::cerr, std::cout) \
-num_threads(std::min(numOfTargetBlocks, omp_get_num_threads() / targetTables.size())) \
-schedule(dynamic, 1)
-        for (size_t j = 0; j < numOfTargetBlocks; j++) {
-            // TODO: determine the alignment dynamically instead of using hard-coded 512
-            off_t offset = (off_t) (j * MEM_SIZE_16MB);
-            if ((targetTableBlockSize[j] = pread(fdTargetTable, targetTableBlocks[j], MEM_SIZE_16MB, offset)) < 0) {
-                Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
-                EXIT(EXIT_FAILURE);
-            }
-        }
+        parallelReadIntoVec(fdTargetTable, targetTableBlocks, targetTableBlockSize);
 
         /* Read in 32MB chunks for ID table */
-#pragma omp parallel for default(none) \
-shared(fdIDTable, IDTableBlocks, IDTableBlockSize, numOfIDBlocks, std::cerr, std::cout) \
-num_threads(std::min(numOfIDBlocks, omp_get_num_threads() / targetTables.size())) \
-schedule(dynamic, 1)
-        for (size_t j = 0; j < numOfIDBlocks; j++) {
-            // TODO: determine the alignment dynamically instead of using hard-coded 512
-            off_t offset = (off_t) (j * MEM_SIZE_32MB);
-            if ((IDTableBlockSize[j] = pread(fdIDTable, IDTableBlocks[j], MEM_SIZE_32MB, offset)) < 0) {
-                Debug(Debug::ERROR) << "Cannot read the " << (j+1) << "th chunk from target table\n";
-                EXIT(EXIT_FAILURE);
-            }
-        }
+        parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize);
 
         Debug(Debug::INFO) << "Loading time: " << timer.lap() << "\n";
 
-        int IDTableIndex = 0;
+        size_t IDTableIndex = 0;
+        size_t readGroup = 0;
 
         unsigned int *startPosIDTable, *currentIDPos, *endIDPos;
         startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
@@ -447,6 +435,11 @@ schedule(dynamic, 1)
                     ++currentIDPos;
                     if (UNLIKELY(currentIDPos > endIDPos)) {
                         ++IDTableIndex;
+                        if (UNLIKELY(IDTableIndex >= numOfIDBlocks)) {
+                            // parallel read
+                            parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, false, readGroup++);
+                            IDTableIndex = 0;
+                        }
                         startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
                         currentIDPos = startPosIDTable;
                         endIDPos = startPosIDTable + (IDTableBlockSize[IDTableIndex] / sizeof(unsigned int));
@@ -501,8 +494,8 @@ schedule(dynamic, 1)
         }
 
         double timediff = timer.getTimediff();
-        Debug(Debug::INFO) << timediff << " s; Rate " << ((double)(targetTableSize + idTableSize) / 1e+9) / timediff <<
-        " GB/s \n";
+        Debug(Debug::INFO) << timediff << " s; Rate "
+                           << ((double)(targetTableSize + idTableSize) / 1e+9) / timediff << " GB/s \n";
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
         for (size_t j = 0; j < numOfTargetBlocks; j++) {
@@ -524,7 +517,6 @@ schedule(dynamic, 1)
 
         Debug(Debug::INFO) << "Sorting result table\n";
         timer.reset();
-        // FIXME: this is not marked as parallel sort
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
         Debug(Debug::INFO) << "Required time for sorting result table: " << timer.lap() << "\n";
 
