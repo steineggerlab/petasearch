@@ -407,8 +407,9 @@ bool notFirst = false;
         Debug(Debug::INFO) << "Number of equal k-mers: " << equalKmers << "\n";
 
         Debug(Debug::INFO) << "Sorting result table\n";
+        timer.reset();
         SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
-        Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
+        Debug(Debug::INFO) << "Required time for sorting result table: " << timer.lap() << "\n";
         QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
         QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par);
 
