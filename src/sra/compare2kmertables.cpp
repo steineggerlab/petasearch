@@ -69,7 +69,6 @@ inline void parallelReadIntoVec(
                 EXIT(EXIT_FAILURE);
             }
         }
-        Debug(Debug::INFO) << *(unsigned int *) destBlocks[0] <<"\n";
 }
 
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
@@ -371,8 +370,6 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         /* Read in 32MB chunks for ID table */
         parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB);
 
-        Debug(Debug::INFO) << "Loading time: " << timer.lap() << "\n";
-
         size_t IDTableIndex = 0;
         size_t readGroup = 0;
 
@@ -391,7 +388,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
 
         bool breakOut = false;
 
-        Debug(Debug::INFO) << "start comparing \n";
+        Debug(Debug::INFO) << "Start comparing \n";
 
         timer.reset();
 
