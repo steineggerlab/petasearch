@@ -24,6 +24,8 @@
 #define MEM_SIZE_16MB   ( (size_t) ( 16 * 1024 * 1024 ))
 #define MEM_SIZE_32MB   ( (size_t) ( 32 * 1024 * 1024 ))
 
+#define _FILE_OFFSET_BITS 64
+
 QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, LocalParameters &par) {
     QueryTableEntry *currentReadPos = startPos;
     QueryTableEntry *currentWritePos = resultTable;
@@ -343,7 +345,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         }
 
         /* Open ID table in direct mode */
-        int fdIDTable = open(std::string(targetName + "_ids").c_str(), O_RDONLY | O_DIRECT | O_SYNC);
+        int fdIDTable = open((targetName + "_ids").c_str(), O_RDONLY | O_DIRECT | O_SYNC);
         if (fdIDTable < 0) {
             Debug(Debug::ERROR) << "Open ID table " << targetName << "_ids" << "failed\n";
             EXIT(EXIT_FAILURE);
