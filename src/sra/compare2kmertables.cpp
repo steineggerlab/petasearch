@@ -334,15 +334,6 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         timer.reset();
         Debug(Debug::INFO) << "Loading files into memory...\n";
 
-        // FIXME: use direct read instead of mmap
-//        MemoryMapped targetTable(targetName, MemoryMapped::WholeFile, MemoryMapped::SequentialScan);
-//        MemoryMapped targetIds(std::string(targetName + "_ids"),
-//                               MemoryMapped::WholeFile,
-//                               MemoryMapped::SequentialScan);
-
-        size_t targetTableSize = 0;
-        size_t IDTableSize = 0;
-
         /* Open target table in direct mode */
         int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC);
         if (fdTargetTable < 0) {
