@@ -4,7 +4,7 @@ add_subdirectory(commons)
 add_subdirectory(sra)
 add_subdirectory(version)
 add_subdirectory(workflow)
-set_directory_properties(PROPERTIES EP_PREFIX lib/block-aligner)
+set_directory_properties(PROPERTIES EP_PREFIX ${CMAKE_SOURCE_DIR}/lib/block-aligner)
 
 add_executable(srasearch
         ${commons_source_files}
@@ -18,7 +18,7 @@ ExternalProject_Add(
         blockaligner
         DOWNLOAD_COMMAND ""
         CONFIGURE_COMMAND ""
-        BUILD_COMMAND cargo build --release
+        BUILD_COMMAND cargo build COMMAND cargo build --release
         BINARY_DIR "${CMAKE_SOURCE_DIR}/lib/block-aligner"
         INSTALL_COMMAND ""
         LOG_BUILD ON)
