@@ -7,6 +7,10 @@
 SIMD-accelerated library for computing global and X-drop affine gap sequence alignments using
 an adaptive block-based algorithm.
 
+<p align = "center">
+<img src = "vis/block_img1.png" width = "300px">
+</p>
+
 ## Example
 ```rust
 use block_aligner::scan_block::*;
@@ -76,7 +80,7 @@ RUSTFLAGS="-C target-feature=+simd128" cargo build --target=wasm32-wasi --releas
 ```
 
 ## Data
-Some Nanopore (DNA) and Uniclust30 (protein) data are used in some tests and benchmarks.
+Some Illumina/Nanopore (DNA) and Uniclust30 (protein) data are used in some tests and benchmarks.
 You will need to download them by following the instructions in the [data readme](data/README.md).
 
 ## Test
@@ -86,7 +90,7 @@ CI will run these tests when commits are pushed to this repo.
 
 For assessing the accuracy of block aligner on random data, run `./accuracy_avx2.sh`,
 `./x_drop_accuracy_avx2.sh`, or `./accuracy_wasm.sh`.
-For Nanopore or Uniclust30 data, run `./nanopore_accuracy.sh` or `./uc_accuracy.sh`.
+For Illumina/Nanopore or Uniclust30 data, run `./nanopore_accuracy.sh` or `./uc_accuracy.sh`.
 
 For debugging, there exists a `debug` feature flag that prints out a lot of
 useful info about the internal state of the aligner while it runs.
@@ -107,9 +111,9 @@ Go to those repos, then follow the instructions for installing and running the c
 If you run the scripts in those repos for comparing scores produced by different algorithms,
 you should get `.tsv` generated files. Then, in this repo's directory, run
 ```
-./compare_avx2.sh /path/to/file.tsv
+./compare_avx2.sh /path/to/file.tsv 50
 ```
-to get the comparisons.
+to get the comparisons. The X-drop threshold is specified after the path.
 
 ## Benchmark
 1. `./bench_avx2.sh` or `./bench_wasm.sh`
@@ -143,21 +147,14 @@ installed and on your `$PATH`.
 There are C bindings for block aligner. More information on how to use them is located in
 the [C readme](c/README.md).
 
+## Data analysis and visualizations
+Use the Jupyter notebook in the `vis/` directory to gather data and plot them. An easier way
+to run the whole notebook is to run the `vis/run_vis.sh` script.
+
 ## Other SIMD instruction sets
 * [ ] SSE4.1 (Depends on demand)
 * [ ] AVX-512 (I don't have a machine to test)
 * [ ] NEON (I don't have a machine to test)
 
-## Some Failed Ideas
-1. What if we took Daily's prefix scan idea and made it faster and made it banded using
-ring buffers and had tons of 32-bit offsets for intervals of the band to prevent overflow?
-(This actually works, but it is soooooo complex.)
-2. What if we took that banded idea (a single thin vertical band) and made it adaptive?
-3. What if we placed blocks like Minecraft, where there is no overlap between blocks?
-4. What if we compared the rightmost column and bottommost row in each block to decide
-which direction to shift? (Surprisingly, using the first couple of values in each column
-or row is better than using the whole column/row. Also, comparing the sum of scores worked
-better than comparing the max.)
-5. Use a branch-predictor-like scheme to predict which direction to shift as a tie-breaker
-when shifting right or down seem equally good.
-6. ...
+## Old ideas and history
+See the [ideas](ideas.md) file.
