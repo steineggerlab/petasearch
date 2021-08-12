@@ -10,7 +10,7 @@
 #include "DistanceCalculator.h"
 #include "Matcher.h"
 #include "QueryTableEntry.h"
-#include "block_aligner.h"
+#include "BlockAligner.h"
 
 #include "omptl/omptl_algorithm"
 
@@ -78,7 +78,7 @@ unsigned int ungappedDiagFilter(std::vector<QueryTableEntry> &queries,
                                 double evalThr) {
 
     int maxScore = INT_MIN;
-    unsigned int lastDiagonal = (unsigned int) -1;
+    unsigned int lastDiagonal = INVALID_DIAG;
     for (size_t i = 1; i < queries.size(); ++i) {
         if (queries[i].Result.diag == lastDiagonal) {
             lastDiagonal = queries[i].Result.diag;
@@ -196,9 +196,13 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
-        Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer, (bool) par.compBiasCorrection,
-                        isNucDB ? par.gapOpen.nucleotides : par.gapOpen.aminoacids,
-                        isNucDB ? par.gapExtend.nucleotides : par.gapExtend.aminoacids);
+        // TODO: replace this matcher with block-aligner
+//        Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer, (bool) par.compBiasCorrection,
+//                        isNucDB ? par.gapOpen.nucleotides : par.gapOpen.aminoacids,
+//                        isNucDB ? par.gapExtend.nucleotides : par.gapExtend.aminoacids);
+        BlockAligner blockAligner(subMat, par.maxSeqLen,
+                                  isNucDB ? par.gapOpen.nucleotides : par.gapOpen.aminoacids,
+                                  isNucDB ? par.gapExtend.nucleotides : par.gapExtend.aminoacids);
 
         char buffer[1024];
         std::vector<Matcher::result_t> results;
@@ -223,7 +227,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             targetSeq.mapSequence(targetId, targetKey, targetSeqData, targetSeqLen);
 
             // TODO: this might be wasted if no single hit hit the target
-            matcher.initQuery(&targetSeq);
+            blockAligner.initQuery(&targetSeq);
 
             // TODO: prefetch next sequence
 
@@ -270,7 +274,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
                 std::string realSeq;
                 querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
-                
+
                 unsigned int diag = ungappedDiagFilter(queries,
                                                        realSeq.c_str(),
                                                        querySeqLen,
@@ -285,10 +289,18 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 }
 
                 // TODO we have to swap coverage mode either here or already in workflow etc
-//                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
-                Matcher::result_t res = matcher.getSWResult(&querySeq, diag, false, par.covMode, par.covThr, par.evalThr,
-                                                            Matcher::SCORE_COV_SEQID, par.seqIdMode, false);
+                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
+                Matcher::result_t res = blockAligner.align(&querySeq, diag, &evaluer);
                 results.emplace_back(res);
+
+                if (thread_idx == 0 && i < 640) {
+                    Debug(Debug::INFO) << res.backtrace << "\n";
+                    Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t" << targetKey
+                    << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
+                    Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t" << queryKey
+                    << "\t" << res.dbStartPos << "\t" << querySeqLen << "\n" << res.eval << "\t" << res.alnLength
+                    << "\n\n";
+                }
             }
 
             std::sort(results.begin(), results.end(), Matcher::compareHits);
@@ -296,15 +308,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 size_t len = Matcher::resultToBuffer(buffer, results[j], false, false);
                 result.append(buffer, len);
             }
-
-//    if (thread_idx == 0 && i < 640) {
-//        Debug(Debug::INFO) << res.backtrace << "\n";
-//        Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t" << targetKey
-//                           << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
-//        Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t" << queryKey
-//                           << "\t" << res.dbStartPos << "\t" << querySeqLen << "\n" << res.eval << "\t" << res.alnLength
-//                           << "\n\n";
-//    }
 
             writer.writeData(result.c_str(), result.size(), targetKey, thread_idx);
             results.clear();

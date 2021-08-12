@@ -12,7 +12,7 @@ add_executable(srasearch
         ${workflow_source_files}
         LocalCommandDeclarations.h
         srasearch.cpp
-        commons/BitManipulateMacros.h)
+        commons/BitManipulateMacros.h commons/BlockAligner.cpp commons/BlockAligner.h)
 
 ExternalProject_Add(
         blockaligner
@@ -27,6 +27,6 @@ mmseqs_setup_derived_target(srasearch)
 add_dependencies(srasearch local-generated blockaligner)
 
 find_library(BLOCK_ALIGNER block_aligner HINTS "${CMAKE_SOURCE_DIR}/lib/block-aligner/target/release")
-target_link_libraries(srasearch version atomic pthread m dl ${BLOCK_ALIGNER})
+target_link_libraries(srasearch version atomic pthread m ${BLOCK_ALIGNER} dl)
 
 install(TARGETS srasearch DESTINATION bin)
