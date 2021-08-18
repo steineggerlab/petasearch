@@ -182,7 +182,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
     EvalueComputation evaluer(targetSequenceReader.getAminoAcidDBSize(), subMat);
 
-    Debug::Progress progress(resultReader.getSize());
+//    Debug::Progress progress(resultReader.getSize());
 #pragma omp parallel
     {
         unsigned int thread_idx = 0;
@@ -213,7 +213,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
-            progress.updateProgress();
+//            progress.updateProgress();
 
             size_t targetKey = resultReader.getDbKey(i);
             unsigned int targetId = targetSequenceReader.getId(targetKey);
@@ -271,7 +271,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
                 
                 unsigned int diag = ungappedDiagFilter(queries,
-                                                       realSeq.c_str(),
+                                                       useProfileSearch ? realSeq.c_str() : querySeqData,
                                                        querySeqLen,
                                                        targetSeqData,
                                                        targetSeqLen,
