@@ -9,6 +9,7 @@
 #include "Sequence.h"
 #include "block_aligner.h"
 #include "Util.h"
+#include "Parameters.h"
 
 inline void swap(int &a, int &b) {
     int temp = b;
@@ -26,9 +27,10 @@ void strrev(char *strRev, const char *str, int len) {
     }
 }
 
+/* Make a slice origStr[start:end], start inclusive, end exclusive*/
 char *substr(char *origStr, int start, int end) {
     char *subStr = static_cast<char *>(calloc(end - start + 1, sizeof(char)));
-    strncpy(subStr, origStr, end - start);
+    strncpy(subStr, origStr + start, end - start);
     return subStr;
 }
 
@@ -72,7 +74,7 @@ Matcher::result_t BlockAligner::align(Sequence *targetSeqObj,
 
     // TODO: make this pass in as a value
     // TODO: make ungapped alignment result pass in as parameter
-    int xdrop = 2048;
+    int xdrop = 50;
 
     std::string backtrace;
 
@@ -186,18 +188,18 @@ Matcher::result_t BlockAligner::align(Sequence *targetSeqObj,
     Matcher::result_t realResult;
     //    result.cigar = retCigar;
     int32_t cigarLen = cigar.len;
-    int bitScore = static_cast<int>(evaluer->computeBitScore(res.score) + 0.5);
-    int qEndPos = qStartPos + res.query_idx;
-    int dbEndPos = tStartPos + res.reference_idx;
-    int qcov = SmithWaterman::computeCov(qStartPos, qEndPos, querySeqLen);
-    int dbcov = SmithWaterman::computeCov(tStartPos, dbEndPos, targetSeqObj->L);
-    double evalue = evaluer->computeEvalue(res.score, origQueryLen);
+    int bitScore = static_cast<int>(evaluer->computeBitScore(res.score)+0.5);;
+    int qEndPos = qStartPos + res.query_idx - 1;
+    int dbEndPos = tStartPos + res.reference_idx - 1;
+    int qcov = SmithWaterman::computeCov(qStartPos, qEndPos - 1, querySeqLen);
+    int dbcov = SmithWaterman::computeCov(tStartPos, dbEndPos - 1, targetSeqObj->L);
+    double evalue = evaluer->computeEvalue(res.score, querySeqLen);
 
     char ops_char[] = {' ', 'M', 'I', 'D'};
 
     unsigned int alnLength = Matcher::computeAlnLength(qStartPos, qEndPos, tStartPos, dbEndPos);
     if (cigar.len > 0) {
-        int32_t targetPos = tStartPos, queryPos = qStartPos;
+        int32_t targetPos = 0, queryPos = 0;
         for (int32_t c = 0; c < cigarLen; ++c) {
             char letter = ops_char[cigar.ptr[c].op];
             uint32_t length = cigar.ptr[c].len;
@@ -205,8 +207,18 @@ Matcher::result_t BlockAligner::align(Sequence *targetSeqObj,
 
             for (uint32_t i = 0; i < length; ++i) {
                 if (letter == 'M') {
-                    if (targetSeq[targetPos] == querySeq[queryPos]) {
-                        aaIds++;
+                    if (reverseCigar) {
+                        if (targetSeqRevAlign[targetPos] == 'X' or querySeqRevAlign[queryPos] == 'X') {
+                            aaIds++;
+                        } else if (targetSeqRevAlign[targetPos] == querySeqRevAlign[queryPos]) {
+                            aaIds++;
+                        }
+                    } else {
+                        if (targetSeqAlign[targetPos] == 'X' or querySeqAlign[queryPos] == 'X') {
+                            aaIds++;
+                        } else if (targetSeqAlign[targetPos] == querySeqAlign[queryPos]) {
+                            aaIds++;
+                        }
                     }
                     ++queryPos;
                     ++targetPos;
@@ -225,13 +237,16 @@ Matcher::result_t BlockAligner::align(Sequence *targetSeqObj,
         alnLength = backtrace.length();
     }
 
-    unsigned int seqIdMode = Matcher::SCORE_COV_SEQID;
+    unsigned int seqIdMode = Parameters::SEQ_ID_ALN_LEN;
 
     float seqId = Util::computeSeqId(seqIdMode, aaIds, querySeqLen, targetSeqObj->L, alnLength);
-
-    if (reverseCigar == false) {
+    Debug(Debug::INFO) << backtrace << "\n";
+    if (reverseCigar) {
         std::reverse(backtrace.begin(), backtrace.end());
+        Debug(Debug::INFO) << backtrace << "\n";
     }
+
+    Debug(Debug::INFO) << "aaIds: " << aaIds << "\n";
 
     realResult = Matcher::result_t(targetSeqObj->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength,
                                    qStartPos, qEndPos, origQueryLen, tStartPos, dbEndPos, targetSeqObj->L, backtrace);
