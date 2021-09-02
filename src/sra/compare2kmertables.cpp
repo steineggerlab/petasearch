@@ -126,7 +126,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     Debug(Debug::INFO) << "input prepared, time spent: " << timer.lap() << "\n";
 
     size_t kmerCount = 0;
-#pragma omp parallel for reduction(+:kmerCount) default(none) shared(reader, par)
+#pragma omp parallel for reduction(+:kmerCount)
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
@@ -150,8 +150,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
 
     Debug::Progress progress(reader.getSize());
 
-#pragma omp parallel default(none) \
-shared(par, reader, progress, subMat, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch)
+#pragma omp parallel
     {
         unsigned int thread_idx = 0;
         unsigned int total_threads = 1;
@@ -293,8 +292,7 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     }
 
 
-#pragma omp parallel num_threads(targetTables.size()) default(none) \
-shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout)
+#pragma omp parallel num_threads(targetTables.size())
 {
 std::vector<QueryTableEntry> localQTable (qTable); //creates a deep copy of the queryTable
 bool notFirst = false;
