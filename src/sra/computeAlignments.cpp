@@ -1,4 +1,4 @@
-#include <QueryTableEntry.h>
+
 #include "LocalParameters.h"
 #include "Command.h"
 #include "Debug.h"
@@ -17,10 +17,8 @@
 #ifdef OPENMP
 
 #include <omp.h>
-#include <QueryTableEntry.h>
 
 #endif
-
 
 std::string printAlnFromBt(const char *seq, unsigned int offset, const std::string &bt, bool reverse) {
     std::string out;
@@ -92,13 +90,13 @@ unsigned int ungappedDiagFilter(std::vector<QueryTableEntry> &queries,
                         queries[i].Result.diag, matrix, rescoreMode);
         queries[i].Result.score = aln.score;
 
-//        Debug(Debug::ERROR) << querySeqLen << "\t" << std::string(querySeqData, querySeqLen) << "\n";
-//        Debug(Debug::ERROR) << targetSeqLen << "\t" << std::string(k->Result.diag, ' ') << std::string(targetSeqData, targetSeqLen) << "\n";
+        //        Debug(Debug::ERROR) << querySeqLen << "\t" << std::string(querySeqData, querySeqLen) << "\n";
+        //        Debug(Debug::ERROR) << targetSeqLen << "\t" << std::string(k->Result.diag, ' ') << std::string(targetSeqData, targetSeqLen) << "\n";
 
         // if (protein) {
         // different than wiki, explain swap afterwards
         double eval = evaluer.computeEvalue(aln.score, querySeqLen);
-//                    Debug(Debug::ERROR) << k->Result.diag  << "\t" << aln.score <<  "\t" << eval << "\n";
+        //                    Debug(Debug::ERROR) << k->Result.diag  << "\t" << aln.score <<  "\t" << eval << "\n";
 
         // this is bad for nucleotide petasearch, we need to know the best diagonal
         if (eval <= evalThr) {
@@ -183,7 +181,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
     EvalueComputation evaluer(targetSequenceReader.getAminoAcidDBSize(), subMat);
 
-    Debug::Progress progress(resultReader.getSize());
+    //    Debug::Progress progress(resultReader.getSize());
 #pragma omp parallel
     {
         unsigned int thread_idx = 0;
@@ -197,10 +195,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
         // TODO: replace this matcher with block-aligner
-//        Matcher matcher(seqType, par.maxSeqLen, subMat, &evaluer, (bool) par.compBiasCorrection,
-//                        isNucDB ? par.gapOpen.nucleotides : par.gapOpen.aminoacids,
-//                        isNucDB ? par.gapExtend.nucleotides : par.gapExtend.aminoacids);
-        BlockAligner blockAligner(subMat, par.maxSeqLen,
+        BlockAligner blockAligner(subMat,
                                   isNucDB ? par.gapOpen.nucleotides : par.gapOpen.aminoacids,
                                   isNucDB ? par.gapExtend.nucleotides : par.gapExtend.aminoacids);
 
@@ -218,7 +213,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
-            progress.updateProgress();
+            //            progress.updateProgress();
 
             size_t targetKey = resultReader.getDbKey(i);
             unsigned int targetId = targetSequenceReader.getId(targetKey);
@@ -236,19 +231,19 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             while (it.getNext(queries)) {
                 for (size_t j = 0; j < queries.size(); ++j) {
                     QueryTableEntry &query = queries[j];
-//                    Debug(Debug::INFO) << SSTR(queries.size()) << "\n";
-//                    Debug(Debug::INFO) << SSTR(targetKey) << "\n";
-//                    Debug(Debug::INFO) << SSTR(query.querySequenceId) << "\n";
-//                    Debug(Debug::INFO) << SSTR(query.Query.kmer) << "\n";
-//                    Debug(Debug::INFO) << SSTR(i) << "\n";
-//                    Debug(Debug::INFO) << SSTR(j) << "\n";
-//                    idx.printKmer(query.Query.kmer, par.kmerSize, subMat->int2aa);
-//                    Debug(Debug::INFO) << "\n";
+                    //                    Debug(Debug::INFO) << SSTR(queries.size()) << "\n";
+                    //                    Debug(Debug::INFO) << SSTR(targetKey) << "\n";
+                    //                    Debug(Debug::INFO) << SSTR(query.querySequenceId) << "\n";
+                    //                    Debug(Debug::INFO) << SSTR(query.Query.kmer) << "\n";
+                    //                    Debug(Debug::INFO) << SSTR(i) << "\n";
+                    //                    Debug(Debug::INFO) << SSTR(j) << "\n";
+                    //                    idx.printKmer(query.Query.kmer, par.kmerSize, subMat->num2aa);
+                    //                    Debug(Debug::INFO) << "\n";
                     bool kmerFound = false;
                     while (targetSeq.hasNextKmer()) {
                         const unsigned char *kmer = targetSeq.nextKmer();
-//                        idx.printKmer(idx.int2index(kmer, 0, par.kmerSize), par.kmerSize, subMat->int2aa);
-//                        Debug(Debug::INFO) << "\n";
+                        //                        idx.printKmer(idx.int2index(kmer, 0, par.kmerSize), par.kmerSize, subMat->num2aa);
+                        //                        Debug(Debug::INFO) << "\n";
                         if (query.Query.kmer == idx.int2index(kmer, 0, par.kmerSize)) {
                             query.Result.diag = query.Query.kmerPosInQuery - targetSeq.getCurrentPosition();
                             kmerFound = true;
@@ -276,7 +271,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
 
                 unsigned int diag = ungappedDiagFilter(queries,
-                                                       realSeq.c_str(),
+                                                       useProfileSearch ? realSeq.c_str() : querySeqData,
                                                        querySeqLen,
                                                        targetSeqData,
                                                        targetSeqLen,
@@ -288,19 +283,24 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     continue;
                 }
 
-                // TODO we have to swap coverage mode either here or already in workflow etc
-                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
-                Matcher::result_t res = blockAligner.align(&querySeq, diag, &evaluer);
-                results.emplace_back(res);
+//                Debug(Debug::INFO) << "Compute alignment between query: "
+//                                   << querySequenceReader.getLookupEntryName(queryKey) << "\n";
+//                                   << "and target: "
+//                                   << targetSequenceReader.getLookupEntryName(targetId) << "\n";
 
-                if (thread_idx == 0 && i < 640) {
-                    Debug(Debug::INFO) << res.backtrace << "\n";
-                    Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t" << targetKey
-                    << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
-                    Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t" << queryKey
-                    << "\t" << res.dbStartPos << "\t" << querySeqLen << "\n" << res.eval << "\t" << res.alnLength
-                    << "\n\n";
-                }
+                // TODO we have to swap coverage mode either here or already in workflow etc
+                // querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
+                Matcher::result_t res = blockAligner.align(&querySeq, -diag, &evaluer);
+                results.emplace_back(res);
+                Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";
+                Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t"
+                                   << targetKey
+                                   << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
+                Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t"
+                                   << queryKey
+                                   << "\t" << res.dbStartPos << "\t" << querySeqLen << "\n" << res.eval << "\t"
+                                   << res.alnLength
+                                   << "\n\n";
             }
 
             std::sort(results.begin(), results.end(), Matcher::compareHits);

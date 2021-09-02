@@ -11,7 +11,7 @@
 
 class BlockAligner {
 public:
-    BlockAligner(BaseMatrix *m, int maxSeqLen, int gapOpen, int gapExtend);
+    BlockAligner(BaseMatrix *m, int gapOpen, int gapExtend);
 
     ~BlockAligner();
 
@@ -23,12 +23,11 @@ public:
 
 private:
     SubstitutionMatrix::FastMatrix fastMatrix;
-    uint8_t *targetSeqRev;
-    int targetSeqRevDataLen;
-    uint8_t *querySeq;
-    uint8_t *querySeqRev;
-    int querySeqRevDataLen;
-    Sequence *querySeqObj;
+    const char *queryID;
+    char *targetSeqRev;
+    const char *querySeq;
+    int querySeqLen;
+    char *querySeqRev;
     int8_t *mat;
     AAMatrix *subMat;
     SizeRange range;
