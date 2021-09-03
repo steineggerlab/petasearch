@@ -11,25 +11,22 @@
 
 class BlockAligner {
 public:
-    BlockAligner(BaseMatrix *m, int gapOpen, int gapExtend);
+    BlockAligner(size_t maxSequenceLength, int8_t gapOpen, int8_t gapExtend);
 
     ~BlockAligner();
 
     void initQuery(Sequence *query);
 
     Matcher::result_t align(Sequence *targetSeqObj,
-                            int diagonal,
-                            EvalueComputation *evaluer);
+                            DistanceCalculator::LocalAlignment alignment,
+                            EvalueComputation *evaluer,
+                            int xdrop);
 
 private:
-    SubstitutionMatrix::FastMatrix fastMatrix;
-    const char *queryID;
     char *targetSeqRev;
     const char *querySeq;
     int querySeqLen;
     char *querySeqRev;
-    int8_t *mat;
-    AAMatrix *subMat;
     SizeRange range;
     Gaps gaps;
 };

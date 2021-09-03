@@ -65,17 +65,13 @@ bool isWithinNDiagonals(const std::vector<QueryTableEntry> &queries, unsigned in
     return shortestDiagDistance <= N;
 }
 
-unsigned int ungappedDiagFilter(std::vector<QueryTableEntry> &queries,
-                                const char *querySeqData,
-                                size_t querySeqLen,
-                                const char *targetSeqData,
-                                size_t targetSeqLen,
-                                const char **matrix,
-                                EvalueComputation &evaluer,
-                                int rescoreMode,
-                                double evalThr) {
-
+DistanceCalculator::LocalAlignment ungappedDiagFilter(
+        std::vector<QueryTableEntry> &queries,
+        const char *querySeqData, size_t querySeqLen,
+        const char *targetSeqData, size_t targetSeqLen,
+        const char **matrix, EvalueComputation &evaluer, int rescoreMode, double evalThr) {
     int maxScore = INT_MIN;
+    DistanceCalculator::LocalAlignment alignmentResult = DistanceCalculator::LocalAlignment();
     unsigned int lastDiagonal = INVALID_DIAG;
     for (size_t i = 1; i < queries.size(); ++i) {
         if (queries[i].Result.diag == lastDiagonal) {
@@ -84,23 +80,19 @@ unsigned int ungappedDiagFilter(std::vector<QueryTableEntry> &queries,
         }
         lastDiagonal = queries[i].Result.diag;
 
-        DistanceCalculator::LocalAlignment aln =
-                DistanceCalculator::computeUngappedAlignment(
-                        querySeqData, querySeqLen, targetSeqData, targetSeqLen,
-                        queries[i].Result.diag, matrix, rescoreMode);
-        queries[i].Result.score = aln.score;
-
-        //        Debug(Debug::ERROR) << querySeqLen << "\t" << std::string(querySeqData, querySeqLen) << "\n";
-        //        Debug(Debug::ERROR) << targetSeqLen << "\t" << std::string(k->Result.diag, ' ') << std::string(targetSeqData, targetSeqLen) << "\n";
+        alignmentResult = DistanceCalculator::computeUngappedAlignment(querySeqData, querySeqLen, targetSeqData,
+                                                                       targetSeqLen, queries[i].Result.diag,
+                                                                       matrix, rescoreMode);
+        queries[i].Result.score = alignmentResult.score;
 
         // if (protein) {
         // different than wiki, explain swap afterwards
-        double eval = evaluer.computeEvalue(aln.score, querySeqLen);
+        double eval = evaluer.computeEvalue(alignmentResult.score, querySeqLen);
         //                    Debug(Debug::ERROR) << k->Result.diag  << "\t" << aln.score <<  "\t" << eval << "\n";
 
         // this is bad for nucleotide petasearch, we need to know the best diagonal
         if (eval <= evalThr) {
-            maxScore = aln.score;
+            maxScore = alignmentResult.score;
             break;
         }
         // } else {
@@ -109,9 +101,14 @@ unsigned int ungappedDiagFilter(std::vector<QueryTableEntry> &queries,
     }
 
     if (maxScore == INT_MIN) {
-        return INVALID_DIAG;
+        alignmentResult.diagonal = INVALID_DIAG;
+        return alignmentResult;
     }
-    return lastDiagonal;
+    if (alignmentResult.diagonal != lastDiagonal) {
+        Debug(Debug::INFO) << alignmentResult.diagonal << "\t" << lastDiagonal << "\n";
+        EXIT(EXIT_FAILURE);
+    }
+    return alignmentResult;
 }
 
 struct BlockIterator {
@@ -181,7 +178,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
     EvalueComputation evaluer(targetSequenceReader.getAminoAcidDBSize(), subMat);
 
-    //    Debug::Progress progress(resultReader.getSize());
+    Debug::Progress progress(resultReader.getSize());
 #pragma omp parallel
     {
         unsigned int thread_idx = 0;
@@ -189,15 +186,14 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         thread_idx = static_cast<unsigned int>(omp_get_thread_num());
 #endif
         Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, par.kmerSize, par.spacedKmer,
-                          false, useProfileSearch ? false : true);
+                          false, !useProfileSearch);
         Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
-        // TODO: replace this matcher with block-aligner
-        BlockAligner blockAligner(subMat,
-                                  isNucDB ? par.gapOpen.nucleotides : par.gapOpen.aminoacids,
-                                  isNucDB ? par.gapExtend.nucleotides : par.gapExtend.aminoacids);
+        BlockAligner blockAligner(par.maxSeqLen,
+                                  isNucDB ? -par.gapOpen.nucleotides : -par.gapOpen.aminoacids,
+                                  isNucDB ? -par.gapExtend.nucleotides : -par.gapExtend.aminoacids);
 
         char buffer[1024];
         std::vector<Matcher::result_t> results;
@@ -213,7 +209,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
-            //            progress.updateProgress();
+            progress.updateProgress();
 
             size_t targetKey = resultReader.getDbKey(i);
             unsigned int targetId = targetSequenceReader.getId(targetKey);
@@ -270,27 +266,22 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 std::string realSeq;
                 querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
 
-                unsigned int diag = ungappedDiagFilter(queries,
-                                                       useProfileSearch ? realSeq.c_str() : querySeqData,
-                                                       querySeqLen,
-                                                       targetSeqData,
-                                                       targetSeqLen,
-                                                       fastMatrix.matrix,
-                                                       evaluer,
-                                                       par.rescoreMode,
-                                                       par.evalThr);
-                if (diag == INVALID_DIAG) {
+                DistanceCalculator::LocalAlignment aln = ungappedDiagFilter(queries,
+                                                                             useProfileSearch ? realSeq.c_str()
+                                                                                              : querySeqData,
+                                                                             querySeqLen,
+                                                                             targetSeqData,
+                                                                             targetSeqLen,
+                                                                             fastMatrix.matrix,
+                                                                             evaluer,
+                                                                             par.rescoreMode,
+                                                                             par.evalThr);
+                if (aln.diagonal == INVALID_DIAG) {
                     continue;
                 }
 
-//                Debug(Debug::INFO) << "Compute alignment between query: "
-//                                   << querySequenceReader.getLookupEntryName(queryKey) << "\n";
-//                                   << "and target: "
-//                                   << targetSequenceReader.getLookupEntryName(targetId) << "\n";
-
                 // TODO we have to swap coverage mode either here or already in workflow etc
-                // querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
-                Matcher::result_t res = blockAligner.align(&querySeq, -diag, &evaluer);
+                Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, 50);
                 results.emplace_back(res);
                 Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";
                 Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t"
@@ -320,8 +311,13 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     writer.close();
 
     resultReader.close();
+    querySequenceReader.close();
     targetSequenceReader.close();
 
+    delete [] fastMatrix.matrixData;
+    delete [] fastMatrix.matrix;
+    delete subMat;
+//    delete [] subMat;
     return EXIT_SUCCESS;
 }
 

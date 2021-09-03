@@ -3,8 +3,7 @@
 //
 
 #include <DistanceCalculator.h>
-#include <stdio.h>
-#include <string.h>
+#include <cstring>
 #include "BlockAligner.h"
 #include "Sequence.h"
 #include "block_aligner.h"
@@ -27,75 +26,63 @@ void strrev(char *strRev, const char *str, int len) {
     }
 }
 
-/* Make a slice origStr[start:end], start inclusive, end exclusive*/
+/**
+ * @brief Make a slice origStr[start:end], start inclusive, end exclusive
+ * */
 char *substr(char *origStr, int start, int end) {
     char *subStr = static_cast<char *>(calloc(end - start + 1, sizeof(char)));
     strncpy(subStr, origStr + start, end - start);
     return subStr;
 }
 
-BlockAligner::BlockAligner(BaseMatrix *subMat, int gapOpen, int gapExtend) :
-        fastMatrix(SubstitutionMatrix::createAsciiSubMat(*subMat)) {
-    mat = new int8_t[subMat->alphabetSize * subMat->alphabetSize];
-    this->subMat = (AAMatrix *) subMat;
-    for (int i = 0; i < subMat->alphabetSize; i++) {
-        for (int j = 0; j < subMat->alphabetSize; j++) {
-            mat[i * subMat->alphabetSize + j] = subMat->subMatrix[i][j];
-        }
-    }
-
+BlockAligner::BlockAligner(size_t maxSequenceLength, int8_t gapOpen, int8_t gapExtend) : range({32, 32}) {
+    targetSeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
+    querySeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     range.min = 32;
     range.max = 4096;
-
-    gaps.extend = -gapExtend;
-    gaps.open = -gapOpen;
+    gaps = {gapOpen, gapExtend};
 }
 
 BlockAligner::~BlockAligner() {
-    delete[] fastMatrix.matrixData;
-    delete[] fastMatrix.matrix;
-    delete[] mat;
+    free(querySeqRev);
+    free(targetSeqRev);
 }
 
 void BlockAligner::initQuery(Sequence *query) {
     querySeq = query->getSeqData();
     querySeqLen = query->L;
-
-    querySeqRev = static_cast<char *>(calloc(query->L + 1, sizeof(char)));
-
-    strrev(querySeqRev, querySeq, querySeqLen - 1);
+//    querySeqRev = static_cast<char *>(calloc(query->L + 1, sizeof(char)));
+    strrev(querySeqRev, querySeq, querySeqLen);
 }
 
 
-Matcher::result_t BlockAligner::align(Sequence *targetSeqObj,
-                                      int diagonal,
-                                      EvalueComputation *evaluer) {
+Matcher::result_t
+BlockAligner::align(Sequence *targetSeqObj, DistanceCalculator::LocalAlignment alignment, EvalueComputation *evaluer,
+                    int
+                    xdrop) {
     int aaIds = 0;
 
-    // TODO: make this pass in as a value
     // TODO: make ungapped alignment result pass in as parameter
-    int xdrop = 50;
+//    int xdrop = 50;
 
     std::string backtrace;
 
     const char *targetSeq = targetSeqObj->getSeqData();
-    targetSeqRev = static_cast<char *>(calloc(targetSeqObj->L + 1, sizeof(char)));
+//    targetSeqRev = static_cast<char *>(calloc(targetSeqObj->L + 1, sizeof(char)));
     strrev(targetSeqRev, targetSeq, targetSeqObj->L - 1);
 
     int qUngappedStartPos, qUngappedEndPos, dbUngappedStartPos, dbUngappedEndPos;
 
-    DistanceCalculator::LocalAlignment alignment;
-    int queryLen = querySeqLen;
-    int origQueryLen = queryLen;
-    alignment = DistanceCalculator::computeUngappedAlignment(
-            querySeq, querySeqLen, targetSeqObj->getSeqData(), targetSeqObj->L,
-            diagonal, fastMatrix.matrix, Parameters::RESCORE_MODE_ALIGNMENT);
+//    DistanceCalculator::LocalAlignment alignment;
+//    alignment = DistanceCalculator::computeUngappedAlignment(
+//            querySeq, querySeqLen, targetSeqObj->getSeqData(), targetSeqObj->L,
+//            diagonal, fastMatrix.matrix, Parameters::RESCORE_MODE_ALIGNMENT);
 
 
     unsigned int distanceToDiagonal = alignment.distToDiagonal;
-    diagonal = alignment.diagonal;
+//    diagonal = alignment.diagonal;
 
-    if (diagonal >= 0) {
+    if (alignment.diagonal < 0) {
         qUngappedStartPos = alignment.startPos + distanceToDiagonal;
         qUngappedEndPos = alignment.endPos + distanceToDiagonal;
         dbUngappedStartPos = alignment.startPos;
@@ -145,7 +132,7 @@ Matcher::result_t BlockAligner::align(Sequence *targetSeqObj,
     BlockHandle blockRev = block_align_aa_trace_xdrop(queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
     AlignResult resRev = block_res_aa_trace_xdrop(blockRev);
 
-    int qStartPos = querySeqLen - (qStartRev + resRev.query_idx);
+    int qStartPos = (int) querySeqLen - (qStartRev + resRev.query_idx);
     int qEndPosAlign = querySeqLen;
 //    if (qEndPosAlign < qStartPos) {
 //        swap(qStartPos, qEndPosAlign);
@@ -188,11 +175,11 @@ Matcher::result_t BlockAligner::align(Sequence *targetSeqObj,
     Matcher::result_t realResult;
     //    result.cigar = retCigar;
     int32_t cigarLen = cigar.len;
-    int bitScore = static_cast<int>(evaluer->computeBitScore(res.score)+0.5);;
+    int bitScore = static_cast<int>(evaluer->computeBitScore(res.score) + 0.5);
     int qEndPos = qStartPos + res.query_idx - 1;
     int dbEndPos = tStartPos + res.reference_idx - 1;
-    int qcov = SmithWaterman::computeCov(qStartPos, qEndPos - 1, querySeqLen);
-    int dbcov = SmithWaterman::computeCov(tStartPos, dbEndPos - 1, targetSeqObj->L);
+    float qcov = SmithWaterman::computeCov(qStartPos, qEndPos - 1, querySeqLen);
+    float dbcov = SmithWaterman::computeCov(tStartPos, dbEndPos - 1, targetSeqObj->L);
     double evalue = evaluer->computeEvalue(res.score, querySeqLen);
 
     char ops_char[] = {' ', 'M', 'I', 'D'};
@@ -249,10 +236,20 @@ Matcher::result_t BlockAligner::align(Sequence *targetSeqObj,
     Debug(Debug::INFO) << "aaIds: " << aaIds << "\n";
 
     realResult = Matcher::result_t(targetSeqObj->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength,
-                                   qStartPos, qEndPos, origQueryLen, tStartPos, dbEndPos, targetSeqObj->L, backtrace);
+                                   qStartPos, qEndPos, querySeqLen, tStartPos, dbEndPos, targetSeqObj->L, backtrace);
 
+    block_free_padded_aa(queryRevPadded);
+    block_free_padded_aa(targetRevPadded);
+    block_free_padded_aa(queryPadded);
+    block_free_padded_aa(targetPadded);
+    block_free_cigar(cigar);
     block_free_aa_trace_xdrop(block);
     block_free_aa_trace_xdrop(blockRev);
+
+    free(querySeqRevAlign);
+    free(targetSeqRevAlign);
+    free(querySeqAlign);
+    free(targetSeqAlign);
     return realResult;
     //    free(ezAlign.cigar);
 }
