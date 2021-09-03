@@ -20,6 +20,9 @@
 
 #endif
 
+/**
+ * Print alignment from bactrace. Debug only
+ * */
 std::string printAlnFromBt(const char *seq, unsigned int offset, const std::string &bt, bool reverse) {
     std::string out;
     unsigned int seqPos = 0;
@@ -102,11 +105,6 @@ DistanceCalculator::LocalAlignment ungappedDiagFilter(
 
     if (maxScore == INT_MIN) {
         alignmentResult.diagonal = INVALID_DIAG;
-        return alignmentResult;
-    }
-    if (alignmentResult.diagonal != lastDiagonal) {
-        Debug(Debug::INFO) << alignmentResult.diagonal << "\t" << lastDiagonal << "\n";
-        EXIT(EXIT_FAILURE);
     }
     return alignmentResult;
 }
@@ -276,22 +274,22 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                                                                              evaluer,
                                                                              par.rescoreMode,
                                                                              par.evalThr);
-                if (aln.diagonal == INVALID_DIAG) {
+                if (aln.diagonal == (int) INVALID_DIAG) {
                     continue;
                 }
 
                 // TODO we have to swap coverage mode either here or already in workflow etc
                 Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, 50);
                 results.emplace_back(res);
-                Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";
-                Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t"
-                                   << targetKey
-                                   << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
-                Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t"
-                                   << queryKey
-                                   << "\t" << res.dbStartPos << "\t" << querySeqLen << "\n" << res.eval << "\t"
-                                   << res.alnLength
-                                   << "\n\n";
+//                Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";
+//                Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t"
+//                                   << targetKey
+//                                   << "\t" << res.qStartPos << "\t" << targetSeqLen << "\n";
+//                Debug(Debug::INFO) << printAlnFromBt(querySeqData, res.dbStartPos, res.backtrace, true) << "\t"
+//                                   << queryKey
+//                                   << "\t" << res.dbStartPos << "\t" << querySeqLen << "\n" << res.eval << "\t"
+//                                   << res.alnLength
+//                                   << "\n\n";
             }
 
             std::sort(results.begin(), results.end(), Matcher::compareHits);
