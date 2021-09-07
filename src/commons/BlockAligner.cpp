@@ -35,9 +35,25 @@ char *substr(char *origStr, unsigned int start, unsigned int end) {
     return subStr;
 }
 
+/**
+ * @brief Replace the asterisks (*) in src and store the result in dest
+ */
+void replaceAsterisksWithX(const char *src, char *dest) {
+    size_t j, n = strlen(src);
+    for (size_t i = j = 0; i < n; i++) {
+        if (src[i] != '*') {
+            dest[j++] = src[i];
+        } else {
+            dest[j++] = 'X';
+        }
+    }
+}
+
 BlockAligner::BlockAligner(size_t maxSequenceLength, int8_t gapOpen, int8_t gapExtend) :
         range({32, 32}),
         gaps({gapOpen, gapExtend}) {
+    targetSeq = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
+    querySeq = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     targetSeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     querySeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     range.min = 32;
@@ -45,12 +61,14 @@ BlockAligner::BlockAligner(size_t maxSequenceLength, int8_t gapOpen, int8_t gapE
 }
 
 BlockAligner::~BlockAligner() {
+    free(querySeq);
+    free(targetSeq);
     free(querySeqRev);
     free(targetSeqRev);
 }
 
 void BlockAligner::initQuery(Sequence *query) {
-    querySeq = query->getSeqData();
+    replaceAsterisksWithX(query->getSeqData(), querySeq);
     querySeqLen = query->L;
 //    querySeqRev = static_cast<char *>(calloc(query->L + 1, sizeof(char)));
     strrev(querySeqRev, querySeq, querySeqLen);
@@ -58,19 +76,19 @@ void BlockAligner::initQuery(Sequence *query) {
 
 
 Matcher::result_t
-BlockAligner::align(Sequence *targetSeqObj, DistanceCalculator::LocalAlignment alignment, EvalueComputation *evaluer,
-                    int
-                    xdrop) {
+BlockAligner::align(Sequence *targetSeqObj,
+                    DistanceCalculator::LocalAlignment alignment,
+                    EvalueComputation *evaluer,
+                    int xdrop) {
     int aaIds = 0;
 
     // TODO: make ungapped alignment result pass in as parameter
-//    int xdrop = 50;
 
     std::string backtrace;
 
-    const char *targetSeq = targetSeqObj->getSeqData();
+    replaceAsterisksWithX(targetSeqObj->getSeqData(), targetSeq);
 //    targetSeqRev = static_cast<char *>(calloc(targetSeqObj->L + 1, sizeof(char)));
-    strrev(targetSeqRev, targetSeq, targetSeqObj->L - 1);
+    strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
     unsigned int qUngappedStartPos, qUngappedEndPos, dbUngappedStartPos, dbUngappedEndPos;
 
@@ -111,12 +129,12 @@ BlockAligner::align(Sequence *targetSeqObj, DistanceCalculator::LocalAlignment a
 
     unsigned int qStartPos = querySeqLen - (qStartRev + resRev.query_idx);
     unsigned int qEndPosAlign = querySeqLen;
-    char *querySeqAlign = substr((char *) querySeq, qStartPos, qEndPosAlign);
+    char *querySeqAlign = substr(querySeq, qStartPos, qEndPosAlign);
 
 
     unsigned int tStartPos = targetSeqObj->L - (tStartRev + resRev.reference_idx);
     unsigned int tEndPosAlign = targetSeqObj->L;
-    char *targetSeqAlign = substr((char *) targetSeq, tStartPos, tEndPosAlign);
+    char *targetSeqAlign = substr(targetSeq, tStartPos, tEndPosAlign);
 
     PaddedBytes *queryPadded = block_make_padded_aa(querySeqAlign, range.max);
     PaddedBytes *targetPadded = block_make_padded_aa(targetSeqAlign, range.max);
@@ -141,10 +159,10 @@ BlockAligner::align(Sequence *targetSeqObj, DistanceCalculator::LocalAlignment a
     //    result.cigar = retCigar;
     unsigned long cigarLen = cigar.len;
     int bitScore = static_cast<int>(evaluer->computeBitScore(res.score) + 0.5);
-    int qEndPos = qStartPos + res.query_idx - 1;
-    int dbEndPos = tStartPos + res.reference_idx - 1;
-    float qcov = SmithWaterman::computeCov(qStartPos, qEndPos - 1, querySeqLen);
-    float dbcov = SmithWaterman::computeCov(tStartPos, dbEndPos - 1, targetSeqObj->L);
+    int qEndPos = qStartPos + res.query_idx;
+    int dbEndPos = tStartPos + res.reference_idx;
+    float qcov = SmithWaterman::computeCov(qStartPos, qEndPos, querySeqLen);
+    float dbcov = SmithWaterman::computeCov(tStartPos, dbEndPos, targetSeqObj->L);
     double evalue = evaluer->computeEvalue(res.score, querySeqLen);
 
     char ops_char[] = {' ', 'M', 'I', 'D'};
@@ -197,7 +215,8 @@ BlockAligner::align(Sequence *targetSeqObj, DistanceCalculator::LocalAlignment a
     }
 
     realResult = Matcher::result_t(targetSeqObj->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength,
-                                   qStartPos, qEndPos, querySeqLen, tStartPos, dbEndPos, targetSeqObj->L, backtrace);
+                                   qStartPos, qEndPos, querySeqLen, tStartPos, dbEndPos, targetSeqObj->L,
+                                   backtrace);
 
     block_free_padded_aa(queryRevPadded);
     block_free_padded_aa(targetRevPadded);

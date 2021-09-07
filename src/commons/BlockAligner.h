@@ -24,7 +24,8 @@ public:
 
 private:
     char *targetSeqRev;
-    const char *querySeq;
+    char *querySeq;
+    char *targetSeq;
     int querySeqLen;
     char *querySeqRev;
     SizeRange range;
