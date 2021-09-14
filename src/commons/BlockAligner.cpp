@@ -57,7 +57,7 @@ BlockAligner::BlockAligner(size_t maxSequenceLength, int8_t gapOpen, int8_t gapE
     targetSeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     querySeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     range.min = 32;
-    range.max = 4096;
+    range.max = 1024;
 }
 
 BlockAligner::~BlockAligner() {

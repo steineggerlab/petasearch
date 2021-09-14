@@ -225,14 +225,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             while (it.getNext(queries)) {
                 for (size_t j = 0; j < queries.size(); ++j) {
                     QueryTableEntry &query = queries[j];
-                    //                    Debug(Debug::INFO) << SSTR(queries.size()) << "\n";
-                    //                    Debug(Debug::INFO) << SSTR(targetKey) << "\n";
-                    //                    Debug(Debug::INFO) << SSTR(query.querySequenceId) << "\n";
-                    //                    Debug(Debug::INFO) << SSTR(query.Query.kmer) << "\n";
-                    //                    Debug(Debug::INFO) << SSTR(i) << "\n";
-                    //                    Debug(Debug::INFO) << SSTR(j) << "\n";
-                    //                    idx.printKmer(query.Query.kmer, par.kmerSize, subMat->num2aa);
-                    //                    Debug(Debug::INFO) << "\n";
                     bool kmerFound = false;
                     while (targetSeq.hasNextKmer()) {
                         const unsigned char *kmer = targetSeq.nextKmer();
