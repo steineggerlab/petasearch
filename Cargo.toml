@@ -1,6 +1,6 @@
 [package]
 name = "block-aligner"
-version = "0.1.5"
+version = "0.2.0"
 authors = ["c0deb0t <daniel.liu02@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -13,15 +13,22 @@ categories = ["algorithms", "hardware-support", "science", "text-processing"]
 exclude = ["vis/*", "!vis/block_img1.png"]
 
 [package.metadata.docs.rs]
-targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "i686-pc-windows-msvc", "wasm32-wasi"]
-rustdoc-args = ["-C", "target-feature=+avx2,+simd128"]
+features = ["simd_avx2"]
 
 [lib]
 crate-type = ["lib", "cdylib"]
 
 [features]
+# Enable AVX2
+simd_avx2 = []
+# Enable WASM SIMD
+simd_wasm = []
+
+# Print lots of debug information
 debug = ["debug_size"]
+# Print only the final block sizes
 debug_size = []
+# Prepare code for analysis by llvm-mca
 mca = []
 
 [profile.release]
@@ -41,7 +48,7 @@ rand = { version = "^0.8", default-features = false, features = ["std_rng", "all
 bio = "^0.33"
 
 [build-dependencies]
-cbindgen = "^0.19.0"
+cbindgen = "^0.20.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 parasailors = "^0.3.1"
