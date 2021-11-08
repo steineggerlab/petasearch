@@ -70,7 +70,6 @@ BlockAligner::~BlockAligner() {
 void BlockAligner::initQuery(Sequence *query) {
     replaceAsterisksWithX(query->getSeqData(), querySeq);
     querySeqLen = query->L;
-//    querySeqRev = static_cast<char *>(calloc(query->L + 1, sizeof(char)));
     strrev(querySeqRev, querySeq, querySeqLen);
 }
 
@@ -87,19 +86,11 @@ BlockAligner::align(Sequence *targetSeqObj,
     std::string backtrace;
 
     replaceAsterisksWithX(targetSeqObj->getSeqData(), targetSeq);
-//    targetSeqRev = static_cast<char *>(calloc(targetSeqObj->L + 1, sizeof(char)));
     strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
     unsigned int qUngappedStartPos, qUngappedEndPos, dbUngappedStartPos, dbUngappedEndPos;
 
-//    DistanceCalculator::LocalAlignment alignment;
-//    alignment = DistanceCalculator::computeUngappedAlignment(
-//            querySeq, querySeqLen, targetSeqObj->getSeqData(), targetSeqObj->L,
-//            diagonal, fastMatrix.matrix, Parameters::RESCORE_MODE_ALIGNMENT);
-
-
     unsigned int distanceToDiagonal = alignment.distToDiagonal;
-//    diagonal = alignment.diagonal;
 
     if (alignment.diagonal < 0) {
         qUngappedStartPos = alignment.startPos + distanceToDiagonal;
