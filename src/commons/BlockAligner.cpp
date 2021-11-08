@@ -41,7 +41,9 @@ char *substr(char *origStr, unsigned int start, unsigned int end) {
 void replaceAsterisksWithX(const char *src, char *dest) {
     size_t j, n = strlen(src);
     for (size_t i = j = 0; i < n; i++) {
-        if (src[i] != '*') {
+        if (src[i] == '\n') {
+            continue;
+        } else if (src[i] != '*') {
             dest[j++] = src[i];
         } else {
             dest[j++] = 'X';
@@ -113,9 +115,6 @@ BlockAligner::align(Sequence *targetSeqObj,
     unsigned int tEndRev = targetSeqObj->L;
     char *targetSeqRevAlign = substr(targetSeqRev, tStartRev, tEndRev);
 
-    Debug(Debug::INFO) << "querySeqRevAlign: " << querySeqRevAlign << "! end\n";
-    Debug(Debug::INFO) << "targetSeqRevAlign: " << targetSeqRevAlign << "! end\n";
-
     PaddedBytes *queryRevPadded = block_make_padded_aa(querySeqRevAlign, range.max);
     PaddedBytes *targetRevPadded = block_make_padded_aa(targetSeqRevAlign, range.max);
     BlockHandle blockRev = block_align_aa_trace_xdrop(queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
@@ -125,13 +124,9 @@ BlockAligner::align(Sequence *targetSeqObj,
     unsigned int qEndPosAlign = querySeqLen;
     char *querySeqAlign = substr(querySeq, qStartPos, qEndPosAlign);
 
-
     unsigned int tStartPos = targetSeqObj->L - (tStartRev + resRev.reference_idx);
     unsigned int tEndPosAlign = targetSeqObj->L;
     char *targetSeqAlign = substr(targetSeq, tStartPos, tEndPosAlign);
-
-    Debug(Debug::INFO) << "querySeqAlign: " << querySeqAlign << "! end\n";
-    Debug(Debug::INFO) << "targetSeqAlign: " << targetSeqAlign << "! end\n";
 
     PaddedBytes *queryPadded = block_make_padded_aa(querySeqAlign, range.max);
     PaddedBytes *targetPadded = block_make_padded_aa(targetSeqAlign, range.max);
