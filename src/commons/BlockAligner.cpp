@@ -18,12 +18,17 @@ inline void swap(int &a, int &b) {
 
 void strrev(char *strRev, const char *str, int len) {
     int start = 0;
-    while (LIKELY(start <= len)) {
-        strRev[start] = str[len];
-        strRev[len] = str[start];
+    int end = len - 1;
+    while (LIKELY(start <= end)) {
+        strRev[start] = str[end];
+        strRev[end] = str[start];
         ++start;
-        --len;
+        --end;
     }
+//    for (int i = 0; i < len; i++) {
+//        strRev[len-i-1] = str[i];
+//    }
+    strRev[len] = '\0';
 }
 
 /**
