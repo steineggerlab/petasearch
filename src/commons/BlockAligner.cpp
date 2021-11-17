@@ -16,6 +16,12 @@ inline void swap(int &a, int &b) {
     a = temp;
 }
 
+/**
+ * @brief Reverse a string and put the results in strRev
+ * @param strRev the destination to put the reversed string
+ * @param str the string to be revesed
+ * @param len the length of the string
+ */
 void strrev(char *strRev, const char *str, int len) {
     int start = 0;
     int end = len - 1;
@@ -25,9 +31,6 @@ void strrev(char *strRev, const char *str, int len) {
         ++start;
         --end;
     }
-//    for (int i = 0; i < len; i++) {
-//        strRev[len-i-1] = str[i];
-//    }
     strRev[len] = '\0';
 }
 
@@ -46,6 +49,7 @@ char *substr(char *origStr, unsigned int start, unsigned int end) {
 void replaceAsterisksWithX(const char *src, char *dest) {
     size_t j, n = strlen(src);
     for (size_t i = j = 0; i < n; i++) {
+        // FIXME: this branch is likely not useful now
         if (src[i] == '\n') {
             continue;
         } else if (src[i] != '*') {
@@ -87,9 +91,6 @@ BlockAligner::align(Sequence *targetSeqObj,
                     EvalueComputation *evaluer,
                     int xdrop) {
     int aaIds = 0;
-
-    // TODO: make ungapped alignment result pass in as parameter
-
     std::string backtrace;
 
     replaceAsterisksWithX(targetSeqObj->getSeqData(), targetSeq);
@@ -156,8 +157,8 @@ BlockAligner::align(Sequence *targetSeqObj,
     //    result.cigar = retCigar;
     unsigned long cigarLen = cigar.len;
     int bitScore = static_cast<int>(evaluer->computeBitScore(res.score) + 0.5);
-    int qEndPos = qStartPos + res.query_idx;
-    int dbEndPos = tStartPos + res.reference_idx;
+    int qEndPos = qStartPos + res.query_idx - 1;
+    int dbEndPos = tStartPos + res.reference_idx - 1;
     float qcov = SmithWaterman::computeCov(qStartPos, qEndPos, querySeqLen);
     float dbcov = SmithWaterman::computeCov(tStartPos, dbEndPos, targetSeqObj->L);
     double evalue = evaluer->computeEvalue(res.score, querySeqLen);
