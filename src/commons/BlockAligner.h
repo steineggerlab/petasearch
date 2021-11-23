@@ -11,7 +11,9 @@
 
 class BlockAligner {
 public:
-    BlockAligner(size_t maxSequenceLength, int8_t gapOpen, int8_t gapExtend);
+    BlockAligner(size_t maxSequenceLength,
+                 uintptr_t min, uintptr_t max,
+                 int8_t gapOpen, int8_t gapExtend);
 
     ~BlockAligner();
 

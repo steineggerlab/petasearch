@@ -60,15 +60,15 @@ void replaceAsterisksWithX(const char *src, char *dest) {
     }
 }
 
-BlockAligner::BlockAligner(size_t maxSequenceLength, int8_t gapOpen, int8_t gapExtend) :
-        range({32, 32}),
+BlockAligner::BlockAligner(size_t maxSequenceLength,
+                           uintptr_t min = 32, uintptr_t max = 32,
+                           int8_t gapOpen = -11, int8_t gapExtend = -1) :
+        range({min, max}),
         gaps({gapOpen, gapExtend}) {
     targetSeq = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     querySeq = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     targetSeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     querySeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
-    range.min = 32;
-    range.max = 1024;
 }
 
 BlockAligner::~BlockAligner() {
