@@ -37,10 +37,6 @@ srasearch petasearch queryDB targetlist resultlist tmp
 like this:
 
 ```text
-targetDB1   target_kmertable1
-targetDB2   target_kmertable2
+target_kmertable1   targetDB1
+target_kmertable2   targetDB2
 ```
-
-## To-Dos
-
-- [ ] Supports direct input one database
