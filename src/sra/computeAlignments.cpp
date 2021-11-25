@@ -189,7 +189,9 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
-        BlockAligner blockAligner(par.maxSeqLen, 32, 256,
+        int xdrop = par.xdrop;
+
+        BlockAligner blockAligner(par.maxSeqLen, par.rangeMin, par.rangeMax,
                                   isNucDB ? -par.gapOpen.nucleotides : -par.gapOpen.aminoacids,
                                   isNucDB ? -par.gapExtend.nucleotides : -par.gapExtend.aminoacids);
 
@@ -271,7 +273,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 }
 
                 // TODO we have to swap coverage mode either here or already in workflow etc
-                int xdrop = 20;
                 Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop);
                 results.emplace_back(res);
 //                Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";

@@ -96,19 +96,15 @@ BlockAligner::align(Sequence *targetSeqObj,
     replaceAsterisksWithX(targetSeqObj->getSeqData(), targetSeq);
     strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
-    unsigned int qUngappedStartPos, qUngappedEndPos, dbUngappedStartPos, dbUngappedEndPos;
+    unsigned int qUngappedEndPos, dbUngappedEndPos;
 
     unsigned int distanceToDiagonal = alignment.distToDiagonal;
 
     if (alignment.diagonal < 0) {
-        qUngappedStartPos = alignment.startPos + distanceToDiagonal;
         qUngappedEndPos = alignment.endPos + distanceToDiagonal;
-        dbUngappedStartPos = alignment.startPos;
         dbUngappedEndPos = alignment.endPos;
     } else {
-        qUngappedStartPos = alignment.startPos;
         qUngappedEndPos = alignment.endPos;
-        dbUngappedStartPos = alignment.startPos + distanceToDiagonal;
         dbUngappedEndPos = alignment.endPos + distanceToDiagonal;
     }
 
