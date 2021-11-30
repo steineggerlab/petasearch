@@ -3,4 +3,7 @@ set(commons_source_files
         commons/LocalParameters.cpp
         commons/QueryTableEntry.h
         commons/TargetTableEntry.h
+        commons/BitManipulateMacros.h
+        commons/BlockAligner.cpp
+        commons/BlockAligner.h
         PARENT_SCOPE)
