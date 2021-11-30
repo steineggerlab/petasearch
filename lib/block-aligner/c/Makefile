@@ -1,7 +1,7 @@
 CC=clang
 CFLAGS=-L../target/release -lblock_aligner -I.
 
-.PHONY: all block_aligner example debug
+.PHONY: all block_aligner debug
 
 all: block_aligner debug
 
@@ -10,6 +10,3 @@ block_aligner:
 
 debug:
 	RUSTFLAGS=-g cargo build --features simd_avx2
-
-#example: block_aligner example.c
-#	$(CC) $(CFLAGS) example.c
