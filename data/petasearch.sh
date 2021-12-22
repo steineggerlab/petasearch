@@ -9,27 +9,12 @@ fail() {
 notExists() {
 	[ ! -f "$1" ]
 }
-#
-#ARR=""
-#push_back() {
-#    # shellcheck disable=SC1003
-#    CURR="$(printf '%s' "$1" | awk '{ gsub(/'\''/, "'\''\\'\'''\''"); print; }')"
-#    if [ -z "$ARR" ]; then
-#        ARR=''\'$CURR\'''
-#    else
-#        ARR=$ARR' '\'$CURR\'''
-#    fi
-#}
 
 post_proc () {
   STEP=$1
   # shellcheck disable=SC2086
   "$MMSEQS" computeAlignments "${Q_DB}" "${T_DB}" "${COMP_RES}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${COMP_ALI_PAR} \
         || fail "computing the alignment for matched sequences failed"
-
-   # shellcheck disable=SC2086
-#  "$MMSEQS" swapresults "${T_DB}" "${Q_DB}" "${TMP_PATH}/${SA_RES}_${STEP}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${SWAP_PAR} \
-        || fail "swapping the alignments failed"
 
   # shellcheck disable=SC2086
   "$MMSEQS" convertsraalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${ALI_RES}_${STEP}" "${TMP_PATH}/${M8_RES}_${STEP}" ${CONVERTALIS_PAR} \
@@ -72,14 +57,6 @@ STEP=0
 while IFS="$(printf "\t")" read -r TARGETABLE T_DB COMP_RES; do
    # shellcheck disable=SC2086
    post_proc $STEP &
-#  "$MMSEQS" computeAlignments "${Q_DB}" "${T_DB}" "${COMP_RES}" "${TMP_PATH}/${SA_RES}_${STEP}" ${COMP_ALI_PAR} \
-#        || fail "computing the alignment for matched sequences failed"
-#
-#   # shellcheck disable=SC2086
-
-  # shellcheck disable=SC2086
-#  "$MMSEQS" convertsraalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${ALI_RES}_${STEP}" "${TMP_PATH}/${M8_RES}_${STEP}" ${CONVERTALIS_PAR} \
-#      || fail "creating  the .m8 file failed"
 
 #  push_back "${TMP_PATH}/${M8_RES}_${STEP}"
   STEP=$((STEP+1))
