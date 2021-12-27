@@ -72,7 +72,17 @@ std::vector<struct Command> commands = {
              {"targetSequenceDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
              {"prevResultTable", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb},
              {"alignmentFile", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
-        }
+        },
+        {
+                "convert2sradb", convert2sradb, &localPar.convert2sradb, COMMAND_EXPERT,
+                "",
+                NULL,
+                "Minghang Li <matchy@snu.ac.kr> ",
+                "<i:sequenceDB>|<i:fastaFiles> <o:srasearchDB>",
+                CITATION_MMSEQS2,
+                {{"dbToConvert", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
+                 {"outputDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
+        },
 };
 
 void updateValidation() {}

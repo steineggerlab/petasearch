@@ -20,6 +20,7 @@ public:
     std::vector<MMseqsParameter *> createkmertable;
     std::vector<MMseqsParameter *> compare2kmertables;
     std::vector<MMseqsParameter *> computeAlignments;
+    std::vector<MMseqsParameter *> convert2sradb;
     std::vector<MMseqsParameter *> petasearchworkflow;
     std::vector<MMseqsParameter *> easypetasearchworkflow;
 
@@ -66,7 +67,6 @@ private:
                                         (void *) &rangeMax,
                                         "^[0-9]+$") {
         createkmertable.push_back(&PARAM_SEED_SUB_MAT);
-
         createkmertable.push_back(&PARAM_K);
         createkmertable.push_back(&PARAM_SPACED_KMER_MODE);
         createkmertable.push_back(&PARAM_MAX_SEQ_LEN);
