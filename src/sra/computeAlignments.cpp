@@ -4,6 +4,7 @@
 #include "Debug.h"
 #include "IndexReader.h"
 #include "DBReader.h"
+#include "SRADBReader.h"
 #include "DBWriter.h"
 #include "NucleotideMatrix.h"
 #include "EvalueComputation.h"
@@ -154,8 +155,10 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     DBReader<unsigned int> querySequenceReader(par.db1.c_str(), par.db1Index.c_str(), par.threads,
                                                DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     querySequenceReader.open(DBReader<unsigned int>::NOSORT);
-    DBReader<unsigned int> targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(), par.threads,
-                                                DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
+
+    // TODO: change this to SRADBReader
+    SRADBReader targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(),par.threads,
+                                     DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
     targetSequenceReader.open(DBReader<unsigned int>::NOSORT);
     DBReader<unsigned int> resultReader(par.db3.c_str(), par.db3Index.c_str(), par.threads,
                                         DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX |
@@ -212,7 +215,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             progress.updateProgress();
 
             size_t targetKey = resultReader.getDbKey(i);
-            unsigned int targetId = targetSequenceReader.getId(targetKey);
+            unsigned int targetId = targetKey;
             const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
             const unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetId);
             targetSeq.mapSequence(targetId, targetKey, targetSeqData, targetSeqLen);

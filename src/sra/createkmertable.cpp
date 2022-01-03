@@ -1,6 +1,7 @@
 #include "LocalParameters.h"
 #include "Debug.h"
 #include "DBReader.h"
+#include "SRADBReader.h"
 #include "NucleotideMatrix.h"
 #include "QueryTableEntry.h"
 #include "TargetTableEntry.h"
@@ -39,7 +40,9 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     Timer timer;
     Debug(Debug::INFO) << "Preparing input database\n";
 
-    DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
+    // TODO: change this to SRADBReader
+    SRADBReader reader(par.db1.c_str(), par.db1Index.c_str(), par.threads,
+                                     DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
 
     BaseMatrix *subMat;
@@ -86,7 +89,7 @@ shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBu
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
 //            progress.updateProgress();
-            unsigned int key = reader.getDbKey(i);
+//            unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
             s.mapSequence(i, 0, data, seqLen);
@@ -101,7 +104,7 @@ shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBu
                     continue;
                 }
 
-                localBuffer[localTableIndex].sequenceID = key;
+                localBuffer[localTableIndex].sequenceID = i;
                 localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
                 localBuffer[localTableIndex].sequenceLength = s.L;
                 ++localTableIndex;
