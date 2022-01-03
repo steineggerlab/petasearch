@@ -30,7 +30,7 @@ public:
     size_t writeAdd(const char* data, size_t dataSize, unsigned int thrIdx = 0);
     void writeEnd(unsigned int thrIdx = 0, bool addNullByte = true, bool addIndexEntry = true);
 
-    void writeData(const char *data, size_t dataSize, unsigned int key, unsigned int threadIdx = 0, bool addNullByte = true, bool addIndexEntry = true);
+    void writeData(const char *data, size_t dataSize, unsigned int threadIdx = 0, bool addNullByte = true, bool addIndexEntry = true);
 
     static size_t indexToBuffer(char *buff1, size_t offsetStart);
 

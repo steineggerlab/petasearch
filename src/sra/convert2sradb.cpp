@@ -159,7 +159,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
 
             /* Write header */
-            hdrWriter.writeData(header.c_str(), header.length(), id, splitIdx);
+            hdrWriter.writeData(header.c_str(), header.length(),splitIdx);
 
             size_t rem = s % 3;
             int padding = rem == 0 ? 0 : 1;
@@ -220,7 +220,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 //                sourceLookup[splitIdx].emplace_back(fileIdx);
 
                 /* Write header */
-                hdrWriter.writeData(header.c_str(), header.length(), id, splitIdx);
+                hdrWriter.writeData(header.c_str(), header.length(), splitIdx);
 
                 unsigned long rem = e.sequence.l % 3;
                 int padding = rem == 0 ? 0 : 1;
@@ -247,7 +247,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 seqWriter.writeStart(splitIdx);
                 seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l/3 + padding), splitIdx);
                 seqWriter.writeAdd(&newline, 1, splitIdx);
-                seqWriter.writeEnd(id, splitIdx, false);
+                seqWriter.writeEnd(splitIdx, false);
 
                 entries_num++;
                 numEntriesInCurrFile++;

@@ -239,7 +239,7 @@ void SRADBWriter::writeIndexEntry(size_t offset, unsigned int thrIdx) {
 }
 
 
-void SRADBWriter::writeData(const char *data, size_t dataSize, unsigned int key, unsigned int thrIdx, bool addNullByte,
+void SRADBWriter::writeData(const char *data, size_t dataSize, unsigned int thrIdx, bool addNullByte,
                             bool addIndexEntry) {
     writeStart(thrIdx);
     writeAdd(data, dataSize, thrIdx);
