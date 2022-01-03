@@ -37,7 +37,7 @@ public:
     static void mergeResults(const std::string &outFileName, const std::string &outFileNameIndex,
                              const std::vector<std::pair<std::string, std::string>> &files);
 
-    void writeIndexEntry(unsigned int key, size_t offset, size_t length, unsigned int thrIdx);
+    void writeIndexEntry(size_t offset, unsigned int thrIdx);
 
     static void writeDbtypeFile(const char* path, int dbtype, bool isCompressed);
 

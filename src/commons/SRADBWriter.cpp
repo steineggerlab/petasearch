@@ -224,11 +224,11 @@ void SRADBWriter::writeEnd(unsigned int key, unsigned int thrIdx, bool addNullBy
     if (addIndexEntry == true) {
         size_t length = offsets[thrIdx] - starts[thrIdx];
 // keep original size in index
-        writeIndexEntry(key, starts[thrIdx], length, thrIdx);
+        writeIndexEntry(starts[thrIdx], thrIdx);
     }
 }
 
-void SRADBWriter::writeIndexEntry(unsigned int key, size_t offset, size_t length, unsigned int thrIdx) {
+void SRADBWriter::writeIndexEntry(size_t offset, unsigned int thrIdx) {
     char buffer[1024];
     size_t len = indexToBuffer(buffer,offset);
     size_t written = fwrite(buffer, sizeof(char), len, indexFiles[thrIdx]);
