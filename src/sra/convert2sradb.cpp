@@ -44,7 +44,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     /* Name output files and database type */
     int outputDbType = LocalParameters::DBTYPE_SRA_DB;
 
-    const unsigned int shuffleSplits = par.shuffleDatabase ? 1 : 1;
+    const unsigned int shuffleSplits = 1;
 
     std::string outputIndexFile = outputDataFile + ".index";
     std::string outputHdrDataFile = outputDataFile + "_h";
