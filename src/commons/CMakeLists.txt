@@ -6,4 +6,6 @@ set(commons_source_files
         commons/BitManipulateMacros.h
         commons/BlockAligner.cpp
         commons/BlockAligner.h
+        commons/SRADBWriter.cpp
+        commons/SRADBWriter.h
         PARENT_SCOPE)

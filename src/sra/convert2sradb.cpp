@@ -4,7 +4,7 @@
 #include "BitManipulateMacros.h"
 
 #include "LocalParameters.h"
-#include "DBWriter.h"
+#include "SRADBWriter.h"
 #include "KSeqWrapper.h"
 
 int convert2sradb(int argc, const char **argv, const Command &command) {
@@ -44,7 +44,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     /* Name output files and database type */
     int outputDbType = LocalParameters::DBTYPE_SRA_DB;
 
-    const unsigned int shuffleSplits = par.shuffleDatabase ? 32 : 1;
+    const unsigned int shuffleSplits = par.shuffleDatabase ? 1 : 1;
 
     std::string outputIndexFile = outputDataFile + ".index";
     std::string outputHdrDataFile = outputDataFile + "_h";
@@ -67,12 +67,12 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-    // TODO: change to not write using DBWriter
-    DBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(),
+    // TODO: change to not write using SRADBWriter
+    SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(),
                        shuffleSplits, par.compressed,
                        Parameters::DBTYPE_GENERIC_DB);
     hdrWriter.open();
-    DBWriter seqWriter(outputDataFile.c_str(), outputIndexFile.c_str(),
+    SRADBWriter seqWriter(outputDataFile.c_str(), outputIndexFile.c_str(),
                        shuffleSplits, par.compressed,
                        Parameters::DBTYPE_OMIT_FILE);
     seqWriter.open();
@@ -215,7 +215,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 }
                 header.push_back(newline);
 
-                unsigned int id = par.identifierOffset + entries_num; //par.identifierOffset + entries_num;
+                unsigned int id = par.identifierOffset + entries_num;
                 unsigned int splitIdx = id % shuffleSplits;
                 sourceLookup[splitIdx].emplace_back(fileIdx);
 
@@ -264,10 +264,10 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-    DBWriter::writeDbtypeFile(seqWriter.getDataFileName(), outputDbType, par.compressed);
+    SRADBWriter::writeDbtypeFile(seqWriter.getDataFileName(), outputDbType, par.compressed);
 
-    hdrWriter.close(true, false);
-    seqWriter.close(true, false);
+    hdrWriter.close(true);
+    seqWriter.close(true);
     Debug(Debug::INFO) << "Database type: SRA Database" << newline;
 
     if (isDbInput) {
