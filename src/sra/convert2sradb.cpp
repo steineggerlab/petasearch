@@ -67,6 +67,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
+    // TODO: change to not write using DBWriter
     DBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(),
                        shuffleSplits, par.compressed,
                        Parameters::DBTYPE_GENERIC_DB);
@@ -153,7 +154,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             unsigned int id = par.identifierOffset + entries_num;
             unsigned int splitIdx = id % shuffleSplits;
             sourceLookup[splitIdx].emplace_back(fileIdx);
-//            unsigned int splitIdx = id;￿
+//            unsigned int splitIdx = id;
 //            sourceLookup.emplace_back(fileIdx);
 
 
@@ -178,12 +179,12 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 resultBuffer[i / 3] |= GET_LAST_5_BITS(kseq[i + j]);
             }
             resultBuffer[i / 3] |= 0x1000U; // Set most significant bit
-            const char *packedSeq = reinterpret_cast<const char *>(&resultBuffer);
+            const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
 
             seqWriter.writeStart(splitIdx);
-            seqWriter.writeAdd(packedSeq, sizeof(packedSeq), splitIdx);
+            seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (s/3 + padding), splitIdx);
             seqWriter.writeAdd(&newline, 1, splitIdx);
-            seqWriter.writeEnd(id, splitIdx, true);
+            seqWriter.writeEnd(id, splitIdx, false);
 
             entries_num++;
             numEntriesInCurrFile++;
@@ -242,11 +243,11 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                     resultBuffer[i / 3] |= GET_LAST_5_BITS(e.sequence.s[i + j]);
                 }
                 resultBuffer[i / 3] |= 0x1000U; // Set last bit
-                const char *packedSeq = reinterpret_cast<const char *>(&resultBuffer);
+                const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
                 seqWriter.writeStart(splitIdx);
-                seqWriter.writeAdd(packedSeq, sizeof(packedSeq), splitIdx);
+                seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l/3 + padding), splitIdx);
                 seqWriter.writeAdd(&newline, 1, splitIdx);
-                seqWriter.writeEnd(id, splitIdx, true);
+                seqWriter.writeEnd(id, splitIdx, false);
 
                 entries_num++;
                 numEntriesInCurrFile++;
