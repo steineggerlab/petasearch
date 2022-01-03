@@ -207,7 +207,7 @@ size_t SRADBWriter::writeAdd(const char *data, size_t dataSize, unsigned int thr
     return totalWriten;
 }
 
-void SRADBWriter::writeEnd(unsigned int key, unsigned int thrIdx, bool addNullByte, bool addIndexEntry) {
+void SRADBWriter::writeEnd(unsigned int thrIdx, bool addNullByte, bool addIndexEntry) {
     size_t totalWritten = 0;
 // entries are always separated by a null byte
     if (addNullByte == true) {
@@ -222,7 +222,7 @@ void SRADBWriter::writeEnd(unsigned int key, unsigned int thrIdx, bool addNullBy
     }
 
     if (addIndexEntry == true) {
-        size_t length = offsets[thrIdx] - starts[thrIdx];
+//        size_t length = offsets[thrIdx] - starts[thrIdx];
 // keep original size in index
         writeIndexEntry(starts[thrIdx], thrIdx);
     }
@@ -243,7 +243,7 @@ void SRADBWriter::writeData(const char *data, size_t dataSize, unsigned int key,
                             bool addIndexEntry) {
     writeStart(thrIdx);
     writeAdd(data, dataSize, thrIdx);
-    writeEnd(key, thrIdx, addNullByte, addIndexEntry);
+    writeEnd(thrIdx, addNullByte, addIndexEntry);
 }
 
 size_t SRADBWriter::indexToBuffer(char *buff1, size_t offsetStart) {

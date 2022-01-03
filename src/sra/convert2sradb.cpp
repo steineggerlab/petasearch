@@ -184,7 +184,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             seqWriter.writeStart(splitIdx);
             seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (s/3 + padding), splitIdx);
             seqWriter.writeAdd(&newline, 1, splitIdx);
-            seqWriter.writeEnd(id, splitIdx, false);
+            seqWriter.writeEnd(splitIdx, false);
 
             entries_num++;
             numEntriesInCurrFile++;
