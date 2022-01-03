@@ -32,7 +32,7 @@ public:
 
     void writeData(const char *data, size_t dataSize, unsigned int key, unsigned int threadIdx = 0, bool addNullByte = true, bool addIndexEntry = true);
 
-    static size_t indexToBuffer(char *buff1, unsigned int key, size_t offsetStart, size_t len);
+    static size_t indexToBuffer(char *buff1, size_t offsetStart);
 
     static void mergeResults(const std::string &outFileName, const std::string &outFileNameIndex,
                              const std::vector<std::pair<std::string, std::string>> &files);
@@ -48,12 +48,12 @@ public:
     size_t getOffset(unsigned int threadIdx){
         return offsets[threadIdx];
     }
-
-    template <typename T>
-    static void writeIndex(FILE *outFile, size_t indexSize, T *index);
-
-    template <typename T>
-    static void writeIndexEntryToFile(FILE *outFile, char *buff1, T &index);
+//
+//    template <typename T>
+//    static void writeIndex(FILE *outFile, size_t indexSize, T *index);
+//
+//    template <typename T>
+//    static void writeIndexEntryToFile(FILE *outFile, char *buff1, T &index);
 
     bool isClosed(){
         return closed;

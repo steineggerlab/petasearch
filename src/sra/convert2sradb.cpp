@@ -54,10 +54,10 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     unsigned int entries_num = 0;
 
     Debug::Progress progress;
-    std::vector<unsigned short> *sourceLookup = new std::vector<unsigned short>[shuffleSplits]();
-    for (size_t i = 0; i < shuffleSplits; ++i) {
-        sourceLookup[i].reserve(16384);
-    }
+//    std::vector<unsigned short> *sourceLookup = new std::vector<unsigned short>[shuffleSplits]();
+//    for (size_t i = 0; i < shuffleSplits; ++i) {
+//        sourceLookup[i].reserve(16384);
+//    }
 
     Debug(Debug::INFO) << "Converting sequences" << newline;
 
@@ -153,7 +153,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
             unsigned int id = par.identifierOffset + entries_num;
             unsigned int splitIdx = id % shuffleSplits;
-            sourceLookup[splitIdx].emplace_back(fileIdx);
+//            sourceLookup[splitIdx].emplace_back(fileIdx);
 //            unsigned int splitIdx = id;
 //            sourceLookup.emplace_back(fileIdx);
 
@@ -217,7 +217,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
                 unsigned int id = par.identifierOffset + entries_num;
                 unsigned int splitIdx = id % shuffleSplits;
-                sourceLookup[splitIdx].emplace_back(fileIdx);
+//                sourceLookup[splitIdx].emplace_back(fileIdx);
 
                 /* Write header */
                 hdrWriter.writeData(header.c_str(), header.length(), id, splitIdx);
@@ -288,47 +288,47 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-    if (par.writeLookup == true) {
-        DBReader<unsigned int> readerHeader(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(), 1,
-                                            DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX);
-        readerHeader.open(DBReader<unsigned int>::NOSORT);
-        // create lookup file
-        std::string lookupFile = outputDataFile + ".lookup";
-        FILE *file = FileUtil::openAndDelete(lookupFile.c_str(), "w");
-        std::string buffer;
-        buffer.reserve(2048);
-        unsigned int splitIdx = 0;
-        unsigned int splitCounter = 0;
-        DBReader<unsigned int>::LookupEntry entry;
-        for (unsigned int id = 0; id < readerHeader.getSize(); id++) {
-            size_t splitSize = sourceLookup[splitIdx].size();
-            if (splitSize == 0 || splitCounter > sourceLookup[splitIdx].size() - 1) {
-                splitIdx++;
-                splitCounter = 0;
-            }
-            char *header = readerHeader.getData(id, 0);
-            entry.id = id;
-            entry.entryName = Util::parseFastaHeader(header);
-            if (entry.entryName.empty()) {
-                Debug(Debug::WARNING) << "Cannot extract identifier from entry " << entries_num << newline;
-            }
-            entry.fileNumber = sourceLookup[splitIdx][splitCounter];
-            readerHeader.lookupEntryToBuffer(buffer, entry);
-            int written = fwrite(buffer.c_str(), sizeof(char), buffer.size(), file);
-            if (written != (int) buffer.size()) {
-                Debug(Debug::ERROR) << "Cannot write to lookup file " << lookupFile << newline;
-                EXIT(EXIT_FAILURE);
-            }
-            buffer.clear();
-            splitCounter++;
-        }
-        if (fclose(file) != 0) {
-            Debug(Debug::ERROR) << "Cannot close file " << lookupFile << newline;
-            EXIT(EXIT_FAILURE);
-        }
-        readerHeader.close();
-    }
-    delete[] sourceLookup;
+//    if (par.writeLookup == true) {
+//        DBReader<unsigned int> readerHeader(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(), 1,
+//                                            DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX);
+//        readerHeader.open(DBReader<unsigned int>::NOSORT);
+//        // create lookup file
+//        std::string lookupFile = outputDataFile + ".lookup";
+//        FILE *file = FileUtil::openAndDelete(lookupFile.c_str(), "w");
+//        std::string buffer;
+//        buffer.reserve(2048);
+//        unsigned int splitIdx = 0;
+//        unsigned int splitCounter = 0;
+//        DBReader<unsigned int>::LookupEntry entry;
+//        for (unsigned int id = 0; id < readerHeader.getSize(); id++) {
+//            size_t splitSize = sourceLookup[splitIdx].size();
+//            if (splitSize == 0 || splitCounter > sourceLookup[splitIdx].size() - 1) {
+//                splitIdx++;
+//                splitCounter = 0;
+//            }
+//            char *header = readerHeader.getData(id, 0);
+//            entry.id = id;
+//            entry.entryName = Util::parseFastaHeader(header);
+//            if (entry.entryName.empty()) {
+//                Debug(Debug::WARNING) << "Cannot extract identifier from entry " << entries_num << newline;
+//            }
+//            entry.fileNumber = sourceLookup[splitIdx][splitCounter];
+//            readerHeader.lookupEntryToBuffer(buffer, entry);
+//            int written = fwrite(buffer.c_str(), sizeof(char), buffer.size(), file);
+//            if (written != (int) buffer.size()) {
+//                Debug(Debug::ERROR) << "Cannot write to lookup file " << lookupFile << newline;
+//                EXIT(EXIT_FAILURE);
+//            }
+//            buffer.clear();
+//            splitCounter++;
+//        }
+//        if (fclose(file) != 0) {
+//            Debug(Debug::ERROR) << "Cannot close file " << lookupFile << newline;
+//            EXIT(EXIT_FAILURE);
+//        }
+//        readerHeader.close();
+//    }
+//    delete[] sourceLookup;
 
     return EXIT_SUCCESS;
 }

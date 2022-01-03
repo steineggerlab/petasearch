@@ -8,6 +8,7 @@
 #include "Timer.h"
 #include "Parameters.h"
 
+
 #define SIMDE_ENABLE_NATIVE_ALIASES
 
 #include <simde/simde-common.h>
@@ -229,7 +230,7 @@ void SRADBWriter::writeEnd(unsigned int key, unsigned int thrIdx, bool addNullBy
 
 void SRADBWriter::writeIndexEntry(unsigned int key, size_t offset, size_t length, unsigned int thrIdx) {
     char buffer[1024];
-    size_t len = indexToBuffer(buffer, key, offset, length);
+    size_t len = indexToBuffer(buffer,offset);
     size_t written = fwrite(buffer, sizeof(char), len, indexFiles[thrIdx]);
     if (written != len) {
         Debug(Debug::ERROR) << "Can not write to data file " << dataFileName[thrIdx] << "\n";
@@ -245,7 +246,7 @@ void SRADBWriter::writeData(const char *data, size_t dataSize, unsigned int key,
     writeEnd(key, thrIdx, addNullByte, addIndexEntry);
 }
 
-size_t SRADBWriter::indexToBuffer(char *buff1, unsigned int key, size_t offsetStart, size_t len) {
+size_t SRADBWriter::indexToBuffer(char *buff1, size_t offsetStart) {
     char *basePos = buff1;
     char *tmpBuff = Itoa::u64toa_sse2(static_cast<uint64_t>(offsetStart), buff1); //Itoa::u32toa_sse2
     // (static_cast<uint32_t>(key), buff1);
@@ -292,54 +293,54 @@ void SRADBWriter::mergeResults(const std::string &outFileName, const std::string
         }
     }
 }
-
-template<>
-void SRADBWriter::writeIndexEntryToFile(FILE *outFile, char *buff1, SRADBReader<unsigned int>::Index &index) {
-    char *tmpBuff = Itoa::u32toa_sse2((uint32_t) index.id, buff1);
-    *(tmpBuff - 1) = '\t';
-    size_t currOffset = index.offset;
-    tmpBuff = Itoa::u64toa_sse2(currOffset, tmpBuff);
-    *(tmpBuff - 1) = '\t';
-    uint32_t sLen = index.length;
-    tmpBuff = Itoa::u32toa_sse2(sLen, tmpBuff);
-    *(tmpBuff - 1) = '\n';
-    *(tmpBuff) = '\0';
-    fwrite(buff1, sizeof(char), (tmpBuff - buff1), outFile);
-}
-
-template<>
-void SRADBWriter::writeIndexEntryToFile(FILE *outFile, char *buff1, SRADBReader<std::string>::Index &index) {
-    size_t keyLen = index.id.length();
-    char *tmpBuff = (char *) memcpy((void *) buff1, (void *) index.id.c_str(), keyLen);
-    tmpBuff += keyLen;
-    *(tmpBuff) = '\t';
-    tmpBuff++;
-    size_t currOffset = index.offset;
-    tmpBuff = Itoa::u64toa_sse2(currOffset, tmpBuff);
-    *(tmpBuff - 1) = '\t';
-    uint32_t sLen = index.length;
-    tmpBuff = Itoa::u32toa_sse2(sLen, tmpBuff);
-    *(tmpBuff - 1) = '\n';
-    *(tmpBuff) = '\0';
-    fwrite(buff1, sizeof(char), (tmpBuff - buff1), outFile);
-}
-
-template<>
-void SRADBWriter::writeIndex(FILE *outFile, size_t indexSize, SRADBReader<unsigned int>::Index *index) {
-    char buff1[1024];
-    for (size_t id = 0; id < indexSize; id++) {
-        writeIndexEntryToFile(outFile, buff1, index[id]);
-    }
-}
-
-template<>
-void SRADBWriter::writeIndex(FILE *outFile, size_t indexSize, SRADBReader<std::string>::Index *index) {
-    char buff1[1024];
-    for (size_t id = 0; id < indexSize; id++) {
-        writeIndexEntryToFile(outFile, buff1, index[id]);
-    }
-}
-
+//
+//template<>
+//void SRADBWriter::writeIndexEntryToFile(FILE *outFile, char *buff1, SRADBReader<unsigned int>::Index &index) {
+//    char *tmpBuff = Itoa::u32toa_sse2((uint32_t) index.id, buff1);
+//    *(tmpBuff - 1) = '\t';
+//    size_t currOffset = index.offset;
+//    tmpBuff = Itoa::u64toa_sse2(currOffset, tmpBuff);
+//    *(tmpBuff - 1) = '\t';
+//    uint32_t sLen = index.length;
+//    tmpBuff = Itoa::u32toa_sse2(sLen, tmpBuff);
+//    *(tmpBuff - 1) = '\n';
+//    *(tmpBuff) = '\0';
+//    fwrite(buff1, sizeof(char), (tmpBuff - buff1), outFile);
+//}
+//
+//template<>
+//void SRADBWriter::writeIndexEntryToFile(FILE *outFile, char *buff1, SRADBReader<std::string>::Index &index) {
+//    size_t keyLen = index.id.length();
+//    char *tmpBuff = (char *) memcpy((void *) buff1, (void *) index.id.c_str(), keyLen);
+//    tmpBuff += keyLen;
+//    *(tmpBuff) = '\t';
+//    tmpBuff++;
+//    size_t currOffset = index.offset;
+//    tmpBuff = Itoa::u64toa_sse2(currOffset, tmpBuff);
+//    *(tmpBuff - 1) = '\t';
+//    uint32_t sLen = index.length;
+//    tmpBuff = Itoa::u32toa_sse2(sLen, tmpBuff);
+//    *(tmpBuff - 1) = '\n';
+//    *(tmpBuff) = '\0';
+//    fwrite(buff1, sizeof(char), (tmpBuff - buff1), outFile);
+//}
+//
+//template<>
+//void SRADBWriter::writeIndex(FILE *outFile, size_t indexSize, SRADBReader<unsigned int>::Index *index) {
+//    char buff1[1024];
+//    for (size_t id = 0; id < indexSize; id++) {
+//        writeIndexEntryToFile(outFile, buff1, index[id]);
+//    }
+//}
+//
+//template<>
+//void SRADBWriter::writeIndex(FILE *outFile, size_t indexSize, SRADBReader<std::string>::Index *index) {
+//    char buff1[1024];
+//    for (size_t id = 0; id < indexSize; id++) {
+//        writeIndexEntryToFile(outFile, buff1, index[id]);
+//    }
+//}
+//
 
 void SRADBWriter::mergeResults(const char *outFileName, const char *outFileNameIndex,
                                const char **dataFileNames, const char **indexFileNames,
@@ -409,7 +410,7 @@ void SRADBWriter::mergeResults(const char *outFileName, const char *outFileNameI
             // that should be moved to the final destination dest instead of dest.0
             FileUtil::move(filenames[0].c_str(), outFileName);
         } else {
-            SRADBReader<unsigned int>::moveDatafiles(filenames, outFileName);
+            DBReader<unsigned int>::moveDatafiles(filenames, outFileName);
         }
     } else {
         FILE *outFh = FileUtil::openAndDelete(outFileName, "w");
@@ -439,19 +440,33 @@ void SRADBWriter::mergeIndex(const char **indexFilenames, unsigned int fileCount
     }
     size_t globalOffset = dataSizes[0];
     for (unsigned int fileIdx = 1; fileIdx < fileCount; fileIdx++) {
-        SRADBReader<unsigned int> reader(indexFilenames[fileIdx], indexFilenames[fileIdx], 1,
-                                      SRADBReader<unsigned int>::USE_INDEX);
-        reader.open(SRADBReader<unsigned int>::HARDNOSORT);
-        if (reader.getSize() > 0) {
-            SRADBReader<unsigned int>::Index *index = reader.getIndex();
-            for (size_t i = 0; i < reader.getSize(); i++) {
-                size_t currOffset = index[i].offset;
-                index[i].offset = globalOffset + currOffset;
+        FILE *indexFD = FileUtil::openAndDelete(indexFilenames[fileIdx], "r");
+        size_t size = FileUtil::getFileSize(std::string(indexFilenames[fileIdx]));
+        char *string = static_cast<char *>(malloc(size + 1));
+        char *l = static_cast<char *>(malloc(1024));
+        fread(string, size, 1, indexFD);
+        while (Util::getLine(string, size + 1, l, 1024)){
+            if (Util::isNumber(std::string(l))) {
+                std::string toWrite = std::to_string(
+                        globalOffset + Util::fast_atoi<unsigned long>(l));
+                fwrite(toWrite.c_str(), toWrite.size(), 1, index_file);
             }
-            writeIndex(index_file, reader.getSize(), index);
         }
-        reader.close();
-        FileUtil::remove(indexFilenames[fileIdx]);
+
+
+//        SRADBReader<unsigned int> reader(indexFilenames[fileIdx], indexFilenames[fileIdx], 1,
+//                                      SRADBReader<unsigned int>::USE_INDEX);
+//        reader.open(SRADBReader<unsigned int>::HARDNOSORT);
+//        if (reader.getSize() > 0) {
+//            SRADBReader<unsigned int>::Index *index = reader.getIndex();
+//            for (size_t i = 0; i < reader.getSize(); i++) {
+//                size_t currOffset = index[i].offset;
+//                index[i].offset = globalOffset + currOffset;
+//            }
+//            writeIndex(index_file, reader.getSize(), index);
+//        }
+//        reader.close();
+//        FileUtil::remove(indexFilenames[fileIdx]);
 
         globalOffset += dataSizes[fileIdx];
     }
