@@ -42,7 +42,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
 
     /* Name output files and database type */
-    int outputDbType = LocalParameters::DBTYPE_SRA_DB;
+    int outputDbType = Parameters::DBTYPE_AMINO_ACIDS;
 
     const unsigned int shuffleSplits = 1;
 
