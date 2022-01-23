@@ -69,12 +69,12 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
     // TODO: change to not write using SRADBWriter
     SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(),
-                       shuffleSplits, par.compressed,
-                       Parameters::DBTYPE_GENERIC_DB);
+                          shuffleSplits, par.compressed,
+                          Parameters::DBTYPE_GENERIC_DB);
     hdrWriter.open();
     SRADBWriter seqWriter(outputDataFile.c_str(), outputIndexFile.c_str(),
-                       shuffleSplits, par.compressed,
-                       Parameters::DBTYPE_OMIT_FILE);
+                          shuffleSplits, par.compressed,
+                          Parameters::DBTYPE_OMIT_FILE);
     seqWriter.open();
 
     size_t fileCount = filenames.size();
@@ -159,30 +159,79 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
 
             /* Write header */
-            hdrWriter.writeData(header.c_str(), header.length(),splitIdx);
+            hdrWriter.writeData(header.c_str(), header.length(), splitIdx);
 
+            /* e.g. a string of len 12 will be packed into buffer of len 4
+                    a string of len 13 need to be packed into buff of len 5
+             */
+            // calculate remainder
             size_t rem = s % 3;
+            // need one more unsigned short if cannot divide by 3
             int padding = rem == 0 ? 0 : 1;
-            rem = (rem == 0) ? 3 : rem;
             unsigned short *resultBuffer = (unsigned short *) calloc((s / 3 + padding),
                                                                      sizeof(unsigned short));
 
+            rem = (rem == 0) ? 3 : rem;
+
+
             size_t i = 0;
+            /*
+             * seq of len 14:
+             * 0, 1, 2 -> [0] 3, 4, 5 -> [1], 6, 7, 8 -> [2], 9, 10, 11 -> [3]
+             * 12, 13 -> [4]
+             */
+            // Only go into the for loop if len > 3
             if (s > 3) {
                 for (; i < s - 3; i = i + 3) {
                     resultBuffer[i / 3] = PACK_TO_SHORT(kseq[i], kseq[i + 1], kseq[i + 2]);
                 }
             }
-            resultBuffer[i / 3] = 0;
-            for (size_t j = 0; j < rem; j++) {
-                resultBuffer[i / 3] <<= 5U;
-                resultBuffer[i / 3] |= GET_LAST_5_BITS(kseq[i + j]);
+            /* Write to the last unsigned short */
+            // initialize to 0
+            resultBuffer[i / 3] = 0U;
+            // seq of len 14, rem = 14 % 3 = 2
+            // resultBuffer[4] <<= 5 -> 0
+            // resultBuffer[4] |= kseq[i]
+            for (size_t j = 0; j < 3; j++) {
+                if (j < rem) {
+                    Debug(Debug::INFO) << kseq[i + j];
+                    resultBuffer[i / 3] |= GET_LAST_5_BITS(kseq[i + j]);
+                }
             }
-            resultBuffer[i / 3] |= 0x1000U; // Set most significant bit
+            resultBuffer[i / 3] |= 0x8000U; // Set most significant bit
+            Debug(Debug::INFO) << resultBuffer[i / 3 - 1] << "\t" << resultBuffer[i / 3] << "\n";
             const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
 
+            Debug(Debug::INFO) << "TRY TO DECODE\n";
+            unsigned short *packedArray = (unsigned short *) (packedSeq);
+
+            char *resString = (char *) calloc(s + 1, sizeof(char));
+            int idex = 0;
+            int j = 0;
+            while (!IS_LAST_15_BITS(packedArray[idex])) {
+                resString[j] = GET_HIGH_CHAR(packedArray[idex]);
+                resString[j + 1] = GET_MID_CHAR(packedArray[idex]);
+                resString[j + 2] = GET_LOW_CHAR(packedArray[idex]);
+                j += 3;
+                idex++;
+            }
+            Debug(Debug::INFO) << packedArray[idex] << "\n";
+            char p1 = GET_HIGH_CHAR(packedArray[idex]);
+            char p2 = GET_MID_CHAR(packedArray[idex]);
+            char p3 = GET_LOW_CHAR(packedArray[idex]);
+            Debug(Debug::INFO) << "high: " << p1 << "\t" << "mid: " << p2 << "low: " << p3 << "\n";
+            int count = (p2 == '@') + (p3 == '@');
+            resString[j + count] = p1;
+            if (p2 != 0) {
+                resString[j + count - 1] = p2;
+            }
+            if (p3 != 0) {
+                resString[j + count - 2] = p3;
+            }
+            Debug(Debug::INFO) << resString << "\n";
+
             seqWriter.writeStart(splitIdx);
-            seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (s/3 + padding), splitIdx);
+            seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (s / 3 + padding), splitIdx);
             seqWriter.writeAdd(&newline, 1, splitIdx);
             seqWriter.writeEnd(splitIdx, false);
 
@@ -245,7 +294,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 resultBuffer[i / 3] |= 0x1000U; // Set last bit
                 const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
                 seqWriter.writeStart(splitIdx);
-                seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l/3 + padding), splitIdx);
+                seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l / 3 + padding), splitIdx);
                 seqWriter.writeAdd(&newline, 1, splitIdx);
                 seqWriter.writeEnd(splitIdx, false);
 
