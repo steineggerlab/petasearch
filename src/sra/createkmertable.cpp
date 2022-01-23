@@ -14,20 +14,29 @@
 #include <algorithm>
 
 #ifdef OPENMP
+
 #include <omp.h>
+
 #endif
 
 #define KMER_BUFSIZ 500000000
 #define ID_BUFSIZ 250000000
 
-void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const std::string& blockID);
+void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const std::string &blockID);
+
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second);
+
 int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &second);
+
 void writeKmerDiff(size_t lastKmer, TargetTableEntry *entryToWrite, FILE *handleKmerTable, FILE *handleIDTable,
                    uint16_t *kmerBuf, unsigned int *IDBuf);
+
 static inline void writeKmer(uint16_t *buffer, FILE *handleKmerTable, uint16_t *toWrite, size_t size);
+
 static inline void writeID(unsigned int *buffer, FILE *handleIDTable, unsigned int toWrite);
+
 static inline void flushKmerBuf(uint16_t *buffer, FILE *handleKmerTable);
+
 static inline void flushIDBuf(unsigned int *buffer, FILE *handleIDTable);
 
 static unsigned int kmerBufIdx = 0;
@@ -42,7 +51,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
     // TODO: change this to SRADBReader
     SRADBReader reader(par.db1.c_str(), par.db1Index.c_str(), par.threads,
-                                     DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
+                       DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
 
     BaseMatrix *subMat;
@@ -59,13 +68,16 @@ shared(par, reader)
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength >= (unsigned)par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
+        kmerCount += currentSequenceLength * 3 / 2 >=
+                (unsigned) par.kmerSize ?
+                currentSequenceLength * 3 / 2 - par.kmerSize + 1 : 0;
     }
     TargetTableEntry *targetTable = NULL;
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n"
-                       << "Creating TargetTable. Requiring " << ((kmerCount + 1) * sizeof(TargetTableEntry)) / 1024 / 1024 << " MB of memory for it\n";
-    targetTable = (TargetTableEntry *)calloc((kmerCount + 1), sizeof(TargetTableEntry));
+                       << "Creating TargetTable. Requiring "
+                       << ((kmerCount + 1) * sizeof(TargetTableEntry)) / 1024 / 1024 << " MB of memory for it\n";
+    targetTable = (TargetTableEntry *) calloc((kmerCount + 1), sizeof(TargetTableEntry));
     Debug(Debug::INFO) << "Memory allocated \n"
                        << timer.lap() << "\n"
                        << "Extracting k-mers\n";
@@ -80,11 +92,12 @@ shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBu
     {
         unsigned int thread_idx = 0;
 #ifdef OPENMP
-        thread_idx = (unsigned int)omp_get_thread_num();
+        thread_idx = (unsigned int) omp_get_thread_num();
 #endif
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
         Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
-        TargetTableEntry *localBuffer = (TargetTableEntry *)mem_align(pageSize, threadBufferSize * sizeof(TargetTableEntry));
+        TargetTableEntry *localBuffer = (TargetTableEntry *) mem_align(pageSize,
+                                                                       threadBufferSize * sizeof(TargetTableEntry));
         size_t localTableIndex = 0;
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
@@ -92,12 +105,13 @@ shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBu
 //            unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
+//            Debug(Debug::INFO) << "seq of len " << seqLen << " : " << data << "\n";
             s.mapSequence(i, 0, data, seqLen);
-            const int xIndex = s.subMat->aa2num[(int)'X'];
+            const int xIndex = s.subMat->aa2num[(int) 'X'];
             while (s.hasNextKmer()) {
-                const unsigned char*kmer = s.nextKmer();
+                const unsigned char *kmer = s.nextKmer();
                 int xCount = 0;
-                for (size_t pos = 0; pos < (unsigned)par.kmerSize; pos++) {
+                for (size_t pos = 0; pos < (unsigned) par.kmerSize; pos++) {
                     xCount += (kmer[pos] == xIndex);
                 }
                 if (xCount) {
@@ -161,8 +175,8 @@ int targetTableSort(const TargetTableEntry &first, const TargetTableEntry &secon
     return false;
 }
 
-void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const std::string& blockID) {
-    const std::string& kmerTableFileName = blockID;
+void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const std::string &blockID) {
+    const std::string &kmerTableFileName = blockID;
     std::string idTableFileName = blockID + "_ids";
     Debug(Debug::INFO) << "Writing k-mer target table to file: " << kmerTableFileName << "\n";
     Debug(Debug::INFO) << "Writing target ID table to file:  " << idTableFileName << "\n";
@@ -174,8 +188,8 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const st
     size_t lastKmer = 0;
 //    Debug::Progress progress(kmerCount);
 
-    uint16_t *kmerLocalBuf = (uint16_t *)malloc(sizeof(uint16_t) * KMER_BUFSIZ);
-    unsigned int *IDLocalBuf = (unsigned int *)malloc(sizeof(unsigned int) * ID_BUFSIZ);
+    uint16_t *kmerLocalBuf = (uint16_t *) malloc(sizeof(uint16_t) * KMER_BUFSIZ);
+    unsigned int *IDLocalBuf = (unsigned int *) malloc(sizeof(unsigned int) * ID_BUFSIZ);
     for (size_t i = 0; i < kmerCount; ++i, ++posInTable) {
 //        progress.updateProgress();
         if (posInTable->kmerAsLong != entryToWrite->kmerAsLong) {
@@ -188,7 +202,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const st
     // write last one
     writeKmerDiff(lastKmer, entryToWrite, handleKmerTable, handleIDTable, kmerLocalBuf, IDLocalBuf);
     ++uniqueKmerCount;
-    
+
     flushKmerBuf(kmerLocalBuf, handleKmerTable);
     flushIDBuf(IDLocalBuf, handleIDTable);
     free(kmerLocalBuf);
