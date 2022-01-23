@@ -210,12 +210,13 @@ char *SRADBReader::mmapData(FILE *file, size_t *dataSize) {
 
 void SRADBReader::unmapData() {
     if (dataMapped == true) {
-        for(size_t fileIdx = 0; fileIdx < dataFileNames.size(); fileIdx++) {
-            size_t fileSize = dataSizeOffset[fileIdx+1] -dataSizeOffset[fileIdx];
-            if(fileSize > 0) {
+        for (size_t fileIdx = 0; fileIdx < dataFileNames.size(); fileIdx++) {
+            size_t fileSize = dataSizeOffset[fileIdx + 1] - dataSizeOffset[fileIdx];
+            if (fileSize > 0) {
                 if ((dataMode & DBReader<unsigned int>::USE_FREAD) == 0) {
                     if (munmap(dataFiles[fileIdx], fileSize) < 0) {
-                        Debug(Debug::ERROR) << "Failed to munmap memory dataSize=" << fileSize << " File=" << dataFileName
+                        Debug(Debug::ERROR) << "Failed to munmap memory dataSize=" << fileSize << " File="
+                                            << dataFileName
                                             << "\n";
                         EXIT(EXIT_FAILURE);
                     }
@@ -231,8 +232,11 @@ void SRADBReader::unmapData() {
 char *SRADBReader::getData(size_t id, int thread_idx) {
     char *rawString = getDataUncompressed(id);
     unsigned short *packedArray = reinterpret_cast<unsigned short *>(rawString);
+    int seqLen = getSeqLen(id);
     int packedLen = sizeof(rawString) / 2;
-    char *resString = (char *) malloc(packedLen * 3);
+//    Debug(Debug::INFO) << "packed length " <<  packedLen << "\n";
+    Debug(Debug::INFO) << "real length " << seqLen << "\n";
+    char *resString = (char *) calloc(seqLen, sizeof(char));
     int i = 0;
     int j = 0;
     for (; i < packedLen - 1; i++) {
@@ -245,12 +249,12 @@ char *SRADBReader::getData(size_t id, int thread_idx) {
     char p2 = GET_MID_CHAR(packedArray[i]);
     char p3 = GET_LOW_CHAR(packedArray[i]);
     int count = (p1 == 0) + (p2 == 0);
-    resString[j + count] = p3;
+    resString[j + count - 1] = p3;
     if (p2 != 0) {
-        resString[j + count - 1] = p2;
+        resString[j + count - 2] = p2;
     }
     if (p3 != 0) {
-        resString[j + count - 2] = p1;
+        resString[j + count - 3] = p1;
     }
     return resString;
 }
@@ -294,9 +298,9 @@ size_t SRADBReader::getSize() {
 size_t SRADBReader::getSeqLen(size_t id) {
 //    return id;
     if (id < size - 1) {
-        return index[id] - index[id];
+        return index[id + 1] - index[id] - 1;
     } else if (id == size - 1) { // this is the last element
-        return totalDataSize - index[id] + 1;
+        return totalDataSize - index[id];
     } else { // invalid id
         Debug(Debug::ERROR) << "Invalid database read for database data file=" << dataFileName << ", database index="
                             << indexFileName << "\n";
@@ -315,8 +319,8 @@ size_t SRADBReader::getAminoAcidDBSize() {
 //        // Get the actual profile column without the null byte per entry
 //        return (dataSize / Sequence::PROFILE_READIN_SIZE) - size;
 //    } else {
-        // Get the actual number of residues witout \n\0 per entry
-        return totalDataSize * 3 / 2 - (2 * size);
+    // Get the actual number of residues witout \n\0 per entry
+    return totalDataSize * 3 / 2 - (2 * size);
 //    }
 //    return _dbreader->getAminoAcidDBSize() * 3 / 2;
 }
