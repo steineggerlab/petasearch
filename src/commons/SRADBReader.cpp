@@ -233,28 +233,25 @@ char *SRADBReader::getData(size_t id, int thread_idx) {
     char *rawString = getDataUncompressed(id);
     unsigned short *packedArray = reinterpret_cast<unsigned short *>(rawString);
     int seqLen = getSeqLen(id);
-    int packedLen = sizeof(rawString) / 2;
-//    Debug(Debug::INFO) << "packed length " <<  packedLen << "\n";
-    Debug(Debug::INFO) << "real length " << seqLen << "\n";
-    char *resString = (char *) calloc(seqLen, sizeof(char));
-    int i = 0;
+    char *resString = (char *) calloc(seqLen + 1, sizeof(char));
+    int idex = 0;
     int j = 0;
-    for (; i < packedLen - 1; i++) {
-        resString[j] = GET_HIGH_CHAR(packedArray[i]);
-        resString[j + 1] = GET_MID_CHAR(packedArray[i]);
-        resString[j + 2] = GET_LOW_CHAR(packedArray[i]);
+    while (!IS_LAST_15_BITS(packedArray[idex])) {
+        resString[j] = GET_HIGH_CHAR(packedArray[idex]);
+        resString[j + 1] = GET_MID_CHAR(packedArray[idex]);
+        resString[j + 2] = GET_LOW_CHAR(packedArray[idex]);
         j += 3;
+        idex++;
     }
-    char p1 = GET_HIGH_CHAR(packedArray[i]);
-    char p2 = GET_MID_CHAR(packedArray[i]);
-    char p3 = GET_LOW_CHAR(packedArray[i]);
-    int count = (p1 == 0) + (p2 == 0);
-    resString[j + count - 1] = p3;
-    if (p2 != 0) {
-        resString[j + count - 2] = p2;
+    char p1 = GET_HIGH_CHAR(packedArray[idex]);
+    char p2 = GET_MID_CHAR(packedArray[idex]);
+    char p3 = GET_LOW_CHAR(packedArray[idex]);
+    resString[j] = p1;
+    if (p2 != '@') {
+        resString[j + 1] = p2;
     }
-    if (p3 != 0) {
-        resString[j + count - 3] = p1;
+    if (p3 != '@') {
+        resString[j + 2] = p3;
     }
     return resString;
 }
@@ -298,9 +295,9 @@ size_t SRADBReader::getSize() {
 size_t SRADBReader::getSeqLen(size_t id) {
 //    return id;
     if (id < size - 1) {
-        return index[id + 1] - index[id] - 1;
+        return (index[id + 1] - index[id] - 1) / 2 * 3;
     } else if (id == size - 1) { // this is the last element
-        return totalDataSize - index[id];
+        return (totalDataSize - index[id]) / 2 * 3;
     } else { // invalid id
         Debug(Debug::ERROR) << "Invalid database read for database data file=" << dataFileName << ", database index="
                             << indexFileName << "\n";
