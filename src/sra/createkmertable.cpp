@@ -68,9 +68,9 @@ shared(par, reader)
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength * 3 / 2 >=
+        kmerCount += currentSequenceLength >=
                 (unsigned) par.kmerSize ?
-                currentSequenceLength * 3 / 2 - par.kmerSize + 1 : 0;
+                currentSequenceLength - par.kmerSize + 1 : 0;
     }
     TargetTableEntry *targetTable = NULL;
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
