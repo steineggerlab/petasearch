@@ -233,7 +233,8 @@ char *SRADBReader::getData(size_t id, int thread_idx) {
     char *rawString = getDataUncompressed(id);
     unsigned short *packedArray = reinterpret_cast<unsigned short *>(rawString);
     int seqLen = getSeqLen(id);
-    char *resString = (char *) calloc(seqLen + 1, sizeof(char));
+    // FIXME: seqLen calculation is WRONG!
+    char *resString = (char *) calloc(seqLen + 3, sizeof(char));
     int idex = 0;
     int j = 0;
     while (!IS_LAST_15_BITS(packedArray[idex])) {
