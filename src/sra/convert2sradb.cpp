@@ -199,10 +199,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             resultBuffer[i / 3] |= 0x8000U; // Set most significant bit
             const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
 
-            Debug(Debug::INFO) << "TRY TO DECODE\n";
-            unsigned short *packedArray = (unsigned short *) (packedSeq);
-
-
             seqWriter.writeStart(splitIdx);
             seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (s / 3 + padding), splitIdx);
             seqWriter.writeEnd(splitIdx, false);
