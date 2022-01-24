@@ -335,6 +335,9 @@ void SRADBReader::checkClosed() {
 }
 
 SRADBReader::~SRADBReader() {
+    delete[] index;
+    free(seqBuffer);
+
     if (dataFileName != NULL) {
         free(dataFileName);
     }
