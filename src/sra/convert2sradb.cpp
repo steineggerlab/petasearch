@@ -7,7 +7,7 @@
 #include "SRADBWriter.h"
 #include "KSeqWrapper.h"
 
-char *strip(const char *str) {
+char *strip(char *str) {
     char *var_str = strdup(str);
     var_str[strcspn(str, "\n")] = '\0';
     return var_str;
@@ -35,7 +35,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     }
 
     /* Determine whether it is fasta input or database input
-     *    Here we assume that the input is a database if the it has a
+     *    Here we assume that the input is a database if it has a
      *    corresponding ".dbtype" file
      */
     bool isDbInput = FileUtil::fileExists(par.db1dbtype.c_str());
@@ -60,10 +60,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     unsigned int entries_num = 0;
 
     Debug::Progress progress;
-//    std::vector<unsigned short> *sourceLookup = new std::vector<unsigned short>[shuffleSplits]();
-//    for (size_t i = 0; i < shuffleSplits; ++i) {
-//        sourceLookup[i].reserve(16384);
-//    }
 
     Debug(Debug::INFO) << "Converting sequences" << newline;
 
@@ -136,10 +132,11 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         if (isDbInput) {
             // DB INPUT CASE
             progress.updateProgress();
-            const char *kseq = strip(reader->getData(fileIdx, 0));
+            char *kseq = strip(reader->getData(fileIdx, 0));
             const size_t s = strlen(kseq);
+            Debug(Debug::INFO) << "sequence length: " << s << newline;
 //            const size_t s = reader->getEntryLen(fileIdx);
-
+            Debug(Debug::INFO) << "sequence length from reader: " << reader->getEntryLen(fileIdx) << newline;
             if (s == 0) {
                 Debug(Debug::ERROR) << "Fasta entry " << entries_num << " is invalid\n";
                 EXIT(EXIT_FAILURE);
@@ -159,10 +156,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
             unsigned int id = par.identifierOffset + entries_num;
             unsigned int splitIdx = id % shuffleSplits;
-//            sourceLookup[splitIdx].emplace_back(fileIdx);
-//            unsigned int splitIdx = id;
-//            sourceLookup.emplace_back(fileIdx);
-
 
             /* Write header */
             hdrWriter.writeData(header.c_str(), header.length(), splitIdx);
@@ -176,9 +169,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             int padding = rem == 0 ? 0 : 1;
             unsigned short *resultBuffer = (unsigned short *) calloc((s / 3 + padding),
                                                                      sizeof(unsigned short));
-
-//            rem = (rem == 0) ? 3 : rem;
-
             size_t i = 0;
             // Only go into the for loop if len > 3
             if (s > 3) {
@@ -206,6 +196,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             entries_num++;
             numEntriesInCurrFile++;
             header.clear();
+            free(kseq);
             free(resultBuffer);
         } else {
             // fasta / fastq case
@@ -234,7 +225,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
                 unsigned int id = par.identifierOffset + entries_num;
                 unsigned int splitIdx = id % shuffleSplits;
-//                sourceLookup[splitIdx].emplace_back(fileIdx);
 
                 /* Write header */
                 hdrWriter.writeData(header.c_str(), header.length(), splitIdx);
@@ -303,48 +293,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                             << newline;
         EXIT(EXIT_FAILURE);
     }
-
-//    if (par.writeLookup == true) {
-//        DBReader<unsigned int> readerHeader(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(), 1,
-//                                            DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX);
-//        readerHeader.open(DBReader<unsigned int>::NOSORT);
-//        // create lookup file
-//        std::string lookupFile = outputDataFile + ".lookup";
-//        FILE *file = FileUtil::openAndDelete(lookupFile.c_str(), "w");
-//        std::string buffer;
-//        buffer.reserve(2048);
-//        unsigned int splitIdx = 0;
-//        unsigned int splitCounter = 0;
-//        DBReader<unsigned int>::LookupEntry entry;
-//        for (unsigned int id = 0; id < readerHeader.getSize(); id++) {
-//            size_t splitSize = sourceLookup[splitIdx].size();
-//            if (splitSize == 0 || splitCounter > sourceLookup[splitIdx].size() - 1) {
-//                splitIdx++;
-//                splitCounter = 0;
-//            }
-//            char *header = readerHeader.getData(id, 0);
-//            entry.id = id;
-//            entry.entryName = Util::parseFastaHeader(header);
-//            if (entry.entryName.empty()) {
-//                Debug(Debug::WARNING) << "Cannot extract identifier from entry " << entries_num << newline;
-//            }
-//            entry.fileNumber = sourceLookup[splitIdx][splitCounter];
-//            readerHeader.lookupEntryToBuffer(buffer, entry);
-//            int written = fwrite(buffer.c_str(), sizeof(char), buffer.size(), file);
-//            if (written != (int) buffer.size()) {
-//                Debug(Debug::ERROR) << "Cannot write to lookup file " << lookupFile << newline;
-//                EXIT(EXIT_FAILURE);
-//            }
-//            buffer.clear();
-//            splitCounter++;
-//        }
-//        if (fclose(file) != 0) {
-//            Debug(Debug::ERROR) << "Cannot close file " << lookupFile << newline;
-//            EXIT(EXIT_FAILURE);
-//        }
-//        readerHeader.close();
-//    }
-//    delete[] sourceLookup;
 
     return EXIT_SUCCESS;
 }
