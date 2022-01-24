@@ -21,7 +21,7 @@ class SRADBReader : public MemoryTracker {
 public:
     SRADBReader(const char* dataFileName, const char* indexFileName, int threads, int mode);
     ~SRADBReader();
-    bool open(int accessType);
+    void open(int accessType);
     void close();
     int getDbtype();
     size_t getSize();
@@ -51,6 +51,9 @@ private:
 
     char **dataFiles;
     size_t *dataSizeOffset;
+
+    char *seqBuffer;
+    size_t maxSeqLen;
 
     char *mmapData(FILE *file, size_t *dataSize);
     void unmapData();

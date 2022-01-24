@@ -27,7 +27,7 @@ SRADBReader::SRADBReader(const char *dataFileName, const char *indexFileName, in
         threads(threads), dataMode(mode), dataFileName(strdup(dataFileName)), indexFileName(strdup(indexFileName)) {
 }
 
-bool SRADBReader::open(int accessType) {
+void SRADBReader::open(int accessType) {
     this->accessType = accessType;
     if (dataFileName != NULL) {
         dbType = FileUtil::parseDbType(dataFileName);
@@ -111,14 +111,17 @@ void SRADBReader::readIndex(char *data, size_t indexDataSize, unsigned long *ind
 #endif
     size_t globalIdOffset = 0;
 
+    unsigned int localMaxSeqLen = 0;
+    size_t localDataSize = 0;
     const unsigned int BATCH_SIZE = 1048576;
-#pragma omp parallel num_threads(threadCnt)
+#pragma omp parallel num_threads(threadCnt) reduction(max: localMaxSeqLen) reduction(+: localDataSize)
     {
         size_t currPos = 0;
         char *indexDataChar = (char *) data;
         const char *cols[3];
         size_t lineStartId = __sync_fetch_and_add(&(globalIdOffset), BATCH_SIZE);
         size_t currLine = 0;
+        size_t prev_offset = 0;
 
         while (currPos < indexDataSize) {
             if (currLine >= this->size) {
@@ -129,16 +132,14 @@ void SRADBReader::readIndex(char *data, size_t indexDataSize, unsigned long *ind
                 for (size_t startIndex = lineStartId;
                      startIndex < lineStartId + BATCH_SIZE && currPos < indexDataSize; startIndex++) {
                     Util::getWordsOfLine(indexDataChar, cols, 3);
-//                    readIndexId(&index[startIndex].id, indexDataChar, cols);
                     size_t offset = Util::fast_atoi<size_t>(cols[0]);
-//                    size_t length = Util::fast_atoi<size_t>(cols[2]);
-//                    localDataSize += length;
+                    size_t length = offset - prev_offset + 1;
+                    localDataSize += length;
                     index[startIndex] = offset;
 //                    index[startIndex].length = length;
-//                    localMaxSeqLen = std::max(static_cast<unsigned int>(length), localMaxSeqLen);
+                    localMaxSeqLen = std::max(static_cast<unsigned int>(length), localMaxSeqLen);
                     indexDataChar = Util::skipLine(indexDataChar);
                     currPos = indexDataChar - (char *) data;
-//                    localLastKey = std::max(localLastKey, indexIdToNum(&index[startIndex].id));
                     currLine++;
                 }
                 lineStartId = __sync_fetch_and_add(&(globalIdOffset), BATCH_SIZE);
@@ -151,6 +152,8 @@ void SRADBReader::readIndex(char *data, size_t indexDataSize, unsigned long *ind
         }
     }
 //    dataSize = localDataSize;
+    maxSeqLen = localMaxSeqLen;
+    seqBuffer = (char *) calloc(maxSeqLen * 3 / 2 + 1, sizeof(char));
 }
 
 void SRADBReader::close() {
@@ -232,29 +235,30 @@ void SRADBReader::unmapData() {
 char *SRADBReader::getData(size_t id, int thread_idx) {
     char *rawString = getDataUncompressed(id);
     unsigned short *packedArray = reinterpret_cast<unsigned short *>(rawString);
-    int seqLen = getSeqLen(id);
     // FIXME: seqLen calculation is WRONG!
-    char *resString = (char *) calloc(seqLen + 3, sizeof(char));
     int idex = 0;
     int j = 0;
     while (!IS_LAST_15_BITS(packedArray[idex])) {
-        resString[j] = GET_HIGH_CHAR(packedArray[idex]);
-        resString[j + 1] = GET_MID_CHAR(packedArray[idex]);
-        resString[j + 2] = GET_LOW_CHAR(packedArray[idex]);
+        seqBuffer[j] = GET_HIGH_CHAR(packedArray[idex]);
+        seqBuffer[j + 1] = GET_MID_CHAR(packedArray[idex]);
+        seqBuffer[j + 2] = GET_LOW_CHAR(packedArray[idex]);
         j += 3;
         idex++;
     }
     char p1 = GET_HIGH_CHAR(packedArray[idex]);
     char p2 = GET_MID_CHAR(packedArray[idex]);
     char p3 = GET_LOW_CHAR(packedArray[idex]);
-    resString[j] = p1;
+    seqBuffer[j] = p1;
+    seqBuffer[j + 1] = '\0';
     if (p2 != '@') {
-        resString[j + 1] = p2;
+        seqBuffer[j + 1] = p2;
+        seqBuffer[j + 2] = '\0';
     }
     if (p3 != '@') {
-        resString[j + 2] = p3;
+        seqBuffer[j + 2] = p3;
+        seqBuffer[j + 3] = '\0';
     }
-    return resString;
+    return seqBuffer;
 }
 
 char *SRADBReader::getDataUncompressed(size_t id) {
