@@ -52,7 +52,7 @@ private:
     char **dataFiles;
     size_t *dataSizeOffset;
 
-    char *seqBuffer;
+    char **seqBuffer;
     size_t maxSeqLen;
 
     char *mmapData(FILE *file, size_t *dataSize);

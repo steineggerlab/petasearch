@@ -153,7 +153,11 @@ void SRADBReader::readIndex(char *data, size_t indexDataSize, unsigned long *ind
     }
 //    dataSize = localDataSize;
     maxSeqLen = localMaxSeqLen;
-    seqBuffer = (char *) calloc(maxSeqLen * 3 / 2 + 1, sizeof(char));
+    seqBuffer = new char *[threads];
+    // initilaize seqBuffer to all maxSeqLen * 3 / 2 + 1
+    for (int i = 0; i < threads; i++) {
+        seqBuffer[i] = (char *) calloc(maxSeqLen * 3 / 2 + 1, sizeof(char));
+    }
 }
 
 void SRADBReader::close() {
@@ -239,26 +243,26 @@ char *SRADBReader::getData(size_t id, int thread_idx) {
     int idex = 0;
     int j = 0;
     while (!IS_LAST_15_BITS(packedArray[idex])) {
-        seqBuffer[j] = GET_HIGH_CHAR(packedArray[idex]);
-        seqBuffer[j + 1] = GET_MID_CHAR(packedArray[idex]);
-        seqBuffer[j + 2] = GET_LOW_CHAR(packedArray[idex]);
+        seqBuffer[thread_idx][j] = GET_HIGH_CHAR(packedArray[idex]);
+        seqBuffer[thread_idx][j + 1] = GET_MID_CHAR(packedArray[idex]);
+        seqBuffer[thread_idx][j + 2] = GET_LOW_CHAR(packedArray[idex]);
         j += 3;
         idex++;
     }
     char p1 = GET_HIGH_CHAR(packedArray[idex]);
     char p2 = GET_MID_CHAR(packedArray[idex]);
     char p3 = GET_LOW_CHAR(packedArray[idex]);
-    seqBuffer[j] = p1;
-    seqBuffer[j + 1] = '\0';
+    seqBuffer[thread_idx][j] = p1;
+    seqBuffer[thread_idx][j + 1] = '\0';
     if (p2 != '@') {
-        seqBuffer[j + 1] = p2;
-        seqBuffer[j + 2] = '\0';
+        seqBuffer[thread_idx][j + 1] = p2;
+        seqBuffer[thread_idx][j + 2] = '\0';
     }
     if (p3 != '@') {
-        seqBuffer[j + 2] = p3;
-        seqBuffer[j + 3] = '\0';
+        seqBuffer[thread_idx][j + 2] = p3;
+        seqBuffer[thread_idx][j + 3] = '\0';
     }
-    return seqBuffer;
+    return seqBuffer[thread_idx];
 }
 
 char *SRADBReader::getDataUncompressed(size_t id) {
@@ -336,7 +340,10 @@ void SRADBReader::checkClosed() {
 
 SRADBReader::~SRADBReader() {
     delete[] index;
-    free(seqBuffer);
+    for (int i = 0; i < threads; i++) {
+        free(seqBuffer[i]);
+    }
+    delete[] seqBuffer;
 
     if (dataFileName != NULL) {
         free(dataFileName);
