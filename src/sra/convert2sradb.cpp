@@ -134,9 +134,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             progress.updateProgress();
             char *kseq = strip(reader->getData(fileIdx, 0));
             const size_t s = strlen(kseq);
-            Debug(Debug::INFO) << "sequence length: " << s << newline;
-//            const size_t s = reader->getEntryLen(fileIdx);
-            Debug(Debug::INFO) << "sequence length from reader: " << reader->getEntryLen(fileIdx) << newline;
             if (s == 0) {
                 Debug(Debug::ERROR) << "Fasta entry " << entries_num << " is invalid\n";
                 EXIT(EXIT_FAILURE);

@@ -140,6 +140,7 @@ void SRADBReader::readIndex(char *data, size_t indexDataSize, unsigned long *ind
                     localMaxSeqLen = std::max(static_cast<unsigned int>(length), localMaxSeqLen);
                     indexDataChar = Util::skipLine(indexDataChar);
                     currPos = indexDataChar - (char *) data;
+                    prev_offset = offset;
                     currLine++;
                 }
                 lineStartId = __sync_fetch_and_add(&(globalIdOffset), BATCH_SIZE);
