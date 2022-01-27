@@ -44,18 +44,18 @@ char *substr(char *origStr, unsigned int start, unsigned int end) {
 }
 
 /**
- * @brief Replace the asterisks (*) in src and store the result in dest
+ * @brief Strip invalid characters from a string (@, *, newline, tab, etc)
  */
-void replaceAsterisksWithX(const char *src, char *dest) {
+void stripInvalidChars(const char *src, char *dest) {
     size_t j, n = strlen(src);
     for (size_t i = j = 0; i < n; i++) {
         // FIXME: this branch is likely not useful now
-        if (src[i] == '\n') {
+        if (src[i] == '\n' || src[i] == '@') {
             continue;
-        } else if (src[i] != '*') {
-            dest[j++] = src[i];
-        } else {
+        } else if (src[i] == '*') {
             dest[j++] = 'X';
+        } else {
+            dest[j++] = src[i];
         }
     }
 }
@@ -79,7 +79,7 @@ BlockAligner::~BlockAligner() {
 }
 
 void BlockAligner::initQuery(Sequence *query) {
-    replaceAsterisksWithX(query->getSeqData(), querySeq);
+    stripInvalidChars(query->getSeqData(), querySeq);
     querySeqLen = query->L;
     strrev(querySeqRev, querySeq, querySeqLen);
 }
@@ -93,7 +93,7 @@ BlockAligner::align(Sequence *targetSeqObj,
     int aaIds = 0;
     std::string backtrace;
 
-    replaceAsterisksWithX(targetSeqObj->getSeqData(), targetSeq);
+    stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
     strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
     unsigned int qUngappedEndPos, dbUngappedEndPos;
