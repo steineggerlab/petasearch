@@ -1,6 +1,7 @@
 
 #include "FileUtil.h"
 #include "DBReader.h"
+#include "DBWriter.h"
 #include "BitManipulateMacros.h"
 
 #include "LocalParameters.h"
@@ -70,7 +71,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     }
 
     // TODO: change to not write using SRADBWriter
-    SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(),
+    DBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(),
                           shuffleSplits, par.compressed,
                           Parameters::DBTYPE_GENERIC_DB);
     hdrWriter.open();
@@ -155,7 +156,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             unsigned int splitIdx = id % shuffleSplits;
 
             /* Write header */
-            hdrWriter.writeData(header.c_str(), header.length(), splitIdx);
+            hdrWriter.writeData(header.c_str(), header.length(), id, splitIdx);
 
             /* e.g. a string of len 12 will be packed into buffer of len 4
                     a string of len 13 need to be packed into buff of len 5

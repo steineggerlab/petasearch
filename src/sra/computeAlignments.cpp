@@ -277,6 +277,8 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
                 // TODO we have to swap coverage mode either here or already in workflow etc
                 Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop);
+//                Matcher::result_t::swapResult(res, evaluer, true);
+
                 results.emplace_back(res);
 //                Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";
 //                Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t"
