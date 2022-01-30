@@ -8,4 +8,7 @@ set(commons_source_files
         commons/BlockAligner.h
         commons/SRADBWriter.cpp
         commons/SRADBWriter.h
+        commons/SRADBReader.cpp
+        commons/SRADBReader.h
+        sra/readandprint.cpp
         PARENT_SCOPE)

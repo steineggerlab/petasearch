@@ -10,7 +10,7 @@ add_executable(srasearch
         ${workflow_source_files}
         LocalCommandDeclarations.h
         srasearch.cpp
-        commons/SRADBReader.cpp commons/SRADBReader.h)
+        )
 
 mmseqs_setup_derived_target(srasearch)
 add_dependencies(srasearch local-generated)
