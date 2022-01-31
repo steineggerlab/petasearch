@@ -28,7 +28,7 @@ private:
     char *targetSeqRev;
     char *querySeq;
     char *targetSeq;
-    int querySeqLen;
+    size_t querySeqLen;
     char *querySeqRev;
     SizeRange range;
     Gaps gaps{};

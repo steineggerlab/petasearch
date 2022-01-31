@@ -58,6 +58,7 @@ void stripInvalidChars(const char *src, char *dest) {
             dest[j++] = src[i];
         }
     }
+    dest[j] = '\0';
 }
 
 BlockAligner::BlockAligner(size_t maxSequenceLength,
@@ -80,7 +81,7 @@ BlockAligner::~BlockAligner() {
 
 void BlockAligner::initQuery(Sequence *query) {
     stripInvalidChars(query->getSeqData(), querySeq);
-    querySeqLen = query->L;
+    querySeqLen = strlen(querySeq); // query->L;
     strrev(querySeqRev, querySeq, querySeqLen);
 }
 
@@ -109,9 +110,15 @@ BlockAligner::align(Sequence *targetSeqObj,
     }
 
     // get middle position of ungapped alignment
-    unsigned int qStartRev = (querySeqLen - qUngappedEndPos) - 1;
+    long tmp = ((long)querySeqLen - (long)qUngappedEndPos) - 1;
+
+    Debug(Debug::INFO) << "querySeqRev: " << querySeqRev << "\n";
+    Debug(Debug::INFO) << "qUngappedEndPos: " << qUngappedEndPos << " tmp: " << tmp << "\n";
+    unsigned int qStartRev = tmp < 0 ? 0 : tmp ; // - 1
     unsigned int qEndRev = querySeqLen;
     char *querySeqRevAlign = substr(querySeqRev, qStartRev, qEndRev);
+    Debug(Debug::INFO) << "qStartRev: " << qStartRev << " qEndRev: " << qEndRev << "\n";
+    Debug(Debug::INFO) << "querySeqRevAlign: " << querySeqRevAlign << "\n";
 
     unsigned int tStartRev = (targetSeqObj->L - dbUngappedEndPos) - 1;
     unsigned int tEndRev = targetSeqObj->L;

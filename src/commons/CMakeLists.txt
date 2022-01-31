@@ -10,5 +10,4 @@ set(commons_source_files
         commons/SRADBWriter.h
         commons/SRADBReader.cpp
         commons/SRADBReader.h
-        sra/readandprint.cpp
         PARENT_SCOPE)
