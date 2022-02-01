@@ -111,14 +111,9 @@ BlockAligner::align(Sequence *targetSeqObj,
 
     // get middle position of ungapped alignment
     long tmp = ((long)querySeqLen - (long)qUngappedEndPos) - 1;
-
-    Debug(Debug::INFO) << "querySeqRev: " << querySeqRev << "\n";
-    Debug(Debug::INFO) << "qUngappedEndPos: " << qUngappedEndPos << " tmp: " << tmp << "\n";
     unsigned int qStartRev = tmp < 0 ? 0 : tmp ; // - 1
     unsigned int qEndRev = querySeqLen;
     char *querySeqRevAlign = substr(querySeqRev, qStartRev, qEndRev);
-    Debug(Debug::INFO) << "qStartRev: " << qStartRev << " qEndRev: " << qEndRev << "\n";
-    Debug(Debug::INFO) << "querySeqRevAlign: " << querySeqRevAlign << "\n";
 
     unsigned int tStartRev = (targetSeqObj->L - dbUngappedEndPos) - 1;
     unsigned int tEndRev = targetSeqObj->L;
