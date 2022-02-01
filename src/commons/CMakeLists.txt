@@ -10,4 +10,6 @@ set(commons_source_files
         commons/SRADBWriter.h
         commons/SRADBReader.cpp
         commons/SRADBReader.h
+        commons/SRAUtil.h
+        commons/SRAUtil.cpp
         PARENT_SCOPE)

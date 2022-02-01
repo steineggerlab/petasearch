@@ -9,56 +9,12 @@
 #include "block_aligner.h"
 #include "Util.h"
 #include "Parameters.h"
+#include "SRAUtil.h"
 
 inline void swap(int &a, int &b) {
     int temp = b;
     b = a;
     a = temp;
-}
-
-/**
- * @brief Reverse a string and put the results in strRev
- * @param strRev the destination to put the reversed string
- * @param str the string to be revesed
- * @param len the length of the string
- */
-void strrev(char *strRev, const char *str, int len) {
-    int start = 0;
-    int end = len - 1;
-    while (LIKELY(start <= end)) {
-        strRev[start] = str[end];
-        strRev[end] = str[start];
-        ++start;
-        --end;
-    }
-    strRev[len] = '\0';
-}
-
-/**
- * @brief Make a slice origStr[start:end], start inclusive, end exclusive
- * */
-char *substr(char *origStr, unsigned int start, unsigned int end) {
-    char *subStr = static_cast<char *>(calloc(end - start + 1, sizeof(char)));
-    strncpy(subStr, origStr + start, end - start);
-    return subStr;
-}
-
-/**
- * @brief Strip invalid characters from a string (@, *, newline, tab, etc)
- */
-void stripInvalidChars(const char *src, char *dest) {
-    size_t j, n = strlen(src);
-    for (size_t i = j = 0; i < n; i++) {
-        // FIXME: this branch is likely not useful now
-        if (src[i] == '\n' || src[i] == '@') {
-            continue;
-        } else if (src[i] == '*') {
-            dest[j++] = 'X';
-        } else {
-            dest[j++] = src[i];
-        }
-    }
-    dest[j] = '\0';
 }
 
 BlockAligner::BlockAligner(size_t maxSequenceLength,
