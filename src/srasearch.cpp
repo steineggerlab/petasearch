@@ -92,7 +92,7 @@ std::vector<struct Command> commands = {
             CITATION_MMSEQS2,
             {{"queryDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
              {"targetSRADB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
-             {"sraAlignmentFile", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
+             {"sraAlignmentFile", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
              {"sraAlignmentDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
         }
 };
