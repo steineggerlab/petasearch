@@ -8,11 +8,7 @@
 #include "SRADBWriter.h"
 #include "KSeqWrapper.h"
 
-char *strip(char *str) {
-    char *var_str = strdup(str);
-    var_str[strcspn(str, "\n")] = '\0';
-    return var_str;
-}
+#include "SRAUtil.h"
 
 int convert2sradb(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
@@ -133,7 +129,9 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         if (isDbInput) {
             // DB INPUT CASE
             progress.updateProgress();
-            char *kseq = strip(reader->getData(fileIdx, 0));
+            const size_t s_upperlimit = reader->getSeqLen(fileIdx);
+            char *kseq = static_cast<char *>(calloc(s_upperlimit + 1, sizeof(char)));
+            stripInvalidChars(reader->getData(fileIdx, 0), kseq);
             const size_t s = strlen(kseq);
             if (s == 0) {
                 Debug(Debug::ERROR) << "Fasta entry " << entries_num << " is invalid\n";
