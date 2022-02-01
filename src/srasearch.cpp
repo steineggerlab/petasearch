@@ -83,6 +83,18 @@ std::vector<struct Command> commands = {
                 {{"dbToConvert", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
                  {"outputDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
         },
+        {
+            "convertsraalis", convertsraalignments, &localPar.convertsraalignments, COMMAND_EXPERT,
+            "",
+            NULL,
+            "Minghang Li <matchy@snu.ac.kr> ",
+            "<i:queryDB> <i:targetSRADB> <i:sraAlignmentFile> <o:sraAlignmentDB>",
+            CITATION_MMSEQS2,
+            {{"queryDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+             {"targetSRADB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
+             {"sraAlignmentFile", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
+             {"sraAlignmentDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
+        }
 };
 
 void updateValidation() {}

@@ -23,6 +23,7 @@ public:
     std::vector<MMseqsParameter *> convert2sradb;
     std::vector<MMseqsParameter *> petasearchworkflow;
     std::vector<MMseqsParameter *> easypetasearchworkflow;
+    std::vector<MMseqsParameter *> convertsraalignments;
 
     PARAMETER(PARAM_REQ_KMER_MATCHES)
     unsigned int requiredKmerMatches;
@@ -98,6 +99,9 @@ private:
         computeAlignments.push_back(&PARAM_RANGE_MIN);
         computeAlignments.push_back(&PARAM_RANGE_MAX);
         computeAlignments.push_back(&PARAM_X_DROP);
+
+        convertsraalignments.push_back(&PARAM_FORMAT_MODE);
+        convertsraalignments.push_back(&PARAM_FORMAT_OUTPUT);
 
         petasearchworkflow = combineList(createkmertable, compare2kmertables);
         petasearchworkflow = combineList(petasearchworkflow, computeAlignments);
