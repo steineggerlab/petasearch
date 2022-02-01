@@ -218,17 +218,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             unsigned int targetId = targetKey;
             const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
             const unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetId);
-            Debug(Debug::INFO) << "Processing target " << targetId << " (" << targetSeqLen << " bp)\n";
-            Debug(Debug::INFO) << "Target sequence length: " << targetSeqLen << "\n";
-            Debug(Debug::INFO) << "real length: " << strlen(targetSeqData) << "\n";
-            Debug(Debug::INFO) << "Target sequence: " << targetSeqData << "\n";
-            if (targetSeqLen < strlen(targetSeqData)) {
-                Debug(Debug::ERROR) << "Target sequence length is smaller than the sequence length in the database.\n";
-                Debug(Debug::ERROR) << "Target sequence length: " << targetSeqLen << "\n";
-                Debug(Debug::ERROR) << "Sequence length in the database: " << strlen(targetSeqData) << "\n";
-                Debug(Debug::ERROR) << "Target sequence key: " << targetKey << "\n";
-                EXIT(EXIT_FAILURE);
-            }
             targetSeq.mapSequence(targetId, targetKey, targetSeqData, targetSeqLen);
 
             // TODO: this might be wasted if no single hit hit the target
