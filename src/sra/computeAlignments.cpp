@@ -57,6 +57,8 @@ std::string printAlnFromBt(const char *seq, unsigned int offset, const std::stri
 
 int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second);
 
+bool matcherResultsSort(const Matcher::result_t &first, const Matcher::result_t &second);
+
 const unsigned int INVALID_DIAG = (unsigned int) -1;
 
 bool isWithinNDiagonals(const std::vector<QueryTableEntry> &queries, unsigned int N) {
@@ -156,9 +158,8 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                                                DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     querySequenceReader.open(DBReader<unsigned int>::NOSORT);
 
-    // TODO: change this to SRADBReader
-    SRADBReader targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(),par.threads,
-                                     DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_DATA);
+    SRADBReader targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(), par.threads,
+                                     DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     targetSequenceReader.open(DBReader<unsigned int>::NOSORT);
     DBReader<unsigned int> resultReader(par.db3.c_str(), par.db3Index.c_str(), par.threads,
                                         DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX |
@@ -200,7 +201,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
         char buffer[1024];
         std::vector<Matcher::result_t> results;
-        results.reserve(300);
+        results.reserve(30000);
 
         std::string result;
         result.reserve(1000);
@@ -219,6 +220,8 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
             const unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetId);
             targetSeq.mapSequence(targetId, targetKey, targetSeqData, targetSeqLen);
+
+            unsigned int queryKey = -1;
 
             // TODO: this might be wasted if no single hit hit the target
             blockAligner.initQuery(&targetSeq);
@@ -253,7 +256,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     continue;
                 }
 
-                unsigned int queryKey = queries[0].querySequenceId;
+                queryKey = queries[0].querySequenceId;
                 unsigned int queryId = querySequenceReader.getId(queryKey);
                 const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
@@ -262,22 +265,21 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
 
                 DistanceCalculator::LocalAlignment aln = ungappedDiagFilter(queries,
-                                                                             useProfileSearch ? realSeq.c_str()
-                                                                                              : querySeqData,
-                                                                             querySeqLen,
-                                                                             targetSeqData,
-                                                                             targetSeqLen,
-                                                                             fastMatrix.matrix,
-                                                                             evaluer,
-                                                                             par.rescoreMode,
-                                                                             par.evalThr);
+                                                                            useProfileSearch ? realSeq.c_str()
+                                                                                             : querySeqData,
+                                                                            querySeqLen,
+                                                                            targetSeqData,
+                                                                            targetSeqLen,
+                                                                            fastMatrix.matrix,
+                                                                            evaluer,
+                                                                            par.rescoreMode,
+                                                                            par.evalThr);
                 if (aln.diagonal == (int) INVALID_DIAG) {
                     continue;
                 }
 
-                // TODO we have to swap coverage mode either here or already in workflow etc
                 Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop);
-//                Matcher::result_t::swapResult(res, evaluer, true);
+                res.queryOrfStartPos = queryKey;
 
                 results.emplace_back(res);
 //                Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";
@@ -291,15 +293,26 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 //                                   << "\n\n";
             }
 
-            std::sort(results.begin(), results.end(), Matcher::compareHits);
-            for (size_t j = 0; j < results.size(); ++j) {
-                size_t len = Matcher::resultToBuffer(buffer, results[j], false, false);
-                result.append(buffer, len);
-            }
+//             std::sort(results.begin(), results.end(), Matcher::compareHits);
+//            for (size_t j = 0; j < results.size(); ++j) {
+//                size_t len = Matcher::resultToBuffer(buffer, results[j], false, false);
+//                result.append(buffer, len);
+//            }
 
-            writer.writeData(result.c_str(), result.size(), targetKey, thread_idx);
-            results.clear();
-            result.clear();
+            // writer.writeData(result.c_str(), result.size(), targetKey, thread_idx);
+            //results.clear();
+            //result.clear();
+        }
+
+        SORT_PARALLEL(results.begin(), results.end(), matcherResultsSort);
+
+#pragma omp for schedule(dynamic, 10)
+        for (size_t i = 0; i < results.size(); ++i) {
+            results[i].dbOrfStartPos = (int) results[i].dbKey;
+            results[i].dbKey = (unsigned int) results[i].queryOrfStartPos;
+            Matcher::result_t::swapResult(results[i], evaluer, true);
+            size_t len = Matcher::resultToBuffer(buffer, results[i], false, false);
+            writer.writeData(buffer, len, results[i].dbKey, thread_idx);
         }
     }
 
@@ -311,10 +324,9 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     querySequenceReader.close();
     targetSequenceReader.close();
 
-    delete [] fastMatrix.matrixData;
-    delete [] fastMatrix.matrix;
+    delete[] fastMatrix.matrixData;
+    delete[] fastMatrix.matrix;
     delete subMat;
-//    delete [] subMat;
     return EXIT_SUCCESS;
 }
 
@@ -355,4 +367,23 @@ int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second)
     }
 
     return false;
+}
+
+bool matcherResultsSort(const Matcher::result_t &first, const Matcher::result_t &second) {
+    if (first.eval != second.eval) {
+        return first.eval < second.eval;
+    }
+    if (first.score != second.score) {
+        return first.score > second.score;
+    }
+    if (first.dbLen != second.dbLen) {
+        return first.dbLen < second.dbLen;
+    }
+
+    unsigned int firstQueryKey = (unsigned int) first.queryOrfStartPos;
+    unsigned int secondQueryKey = (unsigned int) second.queryOrfStartPos;
+    if (firstQueryKey != secondQueryKey) {
+        return firstQueryKey < secondQueryKey;
+    }
+    return first.dbKey < second.dbKey;
 }

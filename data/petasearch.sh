@@ -56,15 +56,19 @@ STEP=0
 # shellcheck disable=SC2034
 while IFS="$(printf "\t")" read -r TARGETABLE T_DB COMP_RES; do
    # shellcheck disable=SC2086
-  "$MMSEQS" computeAlignments "${Q_DB}" "${T_DB}" "${COMP_RES}" "${TMP_PATH}/${SA_RES}_${STEP}" ${COMP_ALI_PAR} \
+  "$MMSEQS" computeAlignments "${Q_DB}" "${T_DB}" "${COMP_RES}" "${TMP_PATH}/${M8_RES}_${STEP}" ${COMP_ALI_PAR} \
         || fail "computing the alignment for matched sequences failed"
 
    # shellcheck disable=SC2086
-  "$MMSEQS" swapresults "${T_DB}" "${Q_DB}" "${TMP_PATH}/${SA_RES}_${STEP}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${SWAP_PAR} \
-        || fail "swapping the alignments failed"
+#  "$MMSEQS" swapresults "${T_DB}" "${Q_DB}" "${TMP_PATH}/${SA_RES}_${STEP}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${SWAP_PAR} \
+#        || fail "swapping the alignments failed"
+#
+#  # shellcheck disable=SC2086
+#  "$MMSEQS" convertalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${ALI_RES}_${STEP}" "${TMP_PATH}/${M8_RES}_${STEP}" ${CONVERTALIS_PAR} \
+#      || fail "creating  the .m8 file failed"
 
   # shellcheck disable=SC2086
-  "$MMSEQS" convertalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${ALI_RES}_${STEP}" "${TMP_PATH}/${M8_RES}_${STEP}" ${CONVERTALIS_PAR} \
+  "$MMSEQS" convertsraalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${M8_RES}_${STEP}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${CONVERTALIS_PAR} \
       || fail "creating  the .m8 file failed"
 
   push_back "${TMP_PATH}/${M8_RES}_${STEP}"
@@ -72,7 +76,7 @@ while IFS="$(printf "\t")" read -r TARGETABLE T_DB COMP_RES; do
 done < "threecol.tsv"
 
 eval "set -- $ARR"
-cat "${@}" > "${FINAL_RES}"
+#cat "${@}" > "${FINAL_RES}"
 
 # clear up tmp files
 if [ -n "$REMOVE_TMP" ]; then
