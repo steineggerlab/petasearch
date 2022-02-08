@@ -276,6 +276,10 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
     delete subMat;
     subMat = nullptr;
 
+    if (!useProfileSearch) {
+        ExtendedSubstitutionMatrix::freeScoreMatrix(twoMatrix);
+        ExtendedSubstitutionMatrix::freeScoreMatrix(threeMatrix);
+    }
     reader.close();
 }
 
