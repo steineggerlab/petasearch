@@ -157,12 +157,11 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
         tDbr = &qDbr;
         tDbrHeader = &qDbrHeader;
     } else {
-        Debug(Debug::INFO) << "Reading target database " << par.db2 << "\n";
+        // TODO: change those IndexReader to SRAIndexReader
 //        tDbr = new IndexReader(par.db2, par.threads, IndexReader::SRC_SEQUENCES,
 //                               (touch) ? (IndexReader::PRELOAD_INDEX | IndexReader::PRELOAD_DATA) : 0, dbaccessMode);
         tDbrHeader = new IndexReader(par.db2, par.threads, IndexReader::SRC_HEADERS,
                                      (touch) ? (IndexReader::PRELOAD_INDEX | IndexReader::PRELOAD_DATA) : 0);
-        Debug(Debug::INFO) << "Done.\n";
     }
 
     bool queryNucs = Parameters::isEqualDbtype(qDbr.sequenceReader->getDbtype(), Parameters::DBTYPE_NUCLEOTIDES);
@@ -238,8 +237,6 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
 //
 //        for (size_t i = 0; i < alnDbr.getSize(); i++) {
 //            char *data = alnDbr.getData(i, 0);
-//            Debug(Debug::INFO) << "Processing alignment " << i << "\n";
-//            Debug(Debug::INFO) << "data: " << data << "\n";
 //            while (*data != '\0') {
 //                char dbKeyBuffer[255 + 1];
 //                Util::parseKey(data, dbKeyBuffer);
@@ -301,18 +298,12 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
             progress.updateProgress();
 
             const unsigned int queryKey = alnDbr.getDbKey(i);
-            Debug(Debug::INFO) << "Processing alignment " << i
-            << " (dbkey: " << alnDbr.getDbKey(i) << ")\n"
-            << " trhough dbkey" << alnDbr.getDataByDBKey(queryKey, 0) << "\n"
-            << " data: " << alnDbr.getData(i, thread_idx) << "\n";
             char *querySeqData = NULL;
             size_t querySeqLen = 0;
             queryProfData.clear();
 //            if (needSequenceDB) {
 //                size_t qId = qDbr.sequenceReader->getId(queryKey);
-//                Debug(Debug::INFO) << "Processing query " << qId << "\n";
 //                querySeqData = qDbr.sequenceReader->getData(qId, thread_idx);
-//                Debug(Debug::INFO) << "querySeqData: " << querySeqData << "\n";
 //                querySeqLen = qDbr.sequenceReader->getSeqLen(qId);
 //                if (sameDB && qDbr.sequenceReader->isCompressed()) {
 //                    queryBuffer.assign(querySeqData, querySeqLen);
@@ -324,10 +315,7 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
 //            }
 
             size_t qHeaderId = qDbrHeader.sequenceReader->getId(queryKey);
-            Debug(Debug::INFO) << "(unsigned int) -1: " << (unsigned int) -1 << "\n";
-            Debug(Debug::INFO) << "qHeaderId: " << qHeaderId << "\n";
             const char *qHeader = qDbrHeader.sequenceReader->getData(qHeaderId, thread_idx);
-            Debug(Debug::INFO) << "qHeader: " << qHeader << "\n";
             size_t qHeaderLen = qDbrHeader.sequenceReader->getSeqLen(qHeaderId);
             std::string queryId = Util::parseFastaHeader(qHeader);
             if (sameDB && needFullHeaders) {
@@ -351,9 +339,7 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                 result.append("\"}, \"alignments\": [\n");
             }
 
-            Debug(Debug::INFO) << "Processing alignment " << i << "\n";
             char *data = alnDbr.getData(i, thread_idx);
-            Debug(Debug::INFO) << "data: " << data << "\n";
             while (*data != '\0') {
                 Matcher::result_t res = Matcher::parseAlignmentRecord(data, true);
                 data = Util::skipLine(data);
@@ -367,9 +353,7 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                 }
 
                 size_t tHeaderId = tDbrHeader->sequenceReader->getId(res.dbKey);
-                Debug(Debug::INFO) << "tHeaderId: " << tHeaderId << "\n";
                 const char *tHeader = tDbrHeader->sequenceReader->getData(tHeaderId, thread_idx);
-                Debug(Debug::INFO) << "tHeader: " << tHeader << "\n";
                 size_t tHeaderLen = tDbrHeader->sequenceReader->getSeqLen(tHeaderId);
                 std::string targetId = Util::parseFastaHeader(tHeader);
 

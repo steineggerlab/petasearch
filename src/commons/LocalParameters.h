@@ -103,7 +103,7 @@ private:
         convertsraalignments.push_back(&PARAM_FORMAT_MODE);
         convertsraalignments.push_back(&PARAM_FORMAT_OUTPUT);
         convertsraalignments.push_back(&PARAM_THREADS);
-        convertsraalignments.push_back(&PARAM_V);
+        convertsraalignments = combineList(convertsraalignments, Parameters::convertalignments);
 
         petasearchworkflow = combineList(createkmertable, compare2kmertables);
         petasearchworkflow = combineList(petasearchworkflow, computeAlignments);
