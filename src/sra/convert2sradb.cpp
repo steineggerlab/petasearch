@@ -257,6 +257,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 free(resultBuffer);
             }
             delete kseq;
+            kseq = nullptr;
         }
     }
 
@@ -276,7 +277,9 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         reader->close();
         hdrReader->close();
         delete reader;
+        reader = nullptr;
         delete hdrReader;
+        hdrReader = nullptr;
     }
 
     if (entries_num == 0) {

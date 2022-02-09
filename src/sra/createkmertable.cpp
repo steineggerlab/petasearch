@@ -149,6 +149,7 @@ shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBu
     free(targetTable);
 
     delete subMat;
+    subMat = nullptr;
     reader.close();
     return EXIT_SUCCESS;
 }

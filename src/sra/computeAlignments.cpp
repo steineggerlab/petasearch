@@ -278,6 +278,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 }
 
                 Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop);
+                res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
 
                 results.emplace_back(res);
@@ -333,6 +334,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     delete[] fastMatrix.matrixData;
     delete[] fastMatrix.matrix;
     delete subMat;
+    subMat = nullptr;
     return EXIT_SUCCESS;
 }
 

@@ -550,6 +550,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
         writer.close();
 
         delete[] resultTable;
+        resultTable = nullptr;
     }
 }
 
