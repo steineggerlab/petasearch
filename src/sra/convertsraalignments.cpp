@@ -278,7 +278,7 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                     EXIT(EXIT_FAILURE);
                 }
 
-                size_t tHeaderId = (unsigned int) res.dbKey; //tDbrHeader->sequenceReader->getId(res.dbKey);
+                size_t tHeaderId = (unsigned int) res.dbOrfStartPos; //tDbrHeader->sequenceReader->getId(res.dbKey);
                 const char *tHeader = tDbrHeader.getData(tHeaderId, thread_idx);
                 size_t tHeaderLen = tDbrHeader.getSeqLen(tHeaderId);
                 std::string targetId = Util::parseFastaHeader(tHeader);
@@ -338,7 +338,7 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                             char *targetSeqData = nullptr;
                             targetProfData.clear();
                             if (needSequenceDB) {
-                                size_t tId = res.dbKey; // tDbr->sequenceReader->getId(res.dbKey);
+                                size_t tId = res.dbOrfStartPos; // tDbr->sequenceReader->getId(res.dbKey);
                                 targetSeqData = tDbr.getData(tId, thread_idx);
                                 if (isTargetProfile) {
                                     Sequence::extractProfileConsensus(targetSeqData, *subMat, targetProfData);
