@@ -318,7 +318,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
     Debug(Debug::INFO) << "Compute Alignment finished, time spent: " << timer.lap() << "\n";
 
-    writer.close();
+    writer.close(true);
 
     resultReader.close();
     querySequenceReader.close();
