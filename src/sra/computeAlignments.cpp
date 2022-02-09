@@ -315,8 +315,8 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         char buffer[1024];
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < results.size(); ++i) {
-            results[i].dbOrfStartPos = (int) results[i].dbKey;
-            results[i].dbKey = (unsigned int) results[i].queryOrfStartPos;
+//            results[i].dbOrfStartPos = (int) results[i].dbKey;
+//            results[i].dbKey = (unsigned int) results[i].queryOrfStartPos;
             Matcher::result_t::swapResult(results[i], evaluer, true);
             size_t len = Matcher::resultToBuffer(buffer, results[i], false, false);
             writer.writeData(buffer, len, results[i].dbKey, thread_idx);
@@ -376,6 +376,11 @@ int blockByDiagSort(const QueryTableEntry &first, const QueryTableEntry &second)
 }
 
 bool matcherResultsSort(const Matcher::result_t &first, const Matcher::result_t &second) {
+    unsigned int firstQueryKey = (unsigned int) first.queryOrfStartPos;
+    unsigned int secondQueryKey = (unsigned int) second.queryOrfStartPos;
+    if (firstQueryKey != secondQueryKey) {
+        return firstQueryKey < secondQueryKey;
+    }
     if (first.eval != second.eval) {
         return first.eval < second.eval;
     }
@@ -384,12 +389,6 @@ bool matcherResultsSort(const Matcher::result_t &first, const Matcher::result_t 
     }
     if (first.dbLen != second.dbLen) {
         return first.dbLen < second.dbLen;
-    }
-
-    unsigned int firstQueryKey = (unsigned int) first.queryOrfStartPos;
-    unsigned int secondQueryKey = (unsigned int) second.queryOrfStartPos;
-    if (firstQueryKey != secondQueryKey) {
-        return firstQueryKey < secondQueryKey;
     }
     return first.dbKey < second.dbKey;
 }
