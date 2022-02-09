@@ -180,6 +180,9 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
     EvalueComputation evaluer(targetSequenceReader.getAminoAcidDBSize(), subMat);
 
+    std::vector<Matcher::result_t> results;
+    results.reserve(resultReader.getSize());
+
     Debug::Progress progress(resultReader.getSize());
 #pragma omp parallel
     {
@@ -198,10 +201,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         BlockAligner blockAligner(par.maxSeqLen, par.rangeMin, par.rangeMax,
                                   isNucDB ? -par.gapOpen.nucleotides : -par.gapOpen.aminoacids,
                                   isNucDB ? -par.gapExtend.nucleotides : -par.gapExtend.aminoacids);
-
-        char buffer[1024];
-        std::vector<Matcher::result_t> results;
-        results.reserve(30000);
 
         std::string result;
         result.reserve(1000);
@@ -303,23 +302,26 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             //results.clear();
             //result.clear();
         }
+    }
 
-        SORT_PARALLEL(results.begin(), results.end(), matcherResultsSort);
+    SORT_PARALLEL(results.begin(), results.end(), matcherResultsSort);
 
-#pragma omp for schedule(dynamic, 100)
+#pragma omp parallel
+    {
+        unsigned int thread_idx = 0;
+#ifdef OPENMP
+        thread_idx = static_cast<unsigned int>(omp_get_thread_num());
+#endif
+        char buffer[1024];
+#pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < results.size(); ++i) {
             results[i].dbOrfStartPos = (int) results[i].dbKey;
             results[i].dbKey = (unsigned int) results[i].queryOrfStartPos;
-            if (results[i].dbKey == 0) {
-                Debug(Debug::INFO) << "Found a hit with dbKey == 0\n" << "number: " << i << "\n";
-                continue;
-            }
             Matcher::result_t::swapResult(results[i], evaluer, true);
             size_t len = Matcher::resultToBuffer(buffer, results[i], false, false);
             writer.writeData(buffer, len, results[i].dbKey, thread_idx);
         }
-    }
-
+    };
     Debug(Debug::INFO) << "Compute Alignment finished, time spent: " << timer.lap() << "\n";
 
     writer.close(true);
