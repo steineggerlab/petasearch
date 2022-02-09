@@ -25,6 +25,7 @@
 
 SRADBReader::SRADBReader(const char *dataFileName, const char *indexFileName, int threads, int mode) :
         threads(threads), dataMode(mode), dataFileName(strdup(dataFileName)), indexFileName(strdup(indexFileName)) {
+        isHeader = std::string(dataFileName).find("_h") != std::string::npos;
 }
 
 void SRADBReader::open(int accessType) {
@@ -149,7 +150,6 @@ void SRADBReader::readIndex(char *data, size_t indexDataSize, unsigned long *ind
                 currPos = indexDataChar - (char *) data;
                 currLine++;
             }
-
         }
     }
 //    dataSize = localDataSize;
@@ -239,8 +239,10 @@ void SRADBReader::unmapData() {
 
 char *SRADBReader::getData(size_t id, int thread_idx) {
     char *rawString = getDataUncompressed(id);
+    if (isHeader) {
+        return rawString;
+    }
     unsigned short *packedArray = reinterpret_cast<unsigned short *>(rawString);
-    // FIXME: seqLen calculation is WRONG!
     int idex = 0;
     int j = 0;
     while (!IS_LAST_15_BITS(packedArray[idex])) {

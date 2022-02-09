@@ -37,6 +37,7 @@ private:
     bool dataMapped;
     int accessType;
     int dbType;
+    bool isHeader;
     void checkClosed();
 
     size_t size;
