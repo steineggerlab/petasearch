@@ -73,7 +73,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     hdrWriter.open();
     SRADBWriter seqWriter(outputDataFile.c_str(), outputIndexFile.c_str(),
                           shuffleSplits, par.compressed,
-                          Parameters::DBTYPE_OMIT_FILE);
+                          Parameters::DBTYPE_AMINO_ACIDS);
     seqWriter.open();
 
     size_t fileCount = filenames.size();
