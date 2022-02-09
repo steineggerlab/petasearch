@@ -68,8 +68,7 @@ while IFS="$(printf "\t")" read -r TARGETABLE T_DB COMP_RES; do
 #      || fail "creating  the .m8 file failed"
 
   # shellcheck disable=SC2086
-  "$MMSEQS" convertsraalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${ALI_RES}_${STEP}" "${TMP_PATH}/${M8_RES}_${STEP}" 
-  ${CONVERTALIS_PAR} \
+  "$MMSEQS" convertsraalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${ALI_RES}_${STEP}" "${TMP_PATH}/${M8_RES}_${STEP}" ${CONVERTALIS_PAR} \
       || fail "creating  the .m8 file failed"
 
   push_back "${TMP_PATH}/${M8_RES}_${STEP}"

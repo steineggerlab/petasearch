@@ -306,10 +306,14 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
         SORT_PARALLEL(results.begin(), results.end(), matcherResultsSort);
 
-#pragma omp for schedule(dynamic, 10)
+#pragma omp for schedule(dynamic, 100)
         for (size_t i = 0; i < results.size(); ++i) {
             results[i].dbOrfStartPos = (int) results[i].dbKey;
             results[i].dbKey = (unsigned int) results[i].queryOrfStartPos;
+            if (results[i].dbKey == 0) {
+                Debug(Debug::INFO) << "Found a hit with dbKey == 0\n" << "number: " << i << "\n";
+                continue;
+            }
             Matcher::result_t::swapResult(results[i], evaluer, true);
             size_t len = Matcher::resultToBuffer(buffer, results[i], false, false);
             writer.writeData(buffer, len, results[i].dbKey, thread_idx);
