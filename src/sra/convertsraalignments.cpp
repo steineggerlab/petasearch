@@ -24,6 +24,7 @@
 #include "LocalParameters.h"
 #include "SRADBReader.h"
 #include "IndexReader.h"
+#include "SRAUtil.h"
 
 /*
 query       Query sequence label
@@ -145,11 +146,11 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
 
     SRADBReader tDbr = SRADBReader(par.db2.c_str(), par.db2Index.c_str(), par.threads,
                            DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
-    tDbr.open(DBReader<unsigned int>::NOSORT);
+    tDbr.open(DBReader<unsigned int>::NOSORT | DBReader<unsigned int>::LINEAR_ACCCESS);
 
     SRADBReader tDbrHeader = SRADBReader((par.db2 + "_h").c_str(), (par.db2 + "_h.index").c_str(), par.threads,
                                  DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
-    tDbrHeader.open(DBReader<unsigned int>::NOSORT);
+    tDbrHeader.open(DBReader<unsigned int>::NOSORT | DBReader<unsigned int>::LINEAR_ACCCESS);
 
     bool isQueryNucs = Parameters::isEqualDbtype(qDbr.sequenceReader->getDbtype(), Parameters::DBTYPE_NUCLEOTIDES);
     bool isTargetNucs = Parameters::isEqualDbtype(tDbr.getDbtype(), Parameters::DBTYPE_NUCLEOTIDES);
@@ -231,10 +232,6 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                 size_t qId = qDbr.sequenceReader->getId(queryKey);
                 querySeqData = qDbr.sequenceReader->getData(qId, thread_idx);
                 querySeqLen = qDbr.sequenceReader->getSeqLen(qId);
-//                if (sameDB && qDbr.sequenceReader->isCompressed()) {
-//                    queryBuffer.assign(querySeqData, querySeqLen);
-//                    querySeqData = (char *) queryBuffer.c_str();
-//                }
                 if (isQueryProfile) {
                     Sequence::extractProfileConsensus(querySeqData, *subMat, queryProfData);
                 }
@@ -244,26 +241,6 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
             const char *qHeader = qDbrHeader.sequenceReader->getData(qHeaderId, thread_idx);
             size_t qHeaderLen = qDbrHeader.sequenceReader->getSeqLen(qHeaderId);
             std::string queryId = Util::parseFastaHeader(qHeader);
-//            if (sameDB && needFullHeaders) {
-//                queryHeaderBuffer.assign(qHeader, qHeaderLen);
-//                qHeader = (char *) queryHeaderBuffer.c_str();
-//            }
-
-            if (format == Parameters::FORMAT_ALIGNMENT_HTML) {
-                const char *jsStart = "{\"query\": {\"accession\": \"%s\",\"sequence\": \"";
-                int count = snprintf(buffer, sizeof(buffer), jsStart, queryId.c_str(), querySeqData);
-                if (count < 0 || static_cast<size_t>(count) >= sizeof(buffer)) {
-                    Debug(Debug::WARNING) << "Truncated line in entry" << i << "!\n";
-                    continue;
-                }
-                result.append(buffer, count);
-                if (isQueryProfile) {
-                    result.append(queryProfData);
-                } else {
-                    result.append(querySeqData, querySeqLen);
-                }
-                result.append("\"}, \"alignments\": [\n");
-            }
 
             char *data = alnDbr.getData(i, thread_idx);
             while (*data != '\0') {
@@ -279,8 +256,10 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                 }
 
                 size_t tHeaderId = (unsigned int) res.dbOrfStartPos; //tDbrHeader->sequenceReader->getId(res.dbKey);
-                const char *tHeader = tDbrHeader.getData(tHeaderId, thread_idx);
-                size_t tHeaderLen = tDbrHeader.getSeqLen(tHeaderId);
+                char *tmpTHeader = tDbrHeader.getData(tHeaderId, thread_idx);
+                size_t tHeaderLen = strlen(tmpTHeader); //tDbrHeader.getSeqLen(tHeaderId);
+                char *tHeader = new char[tHeaderLen + 1];
+                stripInvalidChars(tmpTHeader, tHeader);
                 std::string targetId = Util::parseFastaHeader(tHeader);
 
                 unsigned int gapOpenCount = 0;
@@ -396,9 +375,7 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                                         );
                                         break;
                                     case Parameters::OUTFMT_BITS:
-                                        result.
-                                                append(SSTR(res.score)
-                                        );
+                                        result.append(SSTR(res.score));
                                         break;
                                     case Parameters::OUTFMT_CIGAR:
                                         result.append(SSTR(res.backtrace));
@@ -502,19 +479,14 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                         Debug(Debug::ERROR) << "Not implemented yet";
                         EXIT(EXIT_FAILURE);
                 }
+                delete[] tHeader;
             }
 
-            if (format == Parameters::FORMAT_ALIGNMENT_HTML) {
-                result.append("]},\n");
-            }
-            resultWriter.writeData(result.c_str(), result.size(), queryKey, thread_idx, isDb);
+            resultWriter.writeData(result.c_str(), result.size(), queryKey, thread_idx, true);
             result.clear();
         }
     }
-    if (format == Parameters::FORMAT_ALIGNMENT_HTML) {
-        const char *endBlock = "]);</script>";
-        resultWriter.writeData(endBlock, strlen(endBlock), 0, localThreads - 1, false, false);
-    }
+
     // tsv output
     resultWriter.close(true);
     if (isDb == false) {

@@ -49,7 +49,6 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     Timer timer;
     Debug(Debug::INFO) << "Preparing input database\n";
 
-    // TODO: change this to SRADBReader
     SRADBReader reader(par.db1.c_str(), par.db1Index.c_str(), par.threads,
                        DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
@@ -105,7 +104,6 @@ shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBu
 //            unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
-//            Debug(Debug::INFO) << "seq of len " << seqLen << " : " << data << "\n";
             s.mapSequence(i, 0, data, seqLen);
             const int xIndex = s.subMat->aa2num[(int) 'X'];
             while (s.hasNextKmer()) {

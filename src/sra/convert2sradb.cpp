@@ -66,7 +66,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-    // TODO: change to not write using SRADBWriter
     SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(),
                           shuffleSplits, par.compressed,
                           Parameters::DBTYPE_GENERIC_DB);
