@@ -160,8 +160,9 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
              */
             // calculate remainder
             size_t rem = s % 3;
-            // need one more unsigned short if cannot divide by 3
+            // need one more unsigned short if s cannot divide by 3
             int padding = rem == 0 ? 0 : 1;
+            rem = (rem == 0) ? 3 : rem;
             unsigned short *resultBuffer = (unsigned short *) calloc((s / 3 + padding),
                                                                      sizeof(unsigned short));
             size_t i = 0;
@@ -173,6 +174,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             }
             /* Write to the last unsigned short */
             // initialize to 0
+            // i >= s - 3; i % 3 = 0
             resultBuffer[i / 3] = 0U;
 
             for (size_t j = 0; j < 3; j++) {
@@ -226,7 +228,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
                 unsigned long rem = e.sequence.l % 3;
                 int padding = rem == 0 ? 0 : 1;
-                rem = (rem == 0) ? 3 : rem;
 
                 unsigned short *resultBuffer = (unsigned short *) calloc((e.sequence.l / 3 + padding),
                                                                          sizeof(unsigned short));

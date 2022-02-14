@@ -226,12 +226,12 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
 
             const unsigned int queryKey = alnDbr.getDbKey(i);
             char *querySeqData = nullptr;
-            size_t querySeqLen = 0;
+//            size_t querySeqLen = 0;
             queryProfData.clear();
             if (needSequenceDB) {
                 size_t qId = qDbr.sequenceReader->getId(queryKey);
                 querySeqData = qDbr.sequenceReader->getData(qId, thread_idx);
-                querySeqLen = qDbr.sequenceReader->getSeqLen(qId);
+//                querySeqLen = qDbr.sequenceReader->getSeqLen(qId);
                 if (isQueryProfile) {
                     Sequence::extractProfileConsensus(querySeqData, *subMat, queryProfData);
                 }
@@ -482,7 +482,7 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                 delete[] tHeader;
             }
 
-            resultWriter.writeData(result.c_str(), result.size(), queryKey, thread_idx, true);
+            resultWriter.writeData(result.c_str(), result.size(), queryKey, thread_idx, isDb);
             result.clear();
         }
     }
