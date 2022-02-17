@@ -22,6 +22,8 @@ char *substr(char *origStr, unsigned int start, unsigned int end);
  */
 void stripInvalidChars(const char *src, char *dest);
 
+void stripInvalidChars(char *src);
+
 #define SRASEARCH_SRAUTIL_H
 
 #endif //SRASEARCH_SRAUTIL_H

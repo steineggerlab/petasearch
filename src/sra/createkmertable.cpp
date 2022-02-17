@@ -76,7 +76,17 @@ shared(par, reader)
                        << "Number of all overall kmers: " << kmerCount << "\n"
                        << "Creating TargetTable. Requiring "
                        << ((kmerCount + 1) * sizeof(TargetTableEntry)) / 1024 / 1024 << " MB of memory for it\n";
-    targetTable = (TargetTableEntry *) calloc((kmerCount + 1), sizeof(TargetTableEntry));
+
+    size_t targetTableSize = std::min(Util::getTotalSystemMemory() - 32 * 1024 * 1024 * 1024, (kmerCount + 1) * sizeof(TargetTableEntry));
+    // TODO: check if overflow with target maximum index
+    targetTable = (TargetTableEntry *) calloc(targetTableSize, sizeof(char));//
+    // (kmerCount + 1), sizeof(TargetTableEntry));
+
+    if (targetTable == NULL) {
+        Debug(Debug::ERROR) << "Could not allocate memory for target table\n";
+        EXIT(EXIT_FAILURE);
+    }
+
     Debug(Debug::INFO) << "Memory allocated \n"
                        << timer.lap() << "\n"
                        << "Extracting k-mers\n";

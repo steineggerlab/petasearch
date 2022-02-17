@@ -201,6 +201,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
             while (kseq->ReadEntry()) {
                 progress.updateProgress();
                 const KSeqWrapper::KSeqEntry &e = kseq->entry;
+                stripInvalidChars(e.sequence.s);
 
                 if (e.name.l == 0) {
                     Debug(Debug::ERROR) << "Fasta entry " << entries_num << " is invalid\n";

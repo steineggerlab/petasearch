@@ -39,3 +39,17 @@ void stripInvalidChars(const char *src, char *dest) {
     }
     dest[j] = '\0';
 }
+
+void stripInvalidChars(char *src) {
+    size_t j, n = strlen(src);
+    for (size_t i = j = 0; i < n; i++) {
+        if (src[i] == '\n' || src[i] == '@') {
+            continue;
+        } else if (src[i] == '*') {
+            src[j++] = 'X';
+        } else {
+            src[j++] = src[i];
+        }
+    }
+    src[j] = '\0';
+}
