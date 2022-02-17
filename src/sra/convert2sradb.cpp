@@ -224,10 +224,11 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 unsigned int splitIdx = id % shuffleSplits;
 
                 /* Write header */
-                hdrWriter.writeData(header.c_str(), header.length(), splitIdx);
+                hdrWriter.writeData(header.c_str(), header.length(), splitIdx, true, true);
 
                 unsigned long rem = e.sequence.l % 3;
                 int padding = rem == 0 ? 0 : 1;
+                rem = (rem == 0) ? 3 : rem;
 
                 unsigned short *resultBuffer = (unsigned short *) calloc((e.sequence.l / 3 + padding),
                                                                          sizeof(unsigned short));
@@ -240,13 +241,16 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                                                             e.sequence.s[i + 2]);
                     }
                 }
-                resultBuffer[i / 3] = 0;
-                for (unsigned int j = 0; j < rem; j++) {
+                resultBuffer[i / 3] = 0U;
+                for (unsigned int j = 0; j < 3; j++) {
                     resultBuffer[i / 3] <<= 5U;
-                    resultBuffer[i / 3] |= GET_LAST_5_BITS(e.sequence.s[i + j]);
+                    if (j < rem && e.sequence.s[i + j] != '\n') {
+                        resultBuffer[i / 3] |= GET_LAST_5_BITS(e.sequence.s[i + j]);
+                    }
                 }
-                resultBuffer[i / 3] |= 0x1000U; // Set last bit
+                resultBuffer[i / 3] |= 0x8000U; // Set last bit
                 const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
+
                 seqWriter.writeStart(splitIdx);
                 seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l / 3 + padding), splitIdx);
                 seqWriter.writeEnd(splitIdx, false);
