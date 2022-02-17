@@ -304,9 +304,6 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
 
     par.parseParameters(argc, argv, command, true, 0, LocalParameters::PARSE_VARIADIC);
 
-    // get current machine memory size
-    unsigned long MAXIMUM_NUM_OF_BLOCKS = Util::getTotalSystemMemory() / (MEM_SIZE_16MB + MEM_SIZE_32MB);
-
     Debug(Debug::INFO) << "mapping query and target files \n";
     std::vector<QueryTableEntry> qTable;
 
@@ -325,7 +322,11 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     }
 
 // TODO: parallel read and sorting
-
+    unsigned long long queryTableMemSize = qTable.size() * sizeof(QueryTableEntry) * targetTables.size() +
+                                           MEM_SIZE_16MB;
+    // get current machine memory size
+    unsigned long MAXIMUM_NUM_OF_BLOCKS = (Util::getTotalSystemMemory() - queryTableMemSize) / (MEM_SIZE_16MB +
+                                                                                              MEM_SIZE_32MB);
     unsigned long maximumNumOfBlocksPerDB = MAXIMUM_NUM_OF_BLOCKS / targetTables.size();
 
 #pragma omp parallel num_threads(omp_get_num_threads() / targetTables.size()) \
