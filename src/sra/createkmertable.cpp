@@ -77,7 +77,7 @@ shared(par, reader)
                        << "Creating TargetTable. Requiring "
                        << ((kmerCount + 1) * sizeof(TargetTableEntry)) / 1024 / 1024 << " MB of memory for it\n";
 
-    size_t targetTableSize = std::min(Util::getTotalSystemMemory() - 32 * 1024 * 1024 * 1024, (kmerCount + 1) * sizeof(TargetTableEntry));
+    size_t targetTableSize = std::min(Util::getTotalSystemMemory() - 32UL * 1024UL * 1024UL * 1024UL, (kmerCount + 1) * sizeof(TargetTableEntry));
     // TODO: check if overflow with target maximum index
     targetTable = (TargetTableEntry *) calloc(targetTableSize, sizeof(char));//
     // (kmerCount + 1), sizeof(TargetTableEntry));
