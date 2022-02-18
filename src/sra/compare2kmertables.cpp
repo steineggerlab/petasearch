@@ -321,18 +321,18 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-// TODO: parallel read and sorting
-    unsigned long long queryTableMemSize = qTable.size() * sizeof(QueryTableEntry) * targetTables.size() +
-                                           MEM_SIZE_16MB;
-    // get current machine memory size
-    unsigned long MAXIMUM_NUM_OF_BLOCKS = (Util::getTotalSystemMemory() - queryTableMemSize) / (MEM_SIZE_16MB +
-                                                                                              MEM_SIZE_32MB);
+    unsigned long queryTableSize = qTable.size() * sizeof(QueryTableEntry);
+    size_t numQTableAvailInMem = Util::getTotalSystemMemory() / 3 / queryTableSize;
+    size_t chunkSize = numQTableAvailInMem >= targetTables.size() ? 1 : targetTables.size() / numQTableAvailInMem;
+
+    unsigned long MAXIMUM_NUM_OF_BLOCKS =
+            (Util::getTotalSystemMemory() - numQTableAvailInMem * queryTableSize) / (MEM_SIZE_16MB + MEM_SIZE_32MB);
     unsigned long maximumNumOfBlocksPerDB = MAXIMUM_NUM_OF_BLOCKS / targetTables.size();
 
 #pragma omp parallel num_threads(omp_get_num_threads() / targetTables.size()) \
-default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB)
+default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB, chunkSize)
     {
-#pragma omp for schedule(dynamic, 1)
+#pragma omp for schedule(dynamic, chunkSize)
         for (size_t i = 0; i < targetTables.size(); ++i) {
             Timer timer;
             std::vector<QueryTableEntry> localQTable(qTable); //creates a deep copy of the queryTable
@@ -368,7 +368,6 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
             );
             size_t totalNumOfIDBlocks = idTableSize / MEM_SIZE_32MB + (idTableSize % MEM_SIZE_32MB == 0 ? 0 : 1);
 
-            // TODO: determine this dynamically
             size_t numOfTargetBlocks = std::min(maximumNumOfBlocksPerDB, totalNumOfTargetBlocks);
             size_t numOfIDBlocks = std::min(maximumNumOfBlocksPerDB, totalNumOfIDBlocks);
 
