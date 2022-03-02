@@ -119,7 +119,6 @@ void SRADBReader::readIndex(char *data, size_t indexDataSize, unsigned long *ind
     {
         size_t currPos = 0;
         char *indexDataChar = (char *) data;
-        const char *cols[3];
         size_t lineStartId = __sync_fetch_and_add(&(globalIdOffset), BATCH_SIZE);
         size_t currLine = 0;
         size_t prev_offset = 0;
@@ -132,8 +131,7 @@ void SRADBReader::readIndex(char *data, size_t indexDataSize, unsigned long *ind
             if (currLine == lineStartId) {
                 for (size_t startIndex = lineStartId;
                      startIndex < lineStartId + BATCH_SIZE && currPos < indexDataSize; startIndex++) {
-                    Util::getWordsOfLine(indexDataChar, cols, 3);
-                    size_t offset = Util::fast_atoi<size_t>(cols[0]);
+                    size_t offset = Util::fast_atoi<size_t>(indexDataChar);
                     size_t length = offset - prev_offset + 1;
                     localDataSize += length;
                     index[startIndex] = offset;
