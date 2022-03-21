@@ -119,7 +119,9 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         KSeqWrapper *kseq = NULL;
         std::string seq = ">";
         if (isDbInput) {
-            seq.append(hdrReader->getData(fileIdx, 0));
+            // FIXME: this might also be wrong in certain cases; we need a CI to test all the cases
+            unsigned int trueId = reader->getIndex(fileIdx)->id;
+            seq.append(hdrReader->getData(trueId, 0));
             seq.append(reader->getData(fileIdx, 0));
             kseq = new KSeqBuffer(seq.c_str(), seq.length());
         } else {
