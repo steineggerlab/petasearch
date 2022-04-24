@@ -35,7 +35,7 @@ post_proc () {
 Q_DB="$1"
 T_DBs="$2"
 C_RES="$3"
-SA_RES="swappedAlis.out"
+#SA_RES="swappedAlis.out" # Suppress SC2034
 ALI_RES="alis.out"
 M8_RES="alis.m8"
 FINAL_RES="$4"
@@ -64,7 +64,7 @@ done < "threecol.tsv"
 wait
 
 STEP=$((STEP-1))
-> "${FINAL_RES}"
+: > "${FINAL_RES}" # Suppress SC2188
 for i in $(seq 0 $STEP); do
   cat "${TMP_PATH}/${M8_RES}_${i}" >> "${FINAL_RES}"
 done
