@@ -134,11 +134,11 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     BaseMatrix *subMat;
 
     if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.seedScoringMatrixFile.nucleotides, 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.seedScoringMatrixFile.values.nucleotide().c_str(), 1.0, 0.0);
     } else if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_AMINO_ACIDS)) {
-        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.aminoacids, 8.0, -0.2f);
+        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.values.aminoacid().c_str(), 8.0, -0.2f);
     } else if (useProfileSearch) {
-        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.aminoacids, 2.0f, 0.0);
+        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.values.aminoacid().c_str(), 2.0f, 0.0);
     } else {
         Debug(Debug::ERROR) << "Invalid input type (Support: nucleotide, amino acid, profile)\n";
         EXIT(EXIT_FAILURE);
@@ -189,7 +189,7 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
                           useProfileSearch ? false : true);
 
         KmerGenerator kmerGenerator(par.kmerSize, subMat->alphabetSize - 1,
-                                    par.kmerScore + (useProfileSearch ? 25 : 0));
+                                    useProfileSearch ? par.kmerScore.values.profile() : par.kmerScore.values.sequence());
 
         if (useProfileSearch && sequence.profile_matrix != nullptr) {
             kmerGenerator.setDivideStrategy(sequence.profile_matrix);

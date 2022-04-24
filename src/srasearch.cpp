@@ -1,6 +1,7 @@
 #include "Command.h"
 #include "LocalCommandDeclarations.h"
 #include "LocalParameters.h"
+#include "DownloadDatabase.h"
 
 const char* binary_name = "srasearch";
 const char* tool_name = "srasearch";
@@ -8,9 +9,16 @@ const char* tool_introduction = "SRA Search.";
 const char* main_author = "Jonas Huegel";
 const char* show_extended_help = "1";
 const char* show_bash_info = "1";
+const char* index_version_compatible = "16";
+
 bool hide_base_commands = true;
+bool hide_base_downloads = false;
+
 void updateValidation();
 void (*validatorUpdate)(void) = updateValidation;
+
+std::vector<DatabaseDownload> externalDownloads = {};
+
 
 LocalParameters& localPar = LocalParameters::getLocalInstance();
 

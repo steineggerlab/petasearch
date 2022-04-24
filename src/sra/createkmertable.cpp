@@ -56,9 +56,9 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     BaseMatrix *subMat;
     int seqType = reader.getDbtype();
     if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
-        subMat = new NucleotideMatrix(par.seedScoringMatrixFile.nucleotides, 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.seedScoringMatrixFile.values.nucleotide().c_str(), 1.0, 0.0);
     } else {
-        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.aminoacids, 8.0, -0.2f);
+        subMat = new SubstitutionMatrix(par.seedScoringMatrixFile.values.aminoacid().c_str(), 8.0, -0.2f);
     }
     Debug(Debug::INFO) << "input prepared, time spent: " << timer.lap() << "\n";
     size_t kmerCount = 0;

@@ -173,9 +173,9 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     int seqType = targetSequenceReader.getDbtype();
     bool isNucDB = Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES);
     if (isNucDB) {
-        subMat = new NucleotideMatrix(par.scoringMatrixFile.nucleotides, 1.0, 0.0);
+        subMat = new NucleotideMatrix(par.scoringMatrixFile.values.nucleotide().c_str(), 1.0, 0.0);
     } else {
-        subMat = new SubstitutionMatrix(par.scoringMatrixFile.aminoacids, 2.0, 0.0);
+        subMat = new SubstitutionMatrix(par.scoringMatrixFile.values.aminoacid().c_str(), 2.0, 0.0);
     }
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
     EvalueComputation evaluer(targetSequenceReader.getAminoAcidDBSize(), subMat);
@@ -196,8 +196,8 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         int xdrop = par.xdrop;
 
         BlockAligner blockAligner(par.maxSeqLen, par.rangeMin, par.rangeMax,
-                                  isNucDB ? -par.gapOpen.nucleotides : -par.gapOpen.aminoacids,
-                                  isNucDB ? -par.gapExtend.nucleotides : -par.gapExtend.aminoacids);
+                                  isNucDB ? -par.gapOpen.values.nucleotide() : -par.gapOpen.values.aminoacid(),
+                                  isNucDB ? -par.gapExtend.values.nucleotide() : -par.gapExtend.values.aminoacid());
 
         char buffer[1024];
 
