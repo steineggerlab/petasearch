@@ -1,0 +1,37 @@
+name: Regression test
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+      - master
+
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up cmake build system
+        run: |
+          sudo apt-get update
+          sudo apt-get install cmake
+          cmake --version
+          gcc --version
+
+      - name: Build Petasearch
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make
+          cd ..
+
+      - name: Test build
+        run: |
+          build/src/srasearch --help
