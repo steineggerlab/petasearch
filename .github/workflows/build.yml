@@ -17,6 +17,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+
       - name: Set up cmake build system
         run: |
           sudo apt-get update
