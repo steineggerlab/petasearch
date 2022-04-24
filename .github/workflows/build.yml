@@ -40,3 +40,52 @@ jobs:
       - name: Test build
         run: |
           build/src/srasearch --help
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: petasearch
+          path: build/src/srasearch
+
+  regression:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@master
+        with:
+          name: petasearch
+
+      - run: echo $(pwd) >> $GITHUB_PATH
+
+      - run: srasearch --help
+
+      - name: Download databases
+        run: |
+          mkdir -p databases
+          cd databases
+          srasearch databases UniProtKB/Swiss-Prot swissprot tmp
+          cd ..
+
+      - name: Build target dbs
+        run: |
+          srasearch convert2sradb databases/swissprot databases/swissprot_sra
+          srasearch createkmertable databases/swissprot_sra databases/swissprot_kmertable
+          echo -e "databases/swissprot_kmertable\tdatabases/swissprot_sra" > targetdbs
+          echo -e "databases/res_compk" > resultlist
+
+      - name: Build query db
+        run: |
+          srasearch createdb tests/MSA_Cas7-11_multiline.fa tests/querydb
+
+      - name: Build query profile db
+        run: |
+          srasearch convertmsa tests/MSA_Cas7-11_multiline.fa tests/msadb
+          srasearch msa2profile tests/msadb tests/query_profile
+
+      - name: Search query against target
+        run: |
+          srasearch petasearch tests/querydb targetdbs resultlist alignments.m8 tmp
+
+      - name: Search profile against target
+        run: |
+          srasearch petasearch tests/query_profile targetdbs resultlist alignments_profile.m8 tmp
