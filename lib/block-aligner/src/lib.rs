@@ -1,5 +1,6 @@
 //! SIMD-accelerated library for computing global and X-drop affine
-//! gap sequence alignments using an adaptive block-based algorithm.
+//! gap penalty sequence-to-sequence or sequence-to-profile alignments
+//! using an adaptive block-based algorithm.
 //!
 //! Currently, AVX2 and WASM SIMD are supported.
 //!
@@ -15,11 +16,16 @@
 //! let q = PaddedBytes::from_bytes::<NucMatrix>(b"TTTTTTTTAAAAAAATTTTTTTTT", block_size);
 //!
 //! // Align with traceback, but no x drop threshold.
-//! let a = Block::<_, true, false>::align(&q, &r, &NW1, gaps, block_size..=block_size, 0);
+//! let mut a = Block::<true, false>::new(q.len(), r.len(), block_size);
+//! a.align(&q, &r, &NW1, gaps, block_size..=block_size, 0);
 //! let res = a.res();
 //!
 //! assert_eq!(res, AlignResult { score: 7, query_idx: 24, reference_idx: 21 });
-//! assert_eq!(a.trace().cigar(res.query_idx, res.reference_idx).to_string(), "2M6I16M3D");
+//!
+//! let mut cigar = Cigar::new(res.query_idx, res.reference_idx);
+//! a.trace().cigar(res.query_idx, res.reference_idx, &mut cigar);
+//!
+//! assert_eq!(cigar.to_string(), "2M6I16M3D");
 //! ```
 //!
 //! When building your code that uses this library, it is important to specify the
