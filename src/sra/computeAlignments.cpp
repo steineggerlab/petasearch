@@ -202,7 +202,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         char buffer[1024];
 
         std::vector<Matcher::result_t> results;
-        results.reserve( 300); //resultReader.getSize());
+        results.reserve(300); //resultReader.getSize());
 
         std::string result;
         result.reserve(1000);
@@ -285,7 +285,9 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
 
-                results.emplace_back(res);
+                if (res.eval <= par.evalThr) {
+                    results.emplace_back(res);
+                }
 //                Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";
 //                Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t"
 //                                   << targetKey
