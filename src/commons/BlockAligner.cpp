@@ -36,9 +36,9 @@ BlockAligner::~BlockAligner() {
 }
 
 void BlockAligner::initQuery(Sequence *query) {
-    stripInvalidChars(query->getSeqData(), querySeq);
+    SRAUtil::stripInvalidChars(query->getSeqData(), querySeq);
     querySeqLen = strlen(querySeq); // query->L;
-    strrev(querySeqRev, querySeq, querySeqLen);
+    SRAUtil::strrev(querySeqRev, querySeq, querySeqLen);
 }
 
 
@@ -50,8 +50,8 @@ BlockAligner::align(Sequence *targetSeqObj,
     int aaIds = 0;
     std::string backtrace;
 
-    stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
-    strrev(targetSeqRev, targetSeq, targetSeqObj->L);
+    SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
+    SRAUtil::strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
     unsigned int qUngappedEndPos, dbUngappedEndPos;
 
@@ -69,12 +69,12 @@ BlockAligner::align(Sequence *targetSeqObj,
     long tmp = ((long)querySeqLen - (long)qUngappedEndPos) - 1;
     unsigned int qStartRev = tmp < 0 ? 0 : tmp ; // - 1
     unsigned int qEndRev = querySeqLen;
-    char *querySeqRevAlign = substr(querySeqRev, qStartRev, qEndRev);
+    char *querySeqRevAlign = SRAUtil::substr(querySeqRev, qStartRev, qEndRev);
     size_t len_querySeqRevAlign = std::strlen(querySeqRevAlign);
 
     unsigned int tStartRev = (targetSeqObj->L - dbUngappedEndPos) - 1;
     unsigned int tEndRev = targetSeqObj->L;
-    char *targetSeqRevAlign = substr(targetSeqRev, tStartRev, tEndRev);
+    char *targetSeqRevAlign = SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
     size_t len_targetSeqRevAlign = std::strlen(targetSeqRevAlign);
 
     PaddedBytes *queryRevPadded = block_new_padded_aa(len_querySeqRevAlign, range.max);
@@ -90,12 +90,12 @@ BlockAligner::align(Sequence *targetSeqObj,
 
     unsigned int qStartPos = querySeqLen - (qStartRev + resRev.query_idx);
     unsigned int qEndPosAlign = querySeqLen;
-    char *querySeqAlign = substr(querySeq, qStartPos, qEndPosAlign);
+    char *querySeqAlign = SRAUtil::substr(querySeq, qStartPos, qEndPosAlign);
     size_t len_querySeqAlign = std::strlen(querySeqAlign);
 
     unsigned int tStartPos = targetSeqObj->L - (tStartRev + resRev.reference_idx);
     unsigned int tEndPosAlign = targetSeqObj->L;
-    char *targetSeqAlign = substr(targetSeq, tStartPos, tEndPosAlign);
+    char *targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
     size_t len_targetSeqAlign = std::strlen(targetSeqAlign);
 
 //    PaddedBytes *queryPadded = block_make_padded_aa(querySeqAlign, range.max);

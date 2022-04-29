@@ -259,7 +259,7 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                 char *tmpTHeader = tDbrHeader.getData(tHeaderId, thread_idx);
                 size_t tHeaderLen = strlen(tmpTHeader); //tDbrHeader.getSeqLen(tHeaderId);
                 char *tHeader = new char[tHeaderLen + 1];
-                stripInvalidChars(tmpTHeader, tHeader);
+                SRAUtil::stripInvalidChars(tmpTHeader, tHeader);
                 std::string targetId = Util::parseFastaHeader(tHeader);
 
                 unsigned int gapOpenCount = 0;

@@ -187,7 +187,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 #ifdef OPENMP
         thread_idx = static_cast<unsigned int>(omp_get_thread_num());
 #endif
-        Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, par.kmerSize, par.spacedKmer,
+        Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, useProfileSearch ? 0 : par.kmerSize, par.spacedKmer,
                           false, !useProfileSearch);
         Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
@@ -211,6 +211,8 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         queries.reserve(300);
 
         BlockIterator it;
+
+        unsigned long correct_count = 0;
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
@@ -267,7 +269,14 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
                 }
 
+                if (realSeq.length() != querySeqLen) {
+                    Debug(Debug::ERROR) << "Qeury seq len is wrong!\nCorrect count: " << correct_count << "\n";
+                    EXIT(EXIT_FAILURE);
+                }
+
+                correct_count++;
                 DistanceCalculator::LocalAlignment aln = ungappedDiagFilter(queries,
+//                                                                            querySeqData,
                                                                             useProfileSearch ? realSeq.c_str()
                                                                                              : querySeqData,
                                                                             querySeqLen,
