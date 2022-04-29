@@ -23,7 +23,7 @@ fn test(file_name: &str, min_size: usize, max_size: usize, verbose: bool) -> (us
 
         // parasail
         let matrix = Matrix::new(MatrixType::IdentityWithPenalty);
-        let profile = Profile::new(q.as_bytes(), &matrix);
+        let profile = parasailors::Profile::new(q.as_bytes(), &matrix);
         let parasail_score = global_alignment_score(&profile, r.as_bytes(), 2, 1);
 
         let r_padded = PaddedBytes::from_bytes::<NucMatrix>(r.as_bytes(), 2048);
@@ -31,7 +31,8 @@ fn test(file_name: &str, min_size: usize, max_size: usize, verbose: bool) -> (us
         let run_gaps = Gaps { open: -2, extend: -1 };
 
         // ours
-        let block_aligner = Block::<_, false, false>::align(&q_padded, &r_padded, &NW1, run_gaps, min_size..=max_size, 0);
+        let mut block_aligner = Block::<false, false>::new(q.len(), r.len(), max_size);
+        block_aligner.align(&q_padded, &r_padded, &NW1, run_gaps, min_size..=max_size, 0);
         let scan_score = block_aligner.res().score;
 
         if parasail_score != scan_score {
@@ -66,7 +67,7 @@ fn main() {
     let paths = ["data/real.illumina.b10M.txt", "data/real.ont.b10M.txt", "data/sequences.txt"];
     let names = ["illumina", "nanopore 1kbp", "nanopore 25kbp"];
     let min_size = [32, 32, 32];
-    let max_size = [32, 64, 256];
+    let max_size = [32, 128, 256];
 
     println!("\ndataset, size, total, wrong, wrong % error");
 

@@ -36,9 +36,9 @@ BlockAligner::~BlockAligner() {
 }
 
 void BlockAligner::initQuery(Sequence *query) {
-    stripInvalidChars(query->getSeqData(), querySeq);
+    SRAUtil::stripInvalidChars(query->getSeqData(), querySeq);
     querySeqLen = strlen(querySeq); // query->L;
-    strrev(querySeqRev, querySeq, querySeqLen);
+    SRAUtil::strrev(querySeqRev, querySeq, querySeqLen);
 }
 
 
@@ -50,8 +50,8 @@ BlockAligner::align(Sequence *targetSeqObj,
     int aaIds = 0;
     std::string backtrace;
 
-    stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
-    strrev(targetSeqRev, targetSeq, targetSeqObj->L);
+    SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
+    SRAUtil::strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
     unsigned int qUngappedEndPos, dbUngappedEndPos;
 
@@ -69,28 +69,46 @@ BlockAligner::align(Sequence *targetSeqObj,
     long tmp = ((long)querySeqLen - (long)qUngappedEndPos) - 1;
     unsigned int qStartRev = tmp < 0 ? 0 : tmp ; // - 1
     unsigned int qEndRev = querySeqLen;
-    char *querySeqRevAlign = substr(querySeqRev, qStartRev, qEndRev);
+    char *querySeqRevAlign = SRAUtil::substr(querySeqRev, qStartRev, qEndRev);
+    size_t len_querySeqRevAlign = std::strlen(querySeqRevAlign);
 
     unsigned int tStartRev = (targetSeqObj->L - dbUngappedEndPos) - 1;
     unsigned int tEndRev = targetSeqObj->L;
-    char *targetSeqRevAlign = substr(targetSeqRev, tStartRev, tEndRev);
+    char *targetSeqRevAlign = SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
+    size_t len_targetSeqRevAlign = std::strlen(targetSeqRevAlign);
 
-    PaddedBytes *queryRevPadded = block_make_padded_aa(querySeqRevAlign, range.max);
-    PaddedBytes *targetRevPadded = block_make_padded_aa(targetSeqRevAlign, range.max);
-    BlockHandle blockRev = block_align_aa_trace_xdrop(queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
+    PaddedBytes *queryRevPadded = block_new_padded_aa(len_querySeqRevAlign, range.max);
+    PaddedBytes *targetRevPadded = block_new_padded_aa(len_targetSeqRevAlign, range.max);
+
+    block_set_bytes_padded_aa(queryRevPadded, (const uint8_t *)querySeqRevAlign, len_querySeqRevAlign, range.max);
+    block_set_bytes_padded_aa(targetRevPadded, (const uint8_t *)targetSeqRevAlign, len_targetSeqRevAlign, range.max);
+
+    BlockHandle blockRev = block_new_aa_trace_xdrop(len_querySeqRevAlign, len_targetSeqRevAlign, range.max);
+    block_align_aa_trace_xdrop(blockRev, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
+
     AlignResult resRev = block_res_aa_trace_xdrop(blockRev);
 
     unsigned int qStartPos = querySeqLen - (qStartRev + resRev.query_idx);
     unsigned int qEndPosAlign = querySeqLen;
-    char *querySeqAlign = substr(querySeq, qStartPos, qEndPosAlign);
+    char *querySeqAlign = SRAUtil::substr(querySeq, qStartPos, qEndPosAlign);
+    size_t len_querySeqAlign = std::strlen(querySeqAlign);
 
     unsigned int tStartPos = targetSeqObj->L - (tStartRev + resRev.reference_idx);
     unsigned int tEndPosAlign = targetSeqObj->L;
-    char *targetSeqAlign = substr(targetSeq, tStartPos, tEndPosAlign);
+    char *targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
+    size_t len_targetSeqAlign = std::strlen(targetSeqAlign);
 
-    PaddedBytes *queryPadded = block_make_padded_aa(querySeqAlign, range.max);
-    PaddedBytes *targetPadded = block_make_padded_aa(targetSeqAlign, range.max);
-    BlockHandle block = block_align_aa_trace_xdrop(queryPadded, targetPadded, &BLOSUM62, gaps, range, xdrop);
+//    PaddedBytes *queryPadded = block_make_padded_aa(querySeqAlign, range.max);
+//    PaddedBytes *targetPadded = block_make_padded_aa(targetSeqAlign, range.max);
+    PaddedBytes *queryPadded = block_new_padded_aa(len_querySeqAlign, range.max);
+    PaddedBytes *targetPadded = block_new_padded_aa(len_targetSeqAlign, range.max);
+
+    block_set_bytes_padded_aa(queryPadded, (const uint8_t *)querySeqAlign, len_querySeqAlign, range.max);
+    block_set_bytes_padded_aa(targetPadded, (const uint8_t *)targetSeqAlign, len_targetSeqAlign, range.max);
+
+    BlockHandle block = block_new_aa_trace_xdrop(len_querySeqAlign, len_targetSeqAlign, range.max);
+    block_align_aa_trace_xdrop(block, queryPadded, targetPadded, &BLOSUM62, gaps, range, xdrop);
+
     AlignResult res = block_res_aa_trace_xdrop(block);
 
     bool reverseCigar = false;
@@ -100,16 +118,17 @@ BlockAligner::align(Sequence *targetSeqObj,
         reverseCigar = true;
     }
 
-    CigarVec cigar;
+    Cigar *cigar = block_new_cigar(res.query_idx, res.reference_idx);
     if (reverseCigar) {
-        cigar = block_cigar_aa_trace_xdrop(blockRev);
+         block_cigar_aa_trace_xdrop(blockRev, res.query_idx, res.reference_idx, cigar);
     } else {
-        cigar = block_cigar_aa_trace_xdrop(block);
+        block_cigar_aa_trace_xdrop(block, res.query_idx, res.reference_idx, cigar);
     }
+
+    size_t cigarLen = block_len_cigar(cigar);
 
     Matcher::result_t realResult;
     //    result.cigar = retCigar;
-    unsigned long cigarLen = cigar.len;
     int bitScore = static_cast<int>(evaluer->computeBitScore(res.score) + 0.5);
     int qEndPos = qStartPos + res.query_idx - 1;
     int dbEndPos = tStartPos + res.reference_idx - 1;
@@ -120,11 +139,14 @@ BlockAligner::align(Sequence *targetSeqObj,
     char ops_char[] = {' ', 'M', 'I', 'D'};
 
     int alnLength = Matcher::computeAlnLength(qStartPos, qEndPos, tStartPos, dbEndPos);
-    if (cigar.len > 0) {
+    if (cigarLen > 0) {
         int32_t targetPos = 0, queryPos = 0;
         for (unsigned long c = 0; c < cigarLen; ++c) {
-            char letter = ops_char[cigar.ptr[c].op];
-            uint32_t length = cigar.ptr[c].len;
+            OpLen cigar_op = block_get_cigar(cigar, c);
+            char letter = ops_char[cigar_op.op];
+
+            uint32_t length = cigar_op.len;
+
             backtrace.reserve(length);
 
             for (uint32_t i = 0; i < length; ++i) {
@@ -183,5 +205,4 @@ BlockAligner::align(Sequence *targetSeqObj,
     free(querySeqAlign);
     free(targetSeqAlign);
     return realResult;
-    //    free(ezAlign.cigar);
 }

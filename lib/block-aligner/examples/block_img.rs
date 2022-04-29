@@ -29,7 +29,7 @@ fn main() {
     let cell_size = 1;
     let bg_color = Rgb([255u8, 255u8, 255u8]);
     let fg_colors = [Rgb([50u8, 50u8, 50u8]), Rgb([50u8, 50u8, 50u8]), Rgb([50u8, 50u8, 50u8])];
-    let trace_color = Rgb([255u8, 255u8, 255u8]);
+    let trace_color = Rgb([255u8, 0u8, 0u8]);
 
     for (i, img_path) in args.enumerate() {
         let q = &seqs[i].0;
@@ -39,9 +39,11 @@ fn main() {
         let q_padded = PaddedBytes::from_bytes::<AAMatrix>(q, 2048);
         let run_gaps = Gaps { open: -11, extend: -1 };
 
-        let block_aligner = Block::<_, true, false>::align(&q_padded, &r_padded, &BLOSUM62, run_gaps, 32..=256, 0);
+        let mut block_aligner = Block::<true, false>::new(q.len(), r.len(), 256);
+        block_aligner.align(&q_padded, &r_padded, &BLOSUM62, run_gaps, 32..=256, 0);
         let blocks = block_aligner.trace().blocks();
-        let cigar = block_aligner.trace().cigar(q.len(), r.len());
+        let mut cigar = Cigar::new(q.len(), r.len());
+        block_aligner.trace().cigar(q.len(), r.len(), &mut cigar);
 
         let img_width = ((r.len() + 1) * cell_size) as u32;
         let img_height = ((q.len() + 1) * cell_size) as u32;

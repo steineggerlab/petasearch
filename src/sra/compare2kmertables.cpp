@@ -10,7 +10,7 @@
 #include "DBWriter.h"
 //#include "MemoryMapped.h"
 #include "BitManipulateMacros.h"
-
+#include "SRAUtil.h"
 #include "FastSort.h"
 
 #include <fcntl.h>  // open, read
@@ -282,22 +282,6 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
     reader.close();
 }
 
-std::vector<std::string> getFileNamesFromFile(const std::string &filename) {
-    std::vector<std::string> files;
-    char *line = nullptr;
-    size_t len = 0;
-    FILE *handle = FileUtil::openFileOrDie(filename.c_str(), "r", true);
-    char buffer[PATH_MAX];
-    while (getline(&line, &len, handle) != -1) {
-        Util::parseKey(line, buffer);
-        files.emplace_back(buffer);
-    }
-    fclose(handle);
-    free(line);
-    return files;
-}
-
-
 int compare2kmertables(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
@@ -310,8 +294,8 @@ int compare2kmertables(int argc, const char **argv, const Command &command) {
     createQueryTable(par, qTable);
 
     // FIXME: accept single file input also
-    std::vector<std::string> targetTables = getFileNamesFromFile(par.db2);
-    std::vector<std::string> resultFiles = getFileNamesFromFile(par.db3);
+    std::vector<std::string> targetTables = SRAUtil::getFileNamesFromFile(par.db2);
+    std::vector<std::string> resultFiles = SRAUtil::getFileNamesFromFile(par.db3);
     if (targetTables.empty()) {
         Debug(Debug::ERROR) << "Expected at least one targetTable entry in the target table file \n";
         EXIT(EXIT_FAILURE);

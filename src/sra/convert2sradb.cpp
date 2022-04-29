@@ -16,19 +16,13 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
     char newline = '\n';
 
-    /* Retrieve all input files*/
-    std::vector<std::string> filenames(par.filenames);
-
     /* Get the last input file as the output file */
-    std::string outputDataFile = filenames.back();
-    filenames.pop_back();
+    std::string outputDataFile = par.db2;
 
-    /* Determine whether any input file is a directory */
-    for (size_t i = 0; i < filenames.size(); i++) {
-        if (FileUtil::directoryExists(filenames[i].c_str())) {
-            Debug(Debug::ERROR) << "File " << filenames[i] << " is a directory" << newline;
-            EXIT(EXIT_FAILURE);
-        }
+    /* Determine whether the input file is a directory */
+    if (FileUtil::directoryExists(par.db1.c_str())) {
+        Debug(Debug::ERROR) << "File " << par.db1 << " is a directory" << newline;
+        EXIT(EXIT_FAILURE);
     }
 
     /* Determine whether it is fasta input or database input
@@ -36,13 +30,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
      *    corresponding ".dbtype" file
      */
     bool isDbInput = FileUtil::fileExists(par.db1dbtype.c_str());
-
-    /* If it is database input, we only accept 1 db each time*/
-    if (isDbInput && (filenames.size() > 1)) {
-        Debug(Debug::ERROR) << "Only one database can be used with database input" << newline;
-        EXIT(EXIT_FAILURE);
-    }
-
 
     /* Name output files and database type */
     int outputDbType = Parameters::DBTYPE_AMINO_ACIDS;
@@ -75,9 +62,14 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                           Parameters::DBTYPE_AMINO_ACIDS);
     seqWriter.open();
 
-    size_t fileCount = filenames.size();
+    size_t fileCount = -1;
     DBReader<unsigned int> *reader = NULL;
     DBReader<unsigned int> *hdrReader = NULL;
+    std::vector<std::string> filenames;
+
+    /*
+     * We accept either a
+     * */
     if (isDbInput) {
         reader = new DBReader<unsigned int>(par.db1.c_str(), par.db1Index.c_str(), 1,
                                             DBReader<unsigned int>::USE_DATA |
@@ -89,9 +81,10 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                                                DBReader<unsigned int>::USE_INDEX);
         hdrReader->open(DBReader<unsigned int>::NOSORT);
         fileCount = reader->getSize();
+    } else {
+        filenames = SRAUtil::getFileNamesFromFile(par.db1);
+        fileCount = filenames.size();
     }
-
-    Debug(Debug::INFO) << "max sequence length: " << par.maxSeqLen << newline;
 
     /* Process all inputs */
     for (size_t fileIdx = 0; fileIdx < fileCount; fileIdx++) {
@@ -131,7 +124,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         while (kseq->ReadEntry()) {
             progress.updateProgress();
             const KSeqWrapper::KSeqEntry &e = kseq->entry;
-            stripInvalidChars(e.sequence.s);
+            SRAUtil::stripInvalidChars(e.sequence.s);
 
             if (e.name.l == 0) {
                 Debug(Debug::ERROR) << "Fasta entry " << entries_num << " is invalid\n";
@@ -193,7 +186,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         }
         delete kseq;
         kseq = nullptr;
-//        }
     }
 
     Debug(Debug::INFO) << newline;
@@ -219,9 +211,9 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
     if (entries_num == 0) {
         Debug(Debug::ERROR) << "The input files have no entry: ";
-        for (size_t fileIdx = 0; fileIdx < filenames.size(); fileIdx++) {
-            Debug(Debug::ERROR) << " - " << filenames[fileIdx] << newline;
-        }
+//        for (size_t fileIdx = 0; fileIdx < filenames.size(); fileIdx++) {
+            Debug(Debug::ERROR) << " - " << par.db1 << newline;
+//        }
         Debug(Debug::ERROR) <<
                             "Please check your input files. Only files in fasta/fastq[.gz|bz2] are supported"
                             << newline;
