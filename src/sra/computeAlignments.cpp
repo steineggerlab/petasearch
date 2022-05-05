@@ -269,7 +269,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
                 }
 
-                if (realSeq.length() != querySeqLen) {
+                if (useProfileSearch && realSeq.length() != querySeqLen) {
                     Debug(Debug::ERROR) << "Qeury seq len is wrong!\nCorrect count: " << correct_count << "\n";
                     EXIT(EXIT_FAILURE);
                 }
