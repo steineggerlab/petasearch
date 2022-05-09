@@ -16,7 +16,7 @@ exclude = ["vis/*", "!vis/block_img1.png"]
 features = ["simd_avx2"]
 
 [lib]
-crate-type = ["lib", "cdylib"]
+crate-type = ["lib", "staticlib"]
 
 [features]
 # Enable AVX2
