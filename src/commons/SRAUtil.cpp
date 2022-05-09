@@ -7,6 +7,8 @@
 #include "SRAUtil.h"
 #include "Util.h"
 #include "FileUtil.h"
+#include "BaseMatrix.h"
+#include "Sequence.h"
 
 namespace SRAUtil {
 
@@ -70,5 +72,13 @@ namespace SRAUtil {
         fclose(handle);
         free(line);
         return files;
+    }
+
+    std::string extractProfileSequence(const char *seqData, size_t seqLen, BaseMatrix *subMat) {
+        std::string result;
+        for (size_t i = 0; i < (seqLen) * Sequence::PROFILE_READIN_SIZE; i += Sequence::PROFILE_READIN_SIZE) {
+            result.append(1, subMat->num2aa[(int) seqData[i + Sequence::PROFILE_AA_SIZE]]);
+        }
+        return result;
     }
 }

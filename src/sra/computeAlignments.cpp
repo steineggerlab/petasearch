@@ -14,6 +14,7 @@
 #include "BlockAligner.h"
 
 #include "omptl/omptl_algorithm"
+#include "SRAUtil.h"
 
 #ifdef OPENMP
 
@@ -263,20 +264,21 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 unsigned int queryId = querySequenceReader.getId(queryKey);
                 const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
+                std::string realSeq = SRAUtil::extractProfileSequence(querySeqData, querySeqLen, subMat);
                 querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
-                std::string realSeq;
-                if (useProfileSearch) {
-                    querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
-                }
+//                if (useProfileSearch) {
+//                    querySeq.printPSSM();
+//                }
 
                 if (useProfileSearch && realSeq.length() != querySeqLen) {
                     Debug(Debug::ERROR) << "Qeury seq len is wrong!\nCorrect count: " << correct_count << "\n";
+                    Debug(Debug::ERROR) << "Retrieved sequence length: " << querySeqLen << "\n";
+                    Debug(Debug::ERROR) << "Newly measured sequence length: " << realSeq.length() << "\n";
                     EXIT(EXIT_FAILURE);
                 }
 
                 correct_count++;
                 DistanceCalculator::LocalAlignment aln = ungappedDiagFilter(queries,
-//                                                                            querySeqData,
                                                                             useProfileSearch ? realSeq.c_str()
                                                                                              : querySeqData,
                                                                             querySeqLen,
