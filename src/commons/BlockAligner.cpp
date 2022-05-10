@@ -119,10 +119,7 @@ BlockAligner::align(Sequence *targetSeqObj,
     unsigned int tEndRev = targetSeqObj->L;
     // This is for sequence alignment
     size_t len_targetSeqRevAlign = tEndRev - tStartRev;
-    char *targetSeqRevAlign = nullptr;
-    if (!useProfile) {
-        SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
-    }
+    char *targetSeqRevAlign = SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
 
     // profile to PSSM with specific range
     AAProfile *targetRevProfile = nullptr;
@@ -154,18 +151,15 @@ BlockAligner::align(Sequence *targetSeqObj,
 
     unsigned int tStartPos = targetSeqObj->L - (tStartRev + resRev.reference_idx);
     unsigned int tEndPosAlign = targetSeqObj->L;
-    char *targetSeqAlign = nullptr;
+    char *targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
     size_t len_targetSeqAlign = tEndPosAlign - tStartPos;
-    if (!useProfile) {
-        targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
-    }
 
     AAProfile *targetProfile = nullptr;
     PaddedBytes *targetPadded = nullptr;
     if (useProfile) {
         targetProfile = block_new_aaprofile(len_targetSeqAlign, range.max, gaps.extend);
         initializeProfile(rawProfileMatrix, tStartPos, tEndPosAlign, targetSeqObj->L, targetProfile, false);
-        for (int i = 0; i < len_targetSeqRevAlign; i++) {
+        for (size_t i = 0; i < len_targetSeqRevAlign; i++) {
             block_set_gap_open_C_aaprofile(targetRevProfile, i, gaps.open);
             block_set_gap_close_C_aaprofile(targetRevProfile, i, 0);
             block_set_gap_open_R_aaprofile(targetRevProfile, i, gaps.open);
