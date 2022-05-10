@@ -51,14 +51,14 @@ void BlockAligner::initializeProfile(const int8_t *rawProfileMatrix,
     if (reverse) {
         for (size_t i = seqStart; i < seqEnd; i++) {
             for (size_t j = 0; j < 20; j++) {
-                block_set_aaprofile(result, i, PSSMAlphabet[j], rawProfileMatrix[seqLen - 1 - i + j * seqLen]);
+                block_set_aaprofile(result, i - seqStart, PSSMAlphabet[j], rawProfileMatrix[seqLen - 1 - i + j * seqLen]);
             }
         }
 
     } else {
         for (size_t i = seqStart; i < seqEnd; i++) { // iterate through position
             for (size_t j = 0; j < 20; j++) { // iterate through alphabet
-                block_set_aaprofile(result, i, PSSMAlphabet[j], rawProfileMatrix[i + j * seqLen]);
+                block_set_aaprofile(result, i - seqStart, PSSMAlphabet[j], rawProfileMatrix[i + j * seqLen]);
             }
         }
     }
@@ -155,6 +155,11 @@ BlockAligner::align(Sequence *targetSeqObj,
     if (useProfile) {
         targetProfile = block_new_aaprofile(len_targetSeqAlign, range.max, gaps.extend);
         initializeProfile(rawProfileMatrix, tStartPos, tEndPosAlign, targetSeqObj->L, targetProfile, false);
+        for (int i = 0; i < len_targetSeqRevAlign; i++) {
+            block_set_gap_open_C_aaprofile(targetRevProfile, i, gaps.open);
+            block_set_gap_close_C_aaprofile(targetRevProfile, i, 0);
+            block_set_gap_open_R_aaprofile(targetRevProfile, i, gaps.open);
+        }
     } else {
         targetPadded = block_new_padded_aa(len_targetSeqAlign, range.max);
         block_set_bytes_padded_aa(targetPadded, (const uint8_t *) targetSeqAlign, len_targetSeqAlign, range.max);
