@@ -42,16 +42,47 @@ void BlockAligner::initQuery(Sequence *query) {
 }
 
 
+void BlockAligner::initializeProfile(const int8_t *rawProfileMatrix,
+                                     size_t seqStart,
+                                     size_t seqEnd,
+                                     size_t seqLen,
+                                     AAProfile *result,
+                                     bool reverse) {
+    if (reverse) {
+        for (size_t i = seqStart; i < seqEnd; i++) {
+            for (size_t j = 0; j < 20; j++) {
+                block_set_aaprofile(result, i, PSSMAlphabet[j], rawProfileMatrix[seqLen - 1 - i + j * seqLen]);
+            }
+        }
+
+    } else {
+        for (size_t i = seqStart; i < seqEnd; i++) { // iterate through position
+            for (size_t j = 0; j < 20; j++) { // iterate through alphabet
+                block_set_aaprofile(result, i, PSSMAlphabet[j], rawProfileMatrix[i + j * seqLen]);
+            }
+        }
+    }
+
+}
+
+
 Matcher::result_t
 BlockAligner::align(Sequence *targetSeqObj,
                     DistanceCalculator::LocalAlignment alignment,
                     EvalueComputation *evaluer,
-                    int xdrop) {
+                    int xdrop,
+                    bool useProfile) {
+
     int aaIds = 0;
     std::string backtrace;
+    const int8_t *rawProfileMatrix = nullptr;
 
-    SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
-    SRAUtil::strrev(targetSeqRev, targetSeq, targetSeqObj->L);
+    if (useProfile) {
+        rawProfileMatrix = targetSeqObj->getAlignmentProfile();
+    } else {
+        SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
+        SRAUtil::strrev(targetSeqRev, targetSeq, targetSeqObj->L);
+    }
 
     unsigned int qUngappedEndPos, dbUngappedEndPos;
 
@@ -66,25 +97,42 @@ BlockAligner::align(Sequence *targetSeqObj,
     }
 
     // get middle position of ungapped alignment
-    long tmp = ((long)querySeqLen - (long)qUngappedEndPos) - 1;
-    unsigned int qStartRev = tmp < 0 ? 0 : tmp ; // - 1
+    long tmp = ((long) querySeqLen - (long) qUngappedEndPos) - 1;
+    unsigned int qStartRev = tmp < 0 ? 0 : tmp; // - 1
     unsigned int qEndRev = querySeqLen;
     char *querySeqRevAlign = SRAUtil::substr(querySeqRev, qStartRev, qEndRev);
     size_t len_querySeqRevAlign = std::strlen(querySeqRevAlign);
+    PaddedBytes *queryRevPadded = block_new_padded_aa(len_querySeqRevAlign, range.max);
+    block_set_bytes_padded_aa(queryRevPadded, (const uint8_t *) querySeqRevAlign, len_querySeqRevAlign, range.max);
 
     unsigned int tStartRev = (targetSeqObj->L - dbUngappedEndPos) - 1;
     unsigned int tEndRev = targetSeqObj->L;
+    // This is for sequence alignment
     char *targetSeqRevAlign = SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
     size_t len_targetSeqRevAlign = std::strlen(targetSeqRevAlign);
+    if (len_targetSeqRevAlign != tEndRev - tStartRev) {
+        Debug(Debug::ERROR) << "File size calculation is somewhat wrong...\n";
+        EXIT(EXIT_FAILURE);
+    }
 
-    PaddedBytes *queryRevPadded = block_new_padded_aa(len_querySeqRevAlign, range.max);
-    PaddedBytes *targetRevPadded = block_new_padded_aa(len_targetSeqRevAlign, range.max);
-
-    block_set_bytes_padded_aa(queryRevPadded, (const uint8_t *)querySeqRevAlign, len_querySeqRevAlign, range.max);
-    block_set_bytes_padded_aa(targetRevPadded, (const uint8_t *)targetSeqRevAlign, len_targetSeqRevAlign, range.max);
+    // profile to PSSM with specific range
+    AAProfile *targetRevProfile = nullptr;
+    PaddedBytes *targetRevPadded = nullptr;
+    if (useProfile) {
+        targetRevProfile = block_new_aaprofile(tEndRev - tStartRev, range.max, gaps.extend);
+        initializeProfile(rawProfileMatrix, tStartRev, tEndRev, targetSeqObj->L, targetRevProfile, true);
+    } else {
+        targetRevPadded = block_new_padded_aa(len_targetSeqRevAlign, range.max);
+        block_set_bytes_padded_aa(targetRevPadded, (const uint8_t *) targetSeqRevAlign, len_targetSeqRevAlign, range.max);
+    }
 
     BlockHandle blockRev = block_new_aa_trace_xdrop(len_querySeqRevAlign, len_targetSeqRevAlign, range.max);
-    block_align_aa_trace_xdrop(blockRev, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
+
+    if (useProfile) {
+        block_align_profile_aa_trace_xdrop(blockRev, queryRevPadded, targetRevProfile, range, xdrop);
+    } else {
+        block_align_aa_trace_xdrop(blockRev, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
+    }
 
     AlignResult resRev = block_res_aa_trace_xdrop(blockRev);
 
@@ -98,13 +146,11 @@ BlockAligner::align(Sequence *targetSeqObj,
     char *targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
     size_t len_targetSeqAlign = std::strlen(targetSeqAlign);
 
-//    PaddedBytes *queryPadded = block_make_padded_aa(querySeqAlign, range.max);
-//    PaddedBytes *targetPadded = block_make_padded_aa(targetSeqAlign, range.max);
     PaddedBytes *queryPadded = block_new_padded_aa(len_querySeqAlign, range.max);
     PaddedBytes *targetPadded = block_new_padded_aa(len_targetSeqAlign, range.max);
 
-    block_set_bytes_padded_aa(queryPadded, (const uint8_t *)querySeqAlign, len_querySeqAlign, range.max);
-    block_set_bytes_padded_aa(targetPadded, (const uint8_t *)targetSeqAlign, len_targetSeqAlign, range.max);
+    block_set_bytes_padded_aa(queryPadded, (const uint8_t *) querySeqAlign, len_querySeqAlign, range.max);
+    block_set_bytes_padded_aa(targetPadded, (const uint8_t *) targetSeqAlign, len_targetSeqAlign, range.max);
 
     BlockHandle block = block_new_aa_trace_xdrop(len_querySeqAlign, len_targetSeqAlign, range.max);
     block_align_aa_trace_xdrop(block, queryPadded, targetPadded, &BLOSUM62, gaps, range, xdrop);
@@ -120,7 +166,7 @@ BlockAligner::align(Sequence *targetSeqObj,
 
     Cigar *cigar = block_new_cigar(res.query_idx, res.reference_idx);
     if (reverseCigar) {
-         block_cigar_aa_trace_xdrop(blockRev, res.query_idx, res.reference_idx, cigar);
+        block_cigar_aa_trace_xdrop(blockRev, res.query_idx, res.reference_idx, cigar);
     } else {
         block_cigar_aa_trace_xdrop(block, res.query_idx, res.reference_idx, cigar);
     }
