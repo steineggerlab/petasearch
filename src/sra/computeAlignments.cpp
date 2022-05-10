@@ -292,7 +292,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     continue;
                 }
 
-                Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop);
+                Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop, useProfileSearch);
                 res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
 
