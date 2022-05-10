@@ -71,18 +71,28 @@ BlockAligner::align(Sequence *targetSeqObj,
                     DistanceCalculator::LocalAlignment alignment,
                     EvalueComputation *evaluer,
                     int xdrop,
+                    BaseMatrix *subMat,
                     bool useProfile) {
 
     int aaIds = 0;
     std::string backtrace;
     const int8_t *rawProfileMatrix = nullptr;
 
+    if (useProfile && subMat == nullptr) {
+        Debug(Debug::ERROR) << "Must provide subMat to BlockAligner if useProfile is set to true!\n";
+        EXIT(EXIT_FAILURE);
+    }
+
     if (useProfile) {
         rawProfileMatrix = targetSeqObj->getAlignmentProfile();
+        SRAUtil::stripInvalidChars(
+                SRAUtil::extractProfileSequence(targetSeqObj->getSeqData(), targetSeqObj->L, subMat).c_str(),
+                targetSeq
+        );
     } else {
         SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
-        SRAUtil::strrev(targetSeqRev, targetSeq, targetSeqObj->L);
     }
+    SRAUtil::strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
     unsigned int qUngappedEndPos, dbUngappedEndPos;
 

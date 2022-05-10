@@ -23,6 +23,7 @@ public:
                             DistanceCalculator::LocalAlignment alignment,
                             EvalueComputation *evaluer,
                             int xdrop,
+                            BaseMatrix *subMat = nullptr,
                             bool useProfile = false);
 
 private:
