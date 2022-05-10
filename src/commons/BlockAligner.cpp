@@ -101,25 +101,24 @@ BlockAligner::align(Sequence *targetSeqObj,
     unsigned int qStartRev = tmp < 0 ? 0 : tmp; // - 1
     unsigned int qEndRev = querySeqLen;
     char *querySeqRevAlign = SRAUtil::substr(querySeqRev, qStartRev, qEndRev);
-    size_t len_querySeqRevAlign = std::strlen(querySeqRevAlign);
+    size_t len_querySeqRevAlign = qEndRev - qStartRev;
     PaddedBytes *queryRevPadded = block_new_padded_aa(len_querySeqRevAlign, range.max);
     block_set_bytes_padded_aa(queryRevPadded, (const uint8_t *) querySeqRevAlign, len_querySeqRevAlign, range.max);
 
     unsigned int tStartRev = (targetSeqObj->L - dbUngappedEndPos) - 1;
     unsigned int tEndRev = targetSeqObj->L;
     // This is for sequence alignment
-    char *targetSeqRevAlign = SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
-    size_t len_targetSeqRevAlign = std::strlen(targetSeqRevAlign);
-    if (len_targetSeqRevAlign != tEndRev - tStartRev) {
-        Debug(Debug::ERROR) << "File size calculation is somewhat wrong...\n";
-        EXIT(EXIT_FAILURE);
+    size_t len_targetSeqRevAlign = tEndRev - tStartRev;
+    char *targetSeqRevAlign = nullptr;
+    if (!useProfile) {
+        SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
     }
 
     // profile to PSSM with specific range
     AAProfile *targetRevProfile = nullptr;
     PaddedBytes *targetRevPadded = nullptr;
     if (useProfile) {
-        targetRevProfile = block_new_aaprofile(tEndRev - tStartRev, range.max, gaps.extend);
+        targetRevProfile = block_new_aaprofile(len_targetSeqRevAlign, range.max, gaps.extend);
         initializeProfile(rawProfileMatrix, tStartRev, tEndRev, targetSeqObj->L, targetRevProfile, true);
     } else {
         targetRevPadded = block_new_padded_aa(len_targetSeqRevAlign, range.max);
@@ -139,21 +138,34 @@ BlockAligner::align(Sequence *targetSeqObj,
     unsigned int qStartPos = querySeqLen - (qStartRev + resRev.query_idx);
     unsigned int qEndPosAlign = querySeqLen;
     char *querySeqAlign = SRAUtil::substr(querySeq, qStartPos, qEndPosAlign);
-    size_t len_querySeqAlign = std::strlen(querySeqAlign);
+    size_t len_querySeqAlign = qEndPosAlign - qStartPos;
+    PaddedBytes *queryPadded = block_new_padded_aa(len_querySeqAlign, range.max);
+    block_set_bytes_padded_aa(queryPadded, (const uint8_t *) querySeqAlign, len_querySeqAlign, range.max);
 
     unsigned int tStartPos = targetSeqObj->L - (tStartRev + resRev.reference_idx);
     unsigned int tEndPosAlign = targetSeqObj->L;
-    char *targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
-    size_t len_targetSeqAlign = std::strlen(targetSeqAlign);
+    char *targetSeqAlign = nullptr;
+    size_t len_targetSeqAlign = tEndPosAlign - tStartPos;
+    if (!useProfile) {
+        targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
+    }
 
-    PaddedBytes *queryPadded = block_new_padded_aa(len_querySeqAlign, range.max);
-    PaddedBytes *targetPadded = block_new_padded_aa(len_targetSeqAlign, range.max);
-
-    block_set_bytes_padded_aa(queryPadded, (const uint8_t *) querySeqAlign, len_querySeqAlign, range.max);
-    block_set_bytes_padded_aa(targetPadded, (const uint8_t *) targetSeqAlign, len_targetSeqAlign, range.max);
+    AAProfile *targetProfile = nullptr;
+    PaddedBytes *targetPadded = nullptr;
+    if (useProfile) {
+        targetProfile = block_new_aaprofile(len_targetSeqAlign, range.max, gaps.extend);
+        initializeProfile(rawProfileMatrix, tStartPos, tEndPosAlign, targetSeqObj->L, targetProfile, false);
+    } else {
+        targetPadded = block_new_padded_aa(len_targetSeqAlign, range.max);
+        block_set_bytes_padded_aa(targetPadded, (const uint8_t *) targetSeqAlign, len_targetSeqAlign, range.max);
+    }
 
     BlockHandle block = block_new_aa_trace_xdrop(len_querySeqAlign, len_targetSeqAlign, range.max);
-    block_align_aa_trace_xdrop(block, queryPadded, targetPadded, &BLOSUM62, gaps, range, xdrop);
+    if (useProfile) {
+        block_align_profile_aa_trace_xdrop(block, queryPadded, targetProfile, range, xdrop);
+    } else {
+        block_align_aa_trace_xdrop(block, queryPadded, targetPadded, &BLOSUM62, gaps, range, xdrop);
+    }
 
     AlignResult res = block_res_aa_trace_xdrop(block);
 
@@ -239,9 +251,19 @@ BlockAligner::align(Sequence *targetSeqObj,
                                    backtrace);
 
     block_free_padded_aa(queryRevPadded);
-    block_free_padded_aa(targetRevPadded);
     block_free_padded_aa(queryPadded);
-    block_free_padded_aa(targetPadded);
+    if (targetRevPadded != nullptr) {
+        block_free_padded_aa(targetRevPadded);
+    }
+    if (targetPadded != nullptr) {
+        block_free_padded_aa(targetPadded);
+    }
+    if (targetRevProfile != nullptr) {
+        block_free_aaprofile(targetRevProfile);
+    }
+    if (targetProfile != nullptr) {
+        block_free_aaprofile(targetProfile);
+    }
     block_free_cigar(cigar);
     block_free_aa_trace_xdrop(block);
     block_free_aa_trace_xdrop(blockRev);
