@@ -24,6 +24,7 @@ public:
     std::vector<MMseqsParameter *> petasearchworkflow;
     std::vector<MMseqsParameter *> easypetasearchworkflow;
     std::vector<MMseqsParameter *> convertsraalignments;
+    std::vector<MMseqsParameter *> readandprint;
 
     PARAMETER(PARAM_REQ_KMER_MATCHES)
     unsigned int requiredKmerMatches;
