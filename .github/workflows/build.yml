@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -34,7 +34,7 @@ jobs:
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
-          make
+          make -j $(($(lscpu | grep "Socket(s):" | cut -f2 -d:) * $(lscpu | grep "Core(s) per socket:" | cut -f2 -d:)))
           cd ..
 
       - name: Test build
@@ -77,11 +77,13 @@ jobs:
 
       - name: Build query db
         run: |
-          srasearch createdb tests/MSA_Cas7-11_multiline.fa tests/querydb
+          sed 's/-//g' tests/MSA_Cas7-11_multiline.fa > tests/Cas7-11.fasta
+          srasearch createdb tests/Cas7-11.fasta tests/querydb
 
       - name: Build query profile db
         run: |
-          srasearch convertmsa tests/MSA_Cas7-11_multiline.fa tests/msadb
+          tests/reformat.pl fas sto tests/MSA_Cas7-11_multiline.fa tests/MSA_Cas7-11_multiline.stockholm
+          srasearch convertmsa tests/MSA_Cas7-11_multiline.stockholm tests/msadb
           srasearch msa2profile tests/msadb tests/query_profile
 
       - name: Search query against target
