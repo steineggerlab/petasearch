@@ -22,7 +22,9 @@ public:
     Matcher::result_t align(Sequence *targetSeqObj,
                             DistanceCalculator::LocalAlignment alignment,
                             EvalueComputation *evaluer,
-                            int xdrop);
+                            int xdrop,
+                            BaseMatrix *subMat = nullptr,
+                            bool useProfile = false);
 
 private:
     char *targetSeqRev;
@@ -32,6 +34,17 @@ private:
     char *querySeqRev;
     SizeRange range;
     Gaps gaps{};
+    const char PSSMAlphabet[20] = {'A', 'C', 'D', 'E', 'F',
+                                   'G', 'H', 'I', 'K', 'L',
+                                   'M', 'N', 'P', 'Q', 'R',
+                                   'S', 'T', 'V', 'W', 'Y'};
+
+    void initializeProfile(const int8_t *rawProfileMatrix,
+                           size_t seqStart,
+                           size_t seqEnd,
+                           size_t seqLen,
+                           AAProfile *result,
+                           bool reverse = false);
 };
 
 

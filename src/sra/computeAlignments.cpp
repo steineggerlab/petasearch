@@ -14,6 +14,7 @@
 #include "BlockAligner.h"
 
 #include "omptl/omptl_algorithm"
+#include "SRAUtil.h"
 
 #ifdef OPENMP
 
@@ -202,7 +203,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         char buffer[1024];
 
         std::vector<Matcher::result_t> results;
-        results.reserve(300); //resultReader.getSize());
+        results.reserve(300);
 
         std::string result;
         result.reserve(1000);
@@ -263,20 +264,18 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 unsigned int queryId = querySequenceReader.getId(queryKey);
                 const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
+                std::string realSeq = SRAUtil::extractProfileSequence(querySeqData, querySeqLen, subMat);
                 querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
-                std::string realSeq;
-                if (useProfileSearch) {
-                    querySeq.extractProfileSequence(querySeqData, *subMat, realSeq);
-                }
 
-                if (realSeq.length() != querySeqLen) {
+                if (useProfileSearch && realSeq.length() != querySeqLen) {
                     Debug(Debug::ERROR) << "Qeury seq len is wrong!\nCorrect count: " << correct_count << "\n";
+                    Debug(Debug::ERROR) << "Retrieved sequence length: " << querySeqLen << "\n";
+                    Debug(Debug::ERROR) << "Newly measured sequence length: " << realSeq.length() << "\n";
                     EXIT(EXIT_FAILURE);
                 }
 
                 correct_count++;
                 DistanceCalculator::LocalAlignment aln = ungappedDiagFilter(queries,
-//                                                                            querySeqData,
                                                                             useProfileSearch ? realSeq.c_str()
                                                                                              : querySeqData,
                                                                             querySeqLen,
@@ -290,7 +289,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     continue;
                 }
 
-                Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop);
+                Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop, subMat, useProfileSearch);
                 res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
 

@@ -100,10 +100,9 @@ impl Matrix for AAMatrix {
 
     #[inline]
     fn convert_char(c: u8) -> u8 {
-        let newc = c.to_ascii_uppercase();
-        assert!(newc >= b'A' && newc <= Self::NULL,
-                "The char unable to convert is {}. and it is converted to {}.", c, newc);
-        newc - b'A'
+        let c = c.to_ascii_uppercase();
+        assert!(c >= b'A' && c <= Self::NULL);
+        c - b'A'
     }
 }
 
@@ -177,10 +176,9 @@ impl Matrix for NucMatrix {
 
     #[inline]
     fn convert_char(c: u8) -> u8 {
-        let newc = c.to_ascii_uppercase();
-        assert!(newc >= b'A' && newc <= Self::NULL,
-                "This char {} should be converted. But is converted to {}", c, newc);
-        newc
+        let c = c.to_ascii_uppercase();
+        assert!(c >= b'A' && c <= Self::NULL);
+        c
     }
 }
 

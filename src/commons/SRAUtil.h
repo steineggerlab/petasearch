@@ -4,6 +4,7 @@
 
 #include <string>
 #include <vector>
+#include "BaseMatrix.h"
 
 #ifndef SRASEARCH_SRAUTIL_H
 
@@ -30,6 +31,8 @@ namespace SRAUtil {
     void stripInvalidChars(char *src);
 
     std::vector<std::string> getFileNamesFromFile(const std::string &filename);
+
+    std::string extractProfileSequence(const char *seqData, size_t seqLen, BaseMatrix *subMat);
 
 }
 #define SRASEARCH_SRAUTIL_H

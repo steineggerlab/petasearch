@@ -42,15 +42,56 @@ void BlockAligner::initQuery(Sequence *query) {
 }
 
 
+void BlockAligner::initializeProfile(const int8_t *rawProfileMatrix,
+                                     size_t seqStart,
+                                     size_t seqEnd,
+                                     size_t seqLen,
+                                     AAProfile *result,
+                                     bool reverse) {
+    if (reverse) {
+        for (size_t i = seqStart; i < seqEnd; i++) {
+            for (size_t j = 0; j < 20; j++) {
+                block_set_aaprofile(result, i - seqStart, PSSMAlphabet[j], rawProfileMatrix[seqLen - 1 - i + j * seqLen]);
+            }
+        }
+
+    } else {
+        for (size_t i = seqStart; i < seqEnd; i++) { // iterate through position
+            for (size_t j = 0; j < 20; j++) { // iterate through alphabet
+                block_set_aaprofile(result, i - seqStart, PSSMAlphabet[j], rawProfileMatrix[i + j * seqLen]);
+            }
+        }
+    }
+
+}
+
+
 Matcher::result_t
 BlockAligner::align(Sequence *targetSeqObj,
                     DistanceCalculator::LocalAlignment alignment,
                     EvalueComputation *evaluer,
-                    int xdrop) {
+                    int xdrop,
+                    BaseMatrix *subMat,
+                    bool useProfile) {
+
     int aaIds = 0;
     std::string backtrace;
+    const int8_t *rawProfileMatrix = nullptr;
 
-    SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
+    if (useProfile && subMat == nullptr) {
+        Debug(Debug::ERROR) << "Must provide subMat to BlockAligner if useProfile is set to true!\n";
+        EXIT(EXIT_FAILURE);
+    }
+
+    if (useProfile) {
+        rawProfileMatrix = targetSeqObj->getAlignmentProfile();
+        SRAUtil::stripInvalidChars(
+                SRAUtil::extractProfileSequence(targetSeqObj->getSeqData(), targetSeqObj->L, subMat).c_str(),
+                targetSeq
+        );
+    } else {
+        SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
+    }
     SRAUtil::strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
     unsigned int qUngappedEndPos, dbUngappedEndPos;
@@ -66,48 +107,74 @@ BlockAligner::align(Sequence *targetSeqObj,
     }
 
     // get middle position of ungapped alignment
-    long tmp = ((long)querySeqLen - (long)qUngappedEndPos) - 1;
-    unsigned int qStartRev = tmp < 0 ? 0 : tmp ; // - 1
+    long tmp = ((long) querySeqLen - (long) qUngappedEndPos) - 1;
+    unsigned int qStartRev = tmp < 0 ? 0 : tmp; // - 1
     unsigned int qEndRev = querySeqLen;
     char *querySeqRevAlign = SRAUtil::substr(querySeqRev, qStartRev, qEndRev);
-    size_t len_querySeqRevAlign = std::strlen(querySeqRevAlign);
+    size_t len_querySeqRevAlign = qEndRev - qStartRev;
+    PaddedBytes *queryRevPadded = block_new_padded_aa(len_querySeqRevAlign, range.max);
+    block_set_bytes_padded_aa(queryRevPadded, (const uint8_t *) querySeqRevAlign, len_querySeqRevAlign, range.max);
 
     unsigned int tStartRev = (targetSeqObj->L - dbUngappedEndPos) - 1;
     unsigned int tEndRev = targetSeqObj->L;
+    // This is for sequence alignment
+    size_t len_targetSeqRevAlign = tEndRev - tStartRev;
     char *targetSeqRevAlign = SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
-    size_t len_targetSeqRevAlign = std::strlen(targetSeqRevAlign);
 
-    PaddedBytes *queryRevPadded = block_new_padded_aa(len_querySeqRevAlign, range.max);
-    PaddedBytes *targetRevPadded = block_new_padded_aa(len_targetSeqRevAlign, range.max);
-
-    block_set_bytes_padded_aa(queryRevPadded, (const uint8_t *)querySeqRevAlign, len_querySeqRevAlign, range.max);
-    block_set_bytes_padded_aa(targetRevPadded, (const uint8_t *)targetSeqRevAlign, len_targetSeqRevAlign, range.max);
+    // profile to PSSM with specific range
+    AAProfile *targetRevProfile = nullptr;
+    PaddedBytes *targetRevPadded = nullptr;
+    if (useProfile) {
+        targetRevProfile = block_new_aaprofile(len_targetSeqRevAlign, range.max, gaps.extend);
+        initializeProfile(rawProfileMatrix, tStartRev, tEndRev, targetSeqObj->L, targetRevProfile, true);
+    } else {
+        targetRevPadded = block_new_padded_aa(len_targetSeqRevAlign, range.max);
+        block_set_bytes_padded_aa(targetRevPadded, (const uint8_t *) targetSeqRevAlign, len_targetSeqRevAlign, range.max);
+    }
 
     BlockHandle blockRev = block_new_aa_trace_xdrop(len_querySeqRevAlign, len_targetSeqRevAlign, range.max);
-    block_align_aa_trace_xdrop(blockRev, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
+
+    if (useProfile) {
+        block_align_profile_aa_trace_xdrop(blockRev, queryRevPadded, targetRevProfile, range, xdrop);
+    } else {
+        block_align_aa_trace_xdrop(blockRev, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
+    }
 
     AlignResult resRev = block_res_aa_trace_xdrop(blockRev);
 
     unsigned int qStartPos = querySeqLen - (qStartRev + resRev.query_idx);
     unsigned int qEndPosAlign = querySeqLen;
     char *querySeqAlign = SRAUtil::substr(querySeq, qStartPos, qEndPosAlign);
-    size_t len_querySeqAlign = std::strlen(querySeqAlign);
+    size_t len_querySeqAlign = qEndPosAlign - qStartPos;
+    PaddedBytes *queryPadded = block_new_padded_aa(len_querySeqAlign, range.max);
+    block_set_bytes_padded_aa(queryPadded, (const uint8_t *) querySeqAlign, len_querySeqAlign, range.max);
 
     unsigned int tStartPos = targetSeqObj->L - (tStartRev + resRev.reference_idx);
     unsigned int tEndPosAlign = targetSeqObj->L;
     char *targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
-    size_t len_targetSeqAlign = std::strlen(targetSeqAlign);
+    size_t len_targetSeqAlign = tEndPosAlign - tStartPos;
 
-//    PaddedBytes *queryPadded = block_make_padded_aa(querySeqAlign, range.max);
-//    PaddedBytes *targetPadded = block_make_padded_aa(targetSeqAlign, range.max);
-    PaddedBytes *queryPadded = block_new_padded_aa(len_querySeqAlign, range.max);
-    PaddedBytes *targetPadded = block_new_padded_aa(len_targetSeqAlign, range.max);
-
-    block_set_bytes_padded_aa(queryPadded, (const uint8_t *)querySeqAlign, len_querySeqAlign, range.max);
-    block_set_bytes_padded_aa(targetPadded, (const uint8_t *)targetSeqAlign, len_targetSeqAlign, range.max);
+    AAProfile *targetProfile = nullptr;
+    PaddedBytes *targetPadded = nullptr;
+    if (useProfile) {
+        targetProfile = block_new_aaprofile(len_targetSeqAlign, range.max, gaps.extend);
+        initializeProfile(rawProfileMatrix, tStartPos, tEndPosAlign, targetSeqObj->L, targetProfile, false);
+        for (size_t i = 0; i < len_targetSeqRevAlign; i++) {
+            block_set_gap_open_C_aaprofile(targetRevProfile, i, gaps.open);
+            block_set_gap_close_C_aaprofile(targetRevProfile, i, 0);
+            block_set_gap_open_R_aaprofile(targetRevProfile, i, gaps.open);
+        }
+    } else {
+        targetPadded = block_new_padded_aa(len_targetSeqAlign, range.max);
+        block_set_bytes_padded_aa(targetPadded, (const uint8_t *) targetSeqAlign, len_targetSeqAlign, range.max);
+    }
 
     BlockHandle block = block_new_aa_trace_xdrop(len_querySeqAlign, len_targetSeqAlign, range.max);
-    block_align_aa_trace_xdrop(block, queryPadded, targetPadded, &BLOSUM62, gaps, range, xdrop);
+    if (useProfile) {
+        block_align_profile_aa_trace_xdrop(block, queryPadded, targetProfile, range, xdrop);
+    } else {
+        block_align_aa_trace_xdrop(block, queryPadded, targetPadded, &BLOSUM62, gaps, range, xdrop);
+    }
 
     AlignResult res = block_res_aa_trace_xdrop(block);
 
@@ -120,7 +187,7 @@ BlockAligner::align(Sequence *targetSeqObj,
 
     Cigar *cigar = block_new_cigar(res.query_idx, res.reference_idx);
     if (reverseCigar) {
-         block_cigar_aa_trace_xdrop(blockRev, res.query_idx, res.reference_idx, cigar);
+        block_cigar_aa_trace_xdrop(blockRev, res.query_idx, res.reference_idx, cigar);
     } else {
         block_cigar_aa_trace_xdrop(block, res.query_idx, res.reference_idx, cigar);
     }
@@ -193,9 +260,19 @@ BlockAligner::align(Sequence *targetSeqObj,
                                    backtrace);
 
     block_free_padded_aa(queryRevPadded);
-    block_free_padded_aa(targetRevPadded);
     block_free_padded_aa(queryPadded);
-    block_free_padded_aa(targetPadded);
+    if (targetRevPadded != nullptr) {
+        block_free_padded_aa(targetRevPadded);
+    }
+    if (targetPadded != nullptr) {
+        block_free_padded_aa(targetPadded);
+    }
+    if (targetRevProfile != nullptr) {
+        block_free_aaprofile(targetRevProfile);
+    }
+    if (targetProfile != nullptr) {
+        block_free_aaprofile(targetProfile);
+    }
     block_free_cigar(cigar);
     block_free_aa_trace_xdrop(block);
     block_free_aa_trace_xdrop(blockRev);
