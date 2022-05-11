@@ -79,10 +79,14 @@ jobs:
         run: |
           sed 's/-//g' tests/MSA_Cas7-11_multiline.fa > tests/Cas7-11.fasta
           srasearch createdb tests/Cas7-11.fasta tests/querydb
+          
+      - name: Reformat MSA to Stockholm
+        run: |
+          chmod +x tests/reformat.pl
+          tests/reformat.pl fas sto tests/MSA_Cas7-11_multiline.fa tests/MSA_Cas7-11_multiline.stockholm
 
       - name: Build query profile db
         run: |
-          tests/reformat.pl fas sto tests/MSA_Cas7-11_multiline.fa tests/MSA_Cas7-11_multiline.stockholm
           srasearch convertmsa tests/MSA_Cas7-11_multiline.stockholm tests/msadb
           srasearch msa2profile tests/msadb tests/query_profile
 
