@@ -102,6 +102,15 @@ std::vector<struct Command> commands = {
              {"targetSRADB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
              {"sraAlignmentFile", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::allDb },
              {"sraAlignmentDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
+        },
+        {
+            "readandprint", readandprint, &localPar.readandprint, COMMAND_EXPERT,
+            "",
+            NULL,
+            "Minghang Li <matchy@snu.ac.kr> ",
+            "<i:sraDB>",
+            CITATION_MMSEQS2,
+            {{"inputdb", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile }}
         }
 };
 

@@ -4,4 +4,5 @@ set(sra_source_files
         sra/computeAlignments.cpp
         sra/convert2sradb.cpp
         sra/convertsraalignments.cpp
+        sra/readandprint.cpp
         PARENT_SCOPE)
