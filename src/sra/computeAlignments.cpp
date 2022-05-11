@@ -203,7 +203,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
         char buffer[1024];
 
         std::vector<Matcher::result_t> results;
-        results.reserve(300); //resultReader.getSize());
+        results.reserve(300);
 
         std::string result;
         result.reserve(1000);
@@ -266,9 +266,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
                 std::string realSeq = SRAUtil::extractProfileSequence(querySeqData, querySeqLen, subMat);
                 querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
-//                if (useProfileSearch) {
-//                    querySeq.printPSSM();
-//                }
 
                 if (useProfileSearch && realSeq.length() != querySeqLen) {
                     Debug(Debug::ERROR) << "Qeury seq len is wrong!\nCorrect count: " << correct_count << "\n";
