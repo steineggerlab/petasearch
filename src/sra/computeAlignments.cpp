@@ -261,29 +261,12 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 for (size_t j = 0; j < queries.size(); ++j) {
                     QueryTableEntry &query = queries[j];
                     bool kmerFound = false;
-//                    while (targetSeq.hasNextKmer()) {
-//                        const unsigned char *kmer = targetSeq.nextKmer();
-                    //                        idx.printKmer(idx.int2index(kmer, 0, par.kmerSize), par.kmerSize, subMat->num2aa);
-                    //                        Debug(Debug::INFO) << "\n";
-//                        if (query.Query.kmer == idx.int2index(kmer, 0, par.kmerSize)) {
-//                            query.Result.diag = query.Query.kmerPosInQuery - targetSeq.getCurrentPosition();
-//                            kmerFound = true;
-//                            break;
-//                        }
 
                     const auto kmer = std::lower_bound(targetKmers.begin(), targetKmers.end(),
                                                        Kmer(query.Query.kmer, query.Query.kmerPosInQuery),
                                                        [](const Kmer &kmer1, const Kmer &kmer2) {
                                                            return kmer1.kmer < kmer2.kmer;
                                                        });
-//                    }
-//                    for (auto i = kmerCandidates.first; i != kmerCandidates.second; ++i) {
-//                        if (query.Query.kmer == i->kmer) {
-//                            query.Result.diag = query.Query.kmerPosInQuery - i->kmerPos;
-//                            kmerFound = true;
-//                            break;
-//                        }
-//                    }
                     kmerFound = kmer != targetKmers.end() && query.Query.kmer == kmer->kmer;
                     if (kmerFound) {
                         query.Result.diag = query.Query.kmerPosInQuery - kmer->kmerPos;
@@ -291,7 +274,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                         Debug(Debug::ERROR) << "Found no matching k-mers between query and target sequence.\n";
                         EXIT(EXIT_FAILURE);
                     }
-//                    targetSeq.resetCurrPos();
                 }
 
                 std::sort(queries.begin(), queries.end(), blockByDiagSort);
