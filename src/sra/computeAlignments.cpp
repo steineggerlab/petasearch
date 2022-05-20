@@ -217,8 +217,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
-            progress.updateProgress();
-
             size_t targetKey = resultReader.getDbKey(i);
             unsigned int targetId = targetKey;
             const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
@@ -307,6 +305,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 //                                   << "\n\n";
             }
 
+            progress.updateProgress();
 //             std::sort(results.begin(), results.end(), Matcher::compareHits);
 //            for (size_t j = 0; j < results.size(); ++j) {
 //                size_t len = Matcher::resultToBuffer(buffer, results[j], false, false);
