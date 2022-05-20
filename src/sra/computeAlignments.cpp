@@ -186,8 +186,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                     Parameters::DBTYPE_ALIGNMENT_RES);
     writer.open();
 
-    Debug(Debug::INFO) << "Size of prefilter DB: " << resultReader.getSize() << "\n";
-
     BaseMatrix *subMat;
     int seqType = targetSequenceReader.getDbtype();
     bool isNucDB = Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES);
@@ -273,23 +271,23 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 //                            break;
 //                        }
 
-                    const auto kmerCandidates = std::equal_range(targetKmers.begin(), targetKmers.end(),
-                                                                 Kmer(query.Query.kmer, query.Query.kmerPosInQuery),
-                                                                 [](const Kmer &kmer1, const Kmer &kmer2) {
-                                                                     return kmer1.kmer < kmer2.kmer;
-                                                                 });
+                    const auto kmer = std::lower_bound(targetKmers.begin(), targetKmers.end(),
+                                                       Kmer(query.Query.kmer, query.Query.kmerPosInQuery),
+                                                       [](const Kmer &kmer1, const Kmer &kmer2) {
+                                                           return kmer1.kmer < kmer2.kmer;
+                                                       });
 //                    }
-                    for (auto i = kmerCandidates.first; i != kmerCandidates.second; ++i) {
-                        if (query.Query.kmer == i->kmer) {
-                            query.Result.diag = query.Query.kmerPosInQuery - i->kmerPos;
-                            kmerFound = true;
-                            break;
-                        }
-                    }
-//                    kmerFound = kmer != targetKmers.end() && query.Query.kmer == kmer->kmer;
-                    if (kmerFound == false) {
-//                        query.Result.diag = query.Query.kmerPosInQuery - kmer->kmerPos;
-//                    } else {
+//                    for (auto i = kmerCandidates.first; i != kmerCandidates.second; ++i) {
+//                        if (query.Query.kmer == i->kmer) {
+//                            query.Result.diag = query.Query.kmerPosInQuery - i->kmerPos;
+//                            kmerFound = true;
+//                            break;
+//                        }
+//                    }
+                    kmerFound = kmer != targetKmers.end() && query.Query.kmer == kmer->kmer;
+                    if (kmerFound) {
+                        query.Result.diag = query.Query.kmerPosInQuery - kmer->kmerPos;
+                    } else {
                         Debug(Debug::ERROR) << "Found no matching k-mers between query and target sequence.\n";
                         EXIT(EXIT_FAILURE);
                     }
