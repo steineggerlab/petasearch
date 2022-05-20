@@ -113,6 +113,22 @@ DistanceCalculator::LocalAlignment ungappedDiagFilter(
     return alignmentResult;
 }
 
+struct Kmer {
+    unsigned long kmer = -1;
+    int kmerPos = -1;
+
+    Kmer() = default;
+
+    Kmer(unsigned long kmer, int kmerPos) : kmer(kmer), kmerPos(kmerPos) {}
+};
+
+bool kmerComparator(const Kmer &kmer1, const Kmer &kmer2) {
+    if (kmer1.kmer != kmer2.kmer) {
+        return kmer1.kmer < kmer2.kmer;
+    }
+    return kmer1.kmerPos < kmer2.kmerPos;
+}
+
 struct BlockIterator {
     void reset(char *data) {
         buffer = data;
@@ -217,8 +233,6 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
-            progress.updateProgress();
-
             size_t targetKey = resultReader.getDbKey(i);
             unsigned int targetId = targetKey;
             const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
@@ -230,6 +244,15 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
             // TODO: this might be wasted if no single hit hit the target
             blockAligner.initQuery(&targetSeq);
 
+            std::vector<Kmer> targetKmers;
+            targetKmers.reserve(targetSeqLen - par.kmerSize);
+            while (targetSeq.hasNextKmer()) {
+                const unsigned char *kmer = targetSeq.nextKmer();
+                targetKmers.emplace_back(idx.int2index(kmer, 0, par.kmerSize),
+                                         targetSeq.getCurrentPosition());
+            }
+            std::sort(targetKmers.begin(), targetKmers.end(), kmerComparator);
+
             // TODO: prefetch next sequence
 
             char *data = resultReader.getData(i, thread_idx);
@@ -238,21 +261,19 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 for (size_t j = 0; j < queries.size(); ++j) {
                     QueryTableEntry &query = queries[j];
                     bool kmerFound = false;
-                    while (targetSeq.hasNextKmer()) {
-                        const unsigned char *kmer = targetSeq.nextKmer();
-                        //                        idx.printKmer(idx.int2index(kmer, 0, par.kmerSize), par.kmerSize, subMat->num2aa);
-                        //                        Debug(Debug::INFO) << "\n";
-                        if (query.Query.kmer == idx.int2index(kmer, 0, par.kmerSize)) {
-                            query.Result.diag = query.Query.kmerPosInQuery - targetSeq.getCurrentPosition();
-                            kmerFound = true;
-                            break;
-                        }
-                    }
-                    if (kmerFound == false) {
+
+                    const auto kmer = std::lower_bound(targetKmers.begin(), targetKmers.end(),
+                                                       Kmer(query.Query.kmer, query.Query.kmerPosInQuery),
+                                                       [](const Kmer &kmer1, const Kmer &kmer2) {
+                                                           return kmer1.kmer < kmer2.kmer;
+                                                       });
+                    kmerFound = kmer != targetKmers.end() && query.Query.kmer == kmer->kmer;
+                    if (kmerFound) {
+                        query.Result.diag = query.Query.kmerPosInQuery - kmer->kmerPos;
+                    } else {
                         Debug(Debug::ERROR) << "Found no matching k-mers between query and target sequence.\n";
                         EXIT(EXIT_FAILURE);
                     }
-                    targetSeq.resetCurrPos();
                 }
 
                 std::sort(queries.begin(), queries.end(), blockByDiagSort);
@@ -307,6 +328,7 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
 //                                   << "\n\n";
             }
 
+            progress.updateProgress();
 //             std::sort(results.begin(), results.end(), Matcher::compareHits);
 //            for (size_t j = 0; j < results.size(); ++j) {
 //                size_t len = Matcher::resultToBuffer(buffer, results[j], false, false);
