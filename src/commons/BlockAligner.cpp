@@ -255,7 +255,7 @@ BlockAligner::align(Sequence *targetSeqObj,
 
     int seqIdMode = Parameters::SEQ_ID_ALN_LEN;
 
-    float seqId = Util::computeSeqId(seqIdMode, aaIds, querySeqLen, targetSeqObj->L, alnLength);
+    float seqId = Util::computeSeqId(seqIdMode, aaIds, querySeqLen, targetSeqObj->L, alnLength) * (useProfile ? 10.0 : 1.0);
     if (reverseCigar) {
         std::reverse(backtrace.begin(), backtrace.end());
     }
