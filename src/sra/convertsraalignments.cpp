@@ -226,14 +226,15 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
 
             const unsigned int queryKey = alnDbr.getDbKey(i);
             char *querySeqData = nullptr;
-//            size_t querySeqLen = 0;
+            size_t querySeqLen = 0;
             queryProfData.clear();
             if (needSequenceDB) {
                 size_t qId = qDbr.sequenceReader->getId(queryKey);
                 querySeqData = qDbr.sequenceReader->getData(qId, thread_idx);
-//                querySeqLen = qDbr.sequenceReader->getSeqLen(qId);
+//                querySeqEntryLen =
+                querySeqLen = qDbr.sequenceReader->getEntryLen(qId);
                 if (isQueryProfile) {
-                    Sequence::extractProfileConsensus(querySeqData, *subMat, queryProfData);
+                    Sequence::extractProfileConsensus(querySeqData, querySeqLen, *subMat, queryProfData);
                 }
             }
 
@@ -316,11 +317,13 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
                         } else {
                             char *targetSeqData = nullptr;
                             targetProfData.clear();
+                            size_t targetSeqLen = 0;
                             if (needSequenceDB) {
                                 size_t tId = res.dbOrfStartPos; // tDbr->sequenceReader->getId(res.dbKey);
                                 targetSeqData = tDbr.getData(tId, thread_idx);
+                                targetSeqLen = tDbr.getSeqLen(tId);
                                 if (isTargetProfile) {
-                                    Sequence::extractProfileConsensus(targetSeqData, *subMat, targetProfData);
+                                    Sequence::extractProfileConsensus(targetSeqData, targetSeqLen,  *subMat, targetProfData);
                                 }
                             }
                             for (size_t i = 0; i < outcodes.size(); i++) {

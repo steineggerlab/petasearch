@@ -285,7 +285,10 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
                 unsigned int queryId = querySequenceReader.getId(queryKey);
                 const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
-                std::string realSeq = SRAUtil::extractProfileSequence(querySeqData, querySeqLen, subMat);
+                const unsigned int queryEntryLen = querySequenceReader.getEntryLen(queryId);
+//                std::string realSeq = SRAUtil::extractProfileSequence(querySeqData, querySeqLen, subMat);
+                std::string realSeq;
+                querySeq.extractProfileSequence(querySeqData, queryEntryLen, *subMat, realSeq);
                 querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
 
                 if (useProfileSearch && realSeq.length() != querySeqLen) {
