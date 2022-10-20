@@ -6,67 +6,29 @@ on:
       - main
       - master
 
-
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          submodules: true
 
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
 
-      - name: Set up cmake build system
-        run: |
-          sudo apt-get update
-          sudo apt-get install cmake
-          cmake --version
-          gcc --version
-
       - name: Build Petasearch
         run: |
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
-          make -j $(($(lscpu | grep "Socket(s):" | cut -f2 -d:) * $(lscpu | grep "Core(s) per socket:" | cut -f2 -d:)))
-          cd ..
-
-      - name: Test build
-        run: |
-          build/src/srasearch --help
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@master
-        with:
-          name: petasearch
-          path: build/src/srasearch
-
-  regression:
-    needs: build
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@master
-        with:
-          name: petasearch
-
-      - run: chmod +x srasearch
-      - run: echo $(pwd) >> $GITHUB_PATH
-
-      - run: srasearch --help
+          make -j $(nproc --all)
 
       - name: Download databases
         run: |
           mkdir -p databases
-          cd databases
-          srasearch databases UniProtKB/Swiss-Prot swissprot tmp
-          cd ..
+          srasearch databases UniProtKB/Swiss-Prot databases/swissprot tmp
 
       - name: Build target dbs
         run: |
@@ -89,11 +51,5 @@ jobs:
         run: |
           srasearch convertmsa tests/MSA_Cas7-11_multiline.stockholm tests/msadb
           srasearch msa2profile tests/msadb tests/query_profile
-
-      - name: Search query against target
-        run: |
           srasearch petasearch tests/querydb targetdbs resultlist alignments.m8 tmp
-
-      - name: Search profile against target
-        run: |
           srasearch petasearch tests/query_profile targetdbs resultlist alignments_profile.m8 tmp
