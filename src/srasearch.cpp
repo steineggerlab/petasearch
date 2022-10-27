@@ -2,6 +2,7 @@
 #include "LocalCommandDeclarations.h"
 #include "LocalParameters.h"
 #include "DownloadDatabase.h"
+#include "Prefiltering.h"
 
 const char* binary_name = "srasearch";
 const char* tool_name = "srasearch";
@@ -18,6 +19,7 @@ void updateValidation();
 void (*validatorUpdate)(void) = updateValidation;
 
 std::vector<DatabaseDownload> externalDownloads = {};
+std::vector<KmerThreshold> externalThreshold = {};
 
 
 LocalParameters& localPar = LocalParameters::getLocalInstance();
