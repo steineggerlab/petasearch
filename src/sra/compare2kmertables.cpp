@@ -328,20 +328,30 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
 
             timer.reset();
             Debug(Debug::INFO) << "Loading files into memory...\n";
-
+#if !defined(O_DIRECT)
+            #define MODE  (O_RDONLY | O_SYNC)
+#else
+            #define MODE  (O_RDONLY | O_DIRECT | O_SYNC)
+#endif
             /* Open target table in direct mode */
-            int fdTargetTable = open(targetName.c_str(), O_RDONLY | O_DIRECT | O_SYNC);
+            int fdTargetTable = open(targetName.c_str(), MODE);
             if (fdTargetTable < 0) {
                 Debug(Debug::ERROR) << "Open target table " << targetName << "failed\n";
                 EXIT(EXIT_FAILURE);
             }
+#if !defined(O_DIRECT) && defined(F_NOCACHE)
+            fcntl(fdTargetTable, F_NOCACHE, 1);
+#endif
 
             /* Open ID table in direct mode */
-            int fdIDTable = open((targetName + "_ids").c_str(), O_RDONLY | O_DIRECT | O_SYNC);
+            int fdIDTable = open((targetName + "_ids").c_str(), MODE);
             if (fdIDTable < 0) {
                 Debug(Debug::ERROR) << "Open ID table " << targetName << "_ids" << "failed\n";
                 EXIT(EXIT_FAILURE);
             }
+#if !defined(O_DIRECT) && defined(F_NOCACHE)
+            fcntl(fdIDTable, F_NOCACHE, 1);
+#endif
 
             /* Get file size in bytes */
             size_t targetTableSize = FileUtil::getFileSize(targetName);
