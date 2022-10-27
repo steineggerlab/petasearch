@@ -15,6 +15,6 @@ add_executable(srasearch
 mmseqs_setup_derived_target(srasearch)
 add_dependencies(srasearch local-generated)
 
-target_link_libraries(srasearch version block_aligner dl)
+target_link_libraries(srasearch version block-aligner dl)
 
 install(TARGETS srasearch DESTINATION bin)
