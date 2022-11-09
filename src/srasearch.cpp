@@ -61,7 +61,7 @@ std::vector<struct Command> commands = {
              {"kmerTable",DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile}}
         },
         {
-            "compare2kmertables", compare2kmertables, &localPar.compare2kmertables, COMMAND_EXPERT,
+            "comparekmertables", comparekmertables, &localPar.comparekmertables, COMMAND_EXPERT,
             "",
             NULL,
             "Jonas Hügel <jonas.huegel@mpibpc.mpg.de> ",
@@ -70,6 +70,9 @@ std::vector<struct Command> commands = {
             {{"queryDb",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb},
              {"targetKmerTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile},
              {"resultTable",DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::flatfile}}
+        },
+        {   // bc compatibility
+            "compare2kmertables", comparekmertables, &localPar.comparekmertables, COMMAND_HIDDEN, "", NULL, "", "", 0, {}
         },
         {
             "computeAlignments", computeAlignments, &localPar.computeAlignments, COMMAND_EXPERT,

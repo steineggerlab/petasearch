@@ -18,7 +18,7 @@ public:
     }
 
     std::vector<MMseqsParameter *> createkmertable;
-    std::vector<MMseqsParameter *> compare2kmertables;
+    std::vector<MMseqsParameter *> comparekmertables;
     std::vector<MMseqsParameter *> computeAlignments;
     std::vector<MMseqsParameter *> convert2sradb;
     std::vector<MMseqsParameter *> petasearchworkflow;
@@ -75,16 +75,16 @@ private:
         createkmertable.push_back(&PARAM_THREADS);
         createkmertable.push_back(&PARAM_V);
 
-        compare2kmertables.push_back(&PARAM_EXACT_KMER_MATCHING);
-        compare2kmertables.push_back(&PARAM_SEED_SUB_MAT);
-        compare2kmertables.push_back(&PARAM_K);
-        compare2kmertables.push_back(&PARAM_K_SCORE);
-        compare2kmertables.push_back(&PARAM_SPACED_KMER_MODE);
-        compare2kmertables.push_back(&PARAM_MAX_SEQ_LEN);
-        compare2kmertables.push_back(&PARAM_REQ_KMER_MATCHES);
-        compare2kmertables.push_back(&PARAM_COMPRESSED);
-        compare2kmertables.push_back(&PARAM_THREADS);
-        compare2kmertables.push_back(&PARAM_V);
+        comparekmertables.push_back(&PARAM_EXACT_KMER_MATCHING);
+        comparekmertables.push_back(&PARAM_SEED_SUB_MAT);
+        comparekmertables.push_back(&PARAM_K);
+        comparekmertables.push_back(&PARAM_K_SCORE);
+        comparekmertables.push_back(&PARAM_SPACED_KMER_MODE);
+        comparekmertables.push_back(&PARAM_MAX_SEQ_LEN);
+        comparekmertables.push_back(&PARAM_REQ_KMER_MATCHES);
+        comparekmertables.push_back(&PARAM_COMPRESSED);
+        comparekmertables.push_back(&PARAM_THREADS);
+        comparekmertables.push_back(&PARAM_V);
 
         computeAlignments.push_back(&PARAM_SUB_MAT);
         computeAlignments.push_back(&PARAM_K);
@@ -106,7 +106,7 @@ private:
         convertsraalignments.push_back(&PARAM_THREADS);
         convertsraalignments = combineList(convertsraalignments, Parameters::convertalignments);
 
-        petasearchworkflow = combineList(createkmertable, compare2kmertables);
+        petasearchworkflow = combineList(createkmertable, comparekmertables);
         petasearchworkflow = combineList(petasearchworkflow, computeAlignments);
         petasearchworkflow = combineList(petasearchworkflow, swapresult);
         petasearchworkflow = combineList(petasearchworkflow, convertalignments);

@@ -47,7 +47,7 @@ TMP_PATH="$5"
 # compare both k-mer tables
 #if [ ! -e "${TMP_PATH}/${C_RES}"  ]; then
     # shellcheck disable=SC2086
-    "$MMSEQS" compare2kmertables "${Q_DB}" "${T_DBs}" "${C_RES}" ${COMP_KMER_TABLES_PAR} \
+    "$MMSEQS" comparekmertables "${Q_DB}" "${T_DBs}" "${C_RES}" ${COMP_KMER_TABLES_PAR} \
         || fail "comparing both k-mer tables failed"
 #fi
 paste "${T_DBs}" "${C_RES}"  | column -s "\t" > "threecol.tsv"

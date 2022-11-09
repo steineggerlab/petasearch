@@ -48,7 +48,7 @@ srasearch createkmertable targetDB target_kmertable
 To search a MMseqs database against a list of Petasearch databases, simply run:
 
 ```shell
-srasearch compare2kmertables queryDB targetlist resultlist
+srasearch comparekmertables queryDB targetlist resultlist
 ```
 
 `targetlist` should be a file containing all target databases and kmer tables. An example `targetlist` would look

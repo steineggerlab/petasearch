@@ -33,7 +33,7 @@ int petasearch(int argc, const char **argv, const Command &command) {
 
 
     cmd.addVariable("CREATE_TTABLE_PAR", par.createParameterString(par.createkmertable).c_str());
-    cmd.addVariable("COMP_KMER_TABLES_PAR", par.createParameterString(par.compare2kmertables).c_str());
+    cmd.addVariable("COMP_KMER_TABLES_PAR", par.createParameterString(par.comparekmertables).c_str());
     cmd.addVariable("COMP_ALI_PAR", par.createParameterString(par.computeAlignments).c_str());
     par.evalThr = 100000;
     cmd.addVariable("SWAP_PAR", par.createParameterString(par.swapresult).c_str());

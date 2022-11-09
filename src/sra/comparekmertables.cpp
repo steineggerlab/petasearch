@@ -282,7 +282,7 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
     reader.close();
 }
 
-int compare2kmertables(int argc, const char **argv, const Command &command) {
+int comparekmertables(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
 

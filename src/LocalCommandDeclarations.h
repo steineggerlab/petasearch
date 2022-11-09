@@ -4,7 +4,7 @@
 #include "Command.h"
 
 extern int createkmertable(int argc, const char **argv, const Command& command);
-extern int compare2kmertables(int argc, const char **argv, const Command& command);
+extern int comparekmertables(int argc, const char **argv, const Command& command);
 extern int computeAlignments(int argc, const char **argv, const Command& command);
 extern int convert2sradb(int argc, const char **argv, const Command& command);
 extern int petasearch(int argc, const char **argv, const Command& command);
