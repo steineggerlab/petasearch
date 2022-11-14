@@ -1,10 +1,12 @@
 # Petasearch
 
+Petasearch enables searching through the largest sets of proteins.
+
 ## Installation
 
-`Petasearch` is dependent on [`block-aligner`](https://github.com/Daniel-Liu-c0deb0t/block-aligner) for fast computation
-of Smith-Waterman alignments in the `computeAlignments` module. Thus, it is required to have [the Rust Programming 
-Langugage](https://www.rust-lang.org/) installed on the user's machine for the best performance.
+`Petasearch` depends on [`block-aligner`](https://github.com/Daniel-Liu-c0deb0t/block-aligner) for fast computation
+of Smith-Waterman alignments in the `computeAlignments` module. Thus, [the Rust Programming 
+Langugage](https://www.rust-lang.org/) needs be installed on the user's machine.
 
 ### Build from source
 
@@ -13,7 +15,7 @@ Clone this repository to your local machine. After cloning, navigate to the proj
 ```shell
 mkdir build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j 16
 ```
 
@@ -24,7 +26,7 @@ in order to user it easily.
 
 ### Create Petasearch databases
 
-To achieve space efficiency, `srasearch` will store the target databases in a specific highly-compressed format. You can use `convert2sradb` to convert a FASTA/FASTQ file or a MMseqs database into a srasearch database.
+To achieve space efficiency, `srasearch` will store the target databases in a specific highly-compressed format. You can use `convert2sradb` to convert a FASTA/FASTQ file or a MMseqs2 database into a srasearch database.
 
 Example usage:
 
@@ -35,7 +37,7 @@ srasearch convert2sradb mmseqsDB targetDB
 
 ### Preindexing
 
-`srasearch` requires doing pre-indexing on the target database by calling sub-command
+`srasearch` requires pre-indexing the target database by calling the module 
 `createkmertable` first. You can use the following command to generate the kmer table and ID table for a target
 database called `targetDB`.
 
@@ -43,9 +45,26 @@ database called `targetDB`.
 srasearch createkmertable targetDB target_kmertable
 ```
 
+### Combined workflow
+
+`Petasearch` provides a combined workflow that will produce only one output file `alignments.m8` that contain all the 
+search results from searching `queryDB` against all the target databases listed in `targetlist`.
+
+```shell
+srasearch petasearch queryDB targetlist resultlist alignments.m8 tmp
+```
+### Easy workflow
+
+`Petasearch` also provides an easy workflow that will accept `fasta` file as the input query dataset. The user also do
+not need to provide `resultlist` as an input.
+
+```shell
+sraserach easy-petasearch query.fasta targetlist alignments.m8 tmp
+```
+
 ### Use index table to prefilter query-target pairs
 
-To search a MMseqs database against a list of Petasearch databases, simply run:
+To search a MMseqs2 database against a list of Petasearch databases, simply run:
 
 ```shell
 srasearch comparekmertables queryDB targetlist resultlist
@@ -80,21 +99,4 @@ srasearch convertsraalis queryDB targetDB1 compali_res_1 alignments_1.m8
 ```
 
 `resultlist` should be a file with the *same* amount of entries of `targetlist`. Those are the file names
-
-### Combined workflow
-
-`Petasearch` provides a combined workflow that will produce only one output file `alignments.m8` that contain all the 
-search results from searching `queryDB` against all the target databases listed in `targetlist`.
-
-```shell
-srasearch petasearch queryDB targetlist resultlist alignments.m8 tmp
-```
-### Easy workflow
-
-`Petasearch` also provides an easy workflow that will accept `fasta` file as the input query dataset. The user also do
-not need to provide `resultlist` as an input.
-
-```shell
-sraserach easy-petasearch query.fasta targetlist alignments.m8 tmp
-```
 
