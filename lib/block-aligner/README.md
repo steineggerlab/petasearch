@@ -39,12 +39,14 @@ assert_eq!(cigar.to_string(), "2M6I16M3D");
 
 ## Algorithm
 Pairwise alignment (weighted edit distance) involves computing the scores for each cell of a
-2D dynamic programming matrix to find out how two strings can optimally align.
+2D dynamic programming matrix to find out how two strings (or a string and a profile) optimally aligns.
 However, often it is possible to obtain accurate alignment scores without computing
 the entire DP matrix, through banding or other means.
 
 Block aligner provides a new efficient way to compute alignments on proteins, DNA sequences,
 and byte strings.
+Block aligner also supports aligning sequences to profiles, which are position-specific
+scoring matrices and position-specific gap open costs.
 Scores are calculated in a small square block that is shifted down or right in a greedy
 manner, based on the scores at the edges of the block.
 This dynamic approach results in a much smaller calculated block area, at the expense of
@@ -54,9 +56,10 @@ of iterations without seeing score increases. We call this "Y-drop", where Y is 
 number of iterations.
 When the Y-drop condition is met, the block goes "back in time" to the previous best
 checkpoint, and the size of the block dynamically increases to attempt to span the large gap.
+The block size can also dynamically decrease when a large block size detected to not be needed.
 
 Block aligner is built to exploit SIMD parallelism on modern CPUs.
-Currently, AVX2 (256-bit vectors) and WASM SIMD (128-bit vectors) are supported.
+Currently, AVX2 (256-bit vectors), Neon (128-bit vectors), and WASM SIMD (128-bit vectors) are supported.
 For score calculations, 16-bit score values (lanes) and 32-bit per block offsets are used.
 
 ## Install
@@ -69,9 +72,10 @@ To use this as a crate in your Rust project, add the following to your `Cargo.to
 [dependencies]
 block-aligner = { version = "^0.2.0", features = ["simd_avx2"] }
 ```
-Use the `simd_wasm` feature flag for WASM SIMD support. It is your responsibility to ensure
-the correct feature to be enabled and supported by the platform that runs the code
-because this library does not automatically detect the supported SIMD instruction set.
+Use the `simd_neon` or `simd_wasm` feature flag for ARM Neon or WASM SIMD support, respectively.
+It is your responsibility to ensure the correct feature to be enabled and supported by the
+platform that runs the code because this library does not automatically detect the supported
+SIMD instruction set.
 
 For developing, testing, or using the C API, you should clone this repo
 and use Rust nightly. In general, when building, you need to specify the
@@ -82,6 +86,11 @@ For x86 AVX2:
 cargo build --features simd_avx2 --release
 ```
 
+For ARM Neon:
+```
+cargo build --target=aarch64-unknown-linux-gnu --features simd_neon --release
+```
+
 For WASM SIMD:
 ```
 cargo build --target=wasm32-wasi --features simd_wasm --release
@@ -90,7 +99,7 @@ cargo build --target=wasm32-wasi --features simd_wasm --release
 Most of the instructions below are for benchmarking and testing block aligner.
 
 ## Data
-Some Illumina/Nanopore (DNA) and Uniclust30 (protein) data are used in some tests and benchmarks.
+Some Illumina/Nanopore (DNA), Uniclust30 (protein), and SCOP (protein profile) data are used in some tests and benchmarks.
 You will need to download them by following the instructions in the [data readme](data/README.md).
 
 ## Test
@@ -161,11 +170,6 @@ the [C readme](c/README.md).
 ## Data analysis and visualizations
 Use the Jupyter notebook in the `vis/` directory to gather data and plot them. An easier way
 to run the whole notebook is to run the `vis/run_vis.sh` script.
-
-## Other SIMD instruction sets
-* [ ] SSE4.1 (Depends on demand)
-* [ ] AVX-512 (I don't have a machine to test)
-* [ ] NEON (I don't have a machine to test)
 
 ## Old ideas and history
 See the [ideas](ideas.md) file.
