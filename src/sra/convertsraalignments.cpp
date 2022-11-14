@@ -16,9 +16,7 @@
 #include <map>
 
 #ifdef OPENMP
-
 #include <omp.h>
-
 #endif
 
 #include "LocalParameters.h"
@@ -57,8 +55,6 @@ tcov        Fraction of target sequence covered by alignment
 qset        Query set
 tset        Target set
  */
-
-
 
 void printAlnSeq(std::string &out, const char *seq, unsigned int offset,
                  const std::string &bt, bool reverse, bool isReverseStrand) {

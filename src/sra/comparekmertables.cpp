@@ -18,9 +18,7 @@
 #include <cstdlib> // aligned_alloc
 
 #ifdef OPENMP
-
 #include <omp.h>
-
 #endif
 
 #define MEM_SIZE_16MB   ( (size_t) ( 16 * 1024 * 1024 ))

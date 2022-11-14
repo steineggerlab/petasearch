@@ -62,14 +62,11 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     }
     Debug(Debug::INFO) << "input prepared, time spent: " << timer.lap() << "\n";
     size_t kmerCount = 0;
-#pragma omp parallel for reduction(+:kmerCount) default(none) \
-shared(par, reader)
+#pragma omp parallel for reduction(+:kmerCount) default(none) shared(par, reader)
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength >=
-                (unsigned) par.kmerSize ?
-                currentSequenceLength - par.kmerSize + 1 : 0;
+        kmerCount += currentSequenceLength >= (unsigned) par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
     }
     TargetTableEntry *targetTable = NULL;
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
@@ -146,11 +143,7 @@ shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBu
 
     Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";
     Debug(Debug::INFO) << "start sorting \n";
-#ifdef OPENMP
     SORT_PARALLEL(targetTable, targetTable + tableIndex, targetTableSort);
-#else
-    SORT_SERIAL(targetTable, targetTable + tableIndex, targetTableSort);
-#endif
     Debug(Debug::INFO) << timer.lap() << "\n";
     writeTargetTables(targetTable, tableIndex, par.db2);
     Debug(Debug::INFO) << timer.lap() << "\n";

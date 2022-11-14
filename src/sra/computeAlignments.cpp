@@ -17,9 +17,7 @@
 #include "SRAUtil.h"
 
 #ifdef OPENMP
-
 #include <omp.h>
-
 #endif
 
 /**
