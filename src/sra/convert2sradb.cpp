@@ -14,7 +14,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
     par.parseParameters(argc, argv, command, true, Parameters::PARSE_VARIADIC, 0);
 
-    char newline = '\n';
+    const char newline = '\n';
 
     /* Get the last input file as the output file */
     std::string outputDataFile = par.db2;
@@ -87,105 +87,110 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     }
 
     /* Process all inputs */
-    for (size_t fileIdx = 0; fileIdx < fileCount; fileIdx++) {
-        unsigned int numEntriesInCurrFile = 0;
-        std::string header;
-        header.reserve(1024);
-
-        std::string sourceName;
-        if (isDbInput) {
-            unsigned int dbKey = reader->getDbKey(fileIdx);
-            size_t lookupId = reader->getLookupIdByKey(dbKey);
-            sourceName = reader->getLookupEntryName(lookupId);
-        } else {
-            sourceName = FileUtil::baseName(filenames[fileIdx]);
-        }
+    #pragma omp parallel
+    {
         char buffer[4096];
-        size_t len = snprintf(buffer, sizeof(buffer), "%zu\t%s\n", fileIdx, sourceName.c_str());
-        int written = fwrite(buffer, sizeof(char), len, source);
-        if (written != (int) len) {
-            Debug(Debug::ERROR) << "Cannot write to source file " << sourceFile << newline;
-            EXIT(EXIT_FAILURE);
-        }
 
-        // TODO: fix kseqbuffer so that we can use the same API
-        KSeqWrapper *kseq = NULL;
-        std::string seq = ">";
-        if (isDbInput) {
-            // FIXME: this might also be wrong in certain cases; we need a CI to test all the cases
-            unsigned int trueId = reader->getIndex(fileIdx)->id;
-            seq.append(hdrReader->getData(trueId, 0));
-            seq.append(reader->getData(fileIdx, 0));
-            kseq = new KSeqBuffer(seq.c_str(), seq.length());
-        } else {
-            kseq = KSeqFactory(filenames[fileIdx].c_str());
-        }
+        #pragma omp for
+        for (size_t fileIdx = 0; fileIdx < fileCount; fileIdx++) {
+            unsigned int numEntriesInCurrFile = 0;
+            std::string header;
+            header.reserve(1024);
 
-        while (kseq->ReadEntry()) {
-            progress.updateProgress();
-            const KSeqWrapper::KSeqEntry &e = kseq->entry;
-            SRAUtil::stripInvalidChars(e.sequence.s);
-
-            if (e.name.l == 0) {
-                Debug(Debug::ERROR) << "Fasta entry " << entries_num << " is invalid\n";
+            std::string sourceName;
+            if (isDbInput) {
+                unsigned int dbKey = reader->getDbKey(fileIdx);
+                size_t lookupId = reader->getLookupIdByKey(dbKey);
+                sourceName = reader->getLookupEntryName(lookupId);
+            } else {
+                sourceName = FileUtil::baseName(filenames[fileIdx]);
+            }
+            size_t len = snprintf(buffer, sizeof(buffer), "%zu\t%s\n", fileIdx, sourceName.c_str());
+            int written = fwrite(buffer, sizeof(char), len, source);
+            if (written != (int) len) {
+                Debug(Debug::ERROR) << "Cannot write to source file " << sourceFile << newline;
                 EXIT(EXIT_FAILURE);
             }
-            // Header creation
-            header.append(e.name.s, e.name.l);
-            if (e.comment.l > 0) {
-                header.append(" ", 1);
-                header.append(e.comment.s, e.comment.l);
+
+            // TODO: fix kseqbuffer so that we can use the same API
+            KSeqWrapper *kseq = NULL;
+            std::string seq = ">";
+            if (isDbInput) {
+                // FIXME: this might also be wrong in certain cases; we need a CI to test all the cases
+                unsigned int trueId = reader->getIndex(fileIdx)->id;
+                seq.append(hdrReader->getData(trueId, 0));
+                seq.append(reader->getData(fileIdx, 0));
+                kseq = new KSeqBuffer(seq.c_str(), seq.length());
+            } else {
+                kseq = KSeqFactory(filenames[fileIdx].c_str());
             }
 
-            std::string headerId = Util::parseFastaHeader(header.c_str());
-            if (headerId.empty()) {
-                // An identifier is necessary for these two cases, so we should just give up
-                Debug(Debug::WARNING) << "Cannot extract identifier from entry " << entries_num << newline;
-            }
-            header.push_back(newline);
+            while (kseq->ReadEntry()) {
+                progress.updateProgress();
+                const KSeqWrapper::KSeqEntry &e = kseq->entry;
+                SRAUtil::stripInvalidChars(e.sequence.s);
 
-            unsigned int id = par.identifierOffset + entries_num;
-            unsigned int splitIdx = id % shuffleSplits;
-
-            /* Write header */
-            hdrWriter.writeData(header.c_str(), header.length(), splitIdx, true, true);
-
-            unsigned long rem = e.sequence.l % 3;
-            int padding = rem == 0 ? 0 : 1;
-            rem = (rem == 0) ? 3 : rem;
-
-            unsigned short *resultBuffer = (unsigned short *) calloc((e.sequence.l / 3 + padding),
-                                                                     sizeof(unsigned short));
-
-            size_t i = 0;
-            if (e.sequence.l > 3) {
-                for (; i < e.sequence.l - 3; i = i + 3) {
-                    resultBuffer[i / 3] = PACK_TO_SHORT(e.sequence.s[i],
-                                                        e.sequence.s[i + 1],
-                                                        e.sequence.s[i + 2]);
+                if (e.name.l == 0) {
+                    Debug(Debug::ERROR) << "Fasta entry " << entries_num << " is invalid\n";
+                    EXIT(EXIT_FAILURE);
                 }
-            }
-            resultBuffer[i / 3] = 0U;
-            for (unsigned int j = 0; j < 3; j++) {
-                resultBuffer[i / 3] <<= 5U;
-                if (j < rem && e.sequence.s[i + j] != '\n') {
-                    resultBuffer[i / 3] |= GET_LAST_5_BITS(e.sequence.s[i + j]);
+                // Header creation
+                header.append(e.name.s, e.name.l);
+                if (e.comment.l > 0) {
+                    header.append(" ", 1);
+                    header.append(e.comment.s, e.comment.l);
                 }
+
+                std::string headerId = Util::parseFastaHeader(header.c_str());
+                if (headerId.empty()) {
+                    // An identifier is necessary for these two cases, so we should just give up
+                    Debug(Debug::WARNING) << "Cannot extract identifier from entry " << entries_num << newline;
+                }
+                header.push_back(newline);
+
+                unsigned int id = par.identifierOffset + entries_num;
+                unsigned int splitIdx = id % shuffleSplits;
+
+                /* Write header */
+                hdrWriter.writeData(header.c_str(), header.length(), splitIdx, true, true);
+
+                unsigned long rem = e.sequence.l % 3;
+                int padding = rem == 0 ? 0 : 1;
+                rem = (rem == 0) ? 3 : rem;
+
+                unsigned short *resultBuffer = (unsigned short *) calloc((e.sequence.l / 3 + padding),
+                                                                        sizeof(unsigned short));
+
+                size_t i = 0;
+                if (e.sequence.l > 3) {
+                    for (; i < e.sequence.l - 3; i = i + 3) {
+                        resultBuffer[i / 3] = PACK_TO_SHORT(e.sequence.s[i],
+                                                            e.sequence.s[i + 1],
+                                                            e.sequence.s[i + 2]);
+                    }
+                }
+                resultBuffer[i / 3] = 0U;
+                for (unsigned int j = 0; j < 3; j++) {
+                    resultBuffer[i / 3] <<= 5U;
+                    if (j < rem && e.sequence.s[i + j] != '\n') {
+                        resultBuffer[i / 3] |= GET_LAST_5_BITS(e.sequence.s[i + j]);
+                    }
+                }
+                resultBuffer[i / 3] |= 0x8000U; // Set last bit
+                const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
+
+                seqWriter.writeStart(splitIdx);
+                seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l / 3 + padding), splitIdx);
+                seqWriter.writeEnd(splitIdx, false);
+
+                entries_num++;
+                numEntriesInCurrFile++;
+                header.clear();
+                free(resultBuffer);
             }
-            resultBuffer[i / 3] |= 0x8000U; // Set last bit
-            const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
-
-            seqWriter.writeStart(splitIdx);
-            seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l / 3 + padding), splitIdx);
-            seqWriter.writeEnd(splitIdx, false);
-
-            entries_num++;
-            numEntriesInCurrFile++;
-            header.clear();
-            free(resultBuffer);
+            delete kseq;
+            kseq = nullptr;
         }
-        delete kseq;
-        kseq = nullptr;
     }
 
     Debug(Debug::INFO) << newline;
