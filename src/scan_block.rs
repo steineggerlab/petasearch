@@ -15,6 +15,9 @@ use crate::cigar::*;
 use std::{cmp, ptr, i16, alloc};
 use std::ops::RangeInclusive;
 
+#[cfg(feature = "mca")]
+use std::arch::asm;
+
 // Notes:
 //
 // BLOSUM62 matrix max = 11, min = -4; gap open = -11 (includes extension), gap extend = -1
@@ -665,9 +668,10 @@ macro_rules! place_block_profile_gen {
                         // compress trace with movemask to save space
                         let mask = simd_set1_i16(0xFF00u16 as i16);
                         let trace_data = simd_movemask_i8(simd_blend_i8(trace_D_C, trace_D_R, mask));
-                        let trace_R = simd_sl_i16!(simd_cmpeq_i16(R11, D11_open), prev_trace_R, 1);
+                        let temp_trace_R = simd_cmpeq_i16(R11, D11_open);
+                        let trace_R = simd_sl_i16!(temp_trace_R, prev_trace_R, 1);
                         let trace_data2 = simd_movemask_i8(simd_blend_i8(simd_cmpeq_i16(C11, C11_open), trace_R, mask));
-                        prev_trace_R = trace_R;
+                        prev_trace_R = temp_trace_R;
                         trace.add_trace(trace_data as TraceType, trace_data2 as TraceType);
                     }
 
@@ -1017,9 +1021,10 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
                     // compress trace with movemask to save space
                     let mask = simd_set1_i16(0xFF00u16 as i16);
                     let trace_data = simd_movemask_i8(simd_blend_i8(trace_D_C, trace_D_R, mask));
-                    let trace_R = simd_sl_i16!(simd_cmpeq_i16(R11, D11_open), prev_trace_R, 1);
+                    let temp_trace_R = simd_cmpeq_i16(R11, D11_open);
+                    let trace_R = simd_sl_i16!(temp_trace_R, prev_trace_R, 1);
                     let trace_data2 = simd_movemask_i8(simd_blend_i8(simd_cmpeq_i16(C11, C11_open), trace_R, mask));
-                    prev_trace_R = trace_R;
+                    prev_trace_R = temp_trace_R;
                     trace.add_trace(trace_data as TraceType, trace_data2 as TraceType);
                 }
 
@@ -1275,8 +1280,25 @@ impl Trace {
     /// location.
     ///
     /// When aligning `q` against `r`, this represents the edits to go from `r` to `q`.
-    pub fn cigar(&self, mut i: usize, mut j: usize, cigar: &mut Cigar) {
+    /// Matches and mismatches are both represented with `M`.
+    pub fn cigar(&self, i: usize, j: usize, cigar: &mut Cigar) {
+        self.cigar_core::<false>(i, j, None, None, cigar);
+    }
+
+    /// Create a CIGAR string that represents a single traceback path ending on the specified
+    /// location.
+    ///
+    /// When aligning `q` against `r`, this represents the edits to go from `r` to `q`.
+    /// Matches are represented using `=` and mismatches are represented using `X`.
+    pub fn cigar_eq(&self, query: &PaddedBytes, reference: &PaddedBytes, i: usize, j: usize, cigar: &mut Cigar) {
+        self.cigar_core::<true>(i, j, Some(query), Some(reference), cigar);
+    }
+
+    fn cigar_core<const EQ: bool>(&self, mut i: usize, mut j: usize, q: Option<&PaddedBytes>, r: Option<&PaddedBytes>, cigar: &mut Cigar) {
         assert!(i <= self.query_len && j <= self.reference_len, "Traceback cigar end position must be in bounds!");
+        if EQ {
+            assert!(q.is_some() && r.is_some());
+        }
 
         cigar.clear(i, j);
 
@@ -1297,8 +1319,8 @@ impl Trace {
             }
 
             // use lookup table instead of hard to predict branches
-            static OP_LUT: [(Operation, usize, usize, Table); 128] = {
-                let mut lut = [(Operation::D, 0, 1, Table::D); 128];
+            static OP_LUT: [[(Operation, usize, usize, Table); 64]; 2] = {
+                let mut lut = [[(Operation::D, 0, 1, Table::D); 64]; 2];
 
                 // table: the current DP table, D, C, or R (tables are standardized to right = true)
                 // trace: 2 bits, first bit is whether the max equals C table entry, second bit is
@@ -1349,7 +1371,7 @@ impl Trace {
                                     }
                                 };
 
-                                lut[(right << 6) | (trace << 4) | (trace2 << 2) | (table as usize)] = res;
+                                lut[right][(trace << 4) | (trace2 << 2) | (table as usize)] = res;
                                 table_idx += 1;
                             }
                             trace2 += 1;
@@ -1365,6 +1387,7 @@ impl Trace {
             let mut table = Table::D;
 
             while i > 0 || j > 0 {
+                // find the current block that contains (i, j)
                 loop {
                     block_idx -= 1;
                     block_i = *self.block_start.as_ptr().add(block_idx * 2) as usize;
@@ -1379,6 +1402,8 @@ impl Trace {
                     }
                 }
 
+                // compute traceback within the current block
+                let lut = &*OP_LUT.as_ptr().add(right);
                 if right > 0 {
                     while i >= block_i && j >= block_j && (i > 0 || j > 0) {
                         let curr_i = i - block_i;
@@ -1386,12 +1411,21 @@ impl Trace {
                         let idx = trace_idx + curr_i / L + curr_j * (block_height / L);
                         let t = ((*self.trace.as_ptr().add(idx) >> ((curr_i % L) * 2)) & 0b11) as usize;
                         let t2 = ((*self.trace2.as_ptr().add(idx) >> ((curr_i % L) * 2)) & 0b11) as usize;
-                        let lut_idx = (right << 6) | (t << 4) | (t2 << 2) | (table as usize);
+                        let lut_idx = (t << 4) | (t2 << 2) | (table as usize);
+                        let lut_entry = &*lut.as_ptr().add(lut_idx);
 
-                        let op = OP_LUT[lut_idx].0;
-                        i -= OP_LUT[lut_idx].1;
-                        j -= OP_LUT[lut_idx].2;
-                        table = OP_LUT[lut_idx].3;
+                        let op = if EQ && lut_entry.0 == Operation::M {
+                            if q.unwrap_unchecked().get(i) == r.unwrap_unchecked().get(j) {
+                                Operation::Eq
+                            } else {
+                                Operation::X
+                            }
+                        } else {
+                            lut_entry.0
+                        };
+                        i -= lut_entry.1;
+                        j -= lut_entry.2;
+                        table = lut_entry.3;
                         cigar.add(op);
                     }
                 } else {
@@ -1401,12 +1435,21 @@ impl Trace {
                         let idx = trace_idx + curr_j / L + curr_i * (block_width / L);
                         let t = ((*self.trace.as_ptr().add(idx) >> ((curr_j % L) * 2)) & 0b11) as usize;
                         let t2 = ((*self.trace2.as_ptr().add(idx) >> ((curr_j % L) * 2)) & 0b11) as usize;
-                        let lut_idx = (right << 6) | (t << 4) | (t2 << 2) | (table as usize);
+                        let lut_idx = (t << 4) | (t2 << 2) | (table as usize);
+                        let lut_entry = &*lut.as_ptr().add(lut_idx);
 
-                        let op = OP_LUT[lut_idx].0;
-                        i -= OP_LUT[lut_idx].1;
-                        j -= OP_LUT[lut_idx].2;
-                        table = OP_LUT[lut_idx].3;
+                        let op = if EQ && lut_entry.0 == Operation::M {
+                            if q.unwrap_unchecked().get(i) == r.unwrap_unchecked().get(j) {
+                                Operation::Eq
+                            } else {
+                                Operation::X
+                            }
+                        } else {
+                            lut_entry.0
+                        };
+                        i -= lut_entry.1;
+                        j -= lut_entry.2;
+                        table = lut_entry.3;
                         cigar.add(op);
                     }
                 }
@@ -1736,8 +1779,8 @@ mod tests {
         a.align(&q, &r, &BLOSUM62, test_gaps, 16..=16, 0);
         let res = a.res();
         assert_eq!(res, AlignResult { score: 14, query_idx: 6, reference_idx: 6 });
-        a.trace().cigar(res.query_idx, res.reference_idx, &mut cigar);
-        assert_eq!(cigar.to_string(), "6M");
+        a.trace().cigar_eq(&q, &r, res.query_idx, res.reference_idx, &mut cigar);
+        assert_eq!(cigar.to_string(), "3=2X1=");
 
         let r = PaddedBytes::from_bytes::<AAMatrix>(b"AAAA", 16);
         let q = PaddedBytes::from_bytes::<AAMatrix>(b"AAA", 16);
@@ -1756,6 +1799,24 @@ mod tests {
         assert_eq!(res, AlignResult { score: 7, query_idx: 24, reference_idx: 21 });
         a.trace().cigar(res.query_idx, res.reference_idx, &mut cigar);
         assert_eq!(cigar.to_string(), "2M6I16M3D");
+
+        let mut a = Block::<true, false>::new(100, 100, 32);
+        let q = PaddedBytes::from_bytes::<NucMatrix>(b"AAAAAAAAATTGCGCT", 32);
+        let r = PaddedBytes::from_bytes::<NucMatrix>(b"AAAAAAAAAGCGC", 32);
+
+        a.align(&q, &r, &NW1, test_gaps2, 32..=32, 0);
+        let res = a.res();
+        assert_eq!(res, AlignResult { score: 8, query_idx: 16, reference_idx: 13 });
+        a.trace().cigar_eq(&q, &r, res.query_idx, res.reference_idx, &mut cigar);
+        assert_eq!(cigar.to_string(), "9=2I4=1I");
+
+        let matrix = NucMatrix::new_simple(2, -1);
+        let test_gaps3 = Gaps { open: -5, extend: -2 };
+        a.align(&q, &r, &matrix, test_gaps3, 32..=32, 0);
+        let res = a.res();
+        assert_eq!(res, AlignResult { score: 14, query_idx: 16, reference_idx: 13 });
+        a.trace().cigar_eq(&q, &r, res.query_idx, res.reference_idx, &mut cigar);
+        assert_eq!(cigar.to_string(), "9=2I4=1I");
     }
 
     #[test]
