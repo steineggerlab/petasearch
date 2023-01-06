@@ -73,8 +73,11 @@ std::vector<struct Command> commands = {
     {   // bc compatibility
         "compare2kmertables", comparekmertables, &localPar.comparekmertables, COMMAND_HIDDEN, "", NULL, "", "", 0, {}
     },
+    {   // bc compatibility
+        "computeAlignments", blockalign, &localPar.blockalign, COMMAND_HIDDEN, "", NULL, "", "", 0, {}
+    },
     {
-        "computeAlignments", computeAlignments, &localPar.computeAlignments, COMMAND_EXPERT,
+        "blockalign", blockalign, &localPar.blockalign, COMMAND_EXPERT,
         "",
         NULL,
         "Jonas Hügel <jonas.huegel@mpibpc.mpg.de>",

@@ -154,7 +154,7 @@ struct BlockIterator {
     char *buffer;
 };
 
-int computeAlignments(int argc, const char **argv, const Command &command) {
+int blockalign(int argc, const char **argv, const Command &command) {
     Timer timer;
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;

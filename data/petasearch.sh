@@ -11,9 +11,9 @@ notExists() {
 }
 
 post_proc () {
-  STEP=$1
+  STEP="$1"
   # shellcheck disable=SC2086
-  "$MMSEQS" computeAlignments "${Q_DB}" "${T_DB}" "${COMP_RES}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${COMP_ALI_PAR} \
+  "$MMSEQS" blockalign "${Q_DB}" "${T_DB}" "${COMP_RES}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${COMP_ALI_PAR} \
         || fail "computing the alignment for matched sequences failed"
 
   # shellcheck disable=SC2086

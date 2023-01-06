@@ -5,7 +5,7 @@ Petasearch enables searching through the largest sets of proteins.
 ## Installation
 
 `Petasearch` depends on [`block-aligner`](https://github.com/Daniel-Liu-c0deb0t/block-aligner) for fast computation
-of Smith-Waterman alignments in the `computeAlignments` module. Thus, [the Rust Programming 
+of Smith-Waterman alignments in the `blockalign` module. Thus, [the Rust Programming 
 Langugage](https://www.rust-lang.org/) needs be installed on the user's machine.
 
 ### Build from source
@@ -89,7 +89,7 @@ compkmer_res_2
 ### Compute Smith-Waterman alignment selectively
 
 ```shell
-srasearch computeAlignments queryDB targetDB1 compkmer_res_1 compali_res_1
+srasearch blockalign queryDB targetDB1 compkmer_res_1 compali_res_1
 ```
 
 ### Print out alignment results
