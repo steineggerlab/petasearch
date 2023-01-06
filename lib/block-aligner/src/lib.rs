@@ -82,8 +82,8 @@ pub mod scan_block;
 pub mod scores;
 #[cfg(any(feature = "simd_avx2", feature = "simd_wasm", feature = "simd_neon"))]
 pub mod cigar;
-#[cfg(any(feature = "simd_avx2", feature = "simd_wasm", feature = "simd_neon"))]
-pub mod simulate;
+//#[cfg(any(feature = "simd_avx2", feature = "simd_wasm", feature = "simd_neon"))]
+//pub mod simulate;
 
 #[cfg(any(feature = "simd_avx2", feature = "simd_neon"))]
 #[doc(hidden)]
