@@ -12,7 +12,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(lib/mmseqs)
 
-set(Rust_TOOLCHAIN nightly)
 add_subdirectory(lib/corrosion)
 if (X64) 
     set(RUST_FEATURE simd_avx2)
