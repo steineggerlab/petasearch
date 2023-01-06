@@ -1,4 +1,3 @@
-
 #include "LocalParameters.h"
 #include "Command.h"
 #include "Debug.h"
@@ -13,7 +12,6 @@
 #include "QueryTableEntry.h"
 #include "BlockAligner.h"
 
-#include "omptl/omptl_algorithm"
 #include "SRAUtil.h"
 
 #ifdef OPENMP
@@ -116,7 +114,6 @@ struct Kmer {
     int kmerPos = -1;
 
     Kmer() = default;
-
     Kmer(unsigned long kmer, int kmerPos) : kmer(kmer), kmerPos(kmerPos) {}
 };
 
@@ -176,10 +173,12 @@ int computeAlignments(int argc, const char **argv, const Command &command) {
     SRADBReader targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(), par.threads,
                                      DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     targetSequenceReader.open(DBReader<unsigned int>::NOSORT | DBReader<unsigned int>::LINEAR_ACCCESS);
+
     DBReader<unsigned int> resultReader(par.db3.c_str(), par.db3Index.c_str(), par.threads,
                                         DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX |
                                         DBReader<unsigned int>::USE_WRITABLE);
     resultReader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
+
     DBWriter writer(par.db4.c_str(), par.db4Index.c_str(), par.threads, par.compressed,
                     Parameters::DBTYPE_ALIGNMENT_RES);
     writer.open();

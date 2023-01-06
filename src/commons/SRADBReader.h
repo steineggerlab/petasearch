@@ -1,21 +1,20 @@
 //
 // Created by matchy233 on 1/8/21.
 //
-
 #ifndef SRASEARCH_SRADBREADER_H
 #define SRASEARCH_SRADBREADER_H
 
 #include "DBReader.h"
 #include "MemoryTracker.h"
-#include <cstddef>
-#include <utility>
-#include <vector>
-#include <string>
 #include "Sequence.h"
 #include "Parameters.h"
 #include "FileUtil.h"
 #include "Debug.h"
 
+#include <cstddef>
+#include <utility>
+#include <vector>
+#include <string>
 
 class SRADBReader : public MemoryTracker {
 public:
@@ -65,5 +64,4 @@ private:
     char *getDataByOffset(size_t offset);
 };
 
-
-#endif //SRASEARCH_SRADBREADER_H
+#endif

@@ -29,15 +29,12 @@ int petasearch(int argc, const char **argv, const Command &command) {
     par.filenames.push_back(tmpDir);
 
     CommandCaller cmd;
-
-
-
     cmd.addVariable("CREATE_TTABLE_PAR", par.createParameterString(par.createkmertable).c_str());
     cmd.addVariable("COMP_KMER_TABLES_PAR", par.createParameterString(par.comparekmertables).c_str());
     cmd.addVariable("COMP_ALI_PAR", par.createParameterString(par.computeAlignments).c_str());
     par.evalThr = 100000;
     cmd.addVariable("SWAP_PAR", par.createParameterString(par.swapresult).c_str());
-    cmd.addVariable("CONVERTALIS_PAR",par.createParameterString(par.convertalignments).c_str());
+    cmd.addVariable("CONVERTALIS_PAR", par.createParameterString(par.convertalignments).c_str());
 
     std::string program = tmpDir + "/petasearch.sh";
     FileUtil::writeFile(program, petasearch_sh, petasearch_sh_len);

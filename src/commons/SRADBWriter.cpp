@@ -8,9 +8,7 @@
 #include "Timer.h"
 #include "Parameters.h"
 
-
 #define SIMDE_ENABLE_NATIVE_ALIASES
-
 #include <simde/simde-common.h>
 
 #include <cstdlib>
@@ -19,13 +17,10 @@
 #include <unistd.h>
 
 #ifdef OPENMP
-
 #include <omp.h>
-
 #endif
 
-SRADBWriter::SRADBWriter(const char *dataFileName_, const char *indexFileName_, unsigned int threads, size_t mode, int
-dbtype)
+SRADBWriter::SRADBWriter(const char *dataFileName_, const char *indexFileName_, unsigned int threads, size_t mode, int dbtype)
         : threads(threads), mode(mode), dbtype(dbtype) {
     dataFileName = strdup(dataFileName_);
     indexFileName = strdup(indexFileName_);

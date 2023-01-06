@@ -1,7 +1,7 @@
 #ifndef LOCALPARAMETERS_H
 #define LOCALPARAMETERS_H
 
-#include <Parameters.h>
+#include "Parameters.h"
 
 class LocalParameters : public Parameters {
 public:

@@ -30,7 +30,6 @@ int easypetasearch(int argc, const char **argv, const Command &command) {
     par.filenames.push_back(tmpDir);
 
     CommandCaller cmd;
-
     cmd.addVariable("PETASEARCH_PAR", par.createParameterString(par.petasearchworkflow).c_str());
     cmd.addVariable("CONVERTALIS_PAR",par.createParameterString(par.convertalignments).c_str());
 

@@ -1,7 +1,4 @@
-//
 // Created by matchy233 on 7/3/20.
-//
-
 #ifndef SRASEARCH_BITMANIPULATEMACROS_H
 #define SRASEARCH_BITMANIPULATEMACROS_H
 
@@ -19,4 +16,4 @@
 #define GET_MID_CHAR(num)          (0x40U | ((0x03e0U & num) >> 5U))
 #define GET_LOW_CHAR(num)          (0x40U | (0x001fU & num))
 
-#endif //SRASEARCH_BITMANIPULATEMACROS_H
+#endif

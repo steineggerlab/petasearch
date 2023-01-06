@@ -39,7 +39,6 @@ fi
 #"$MMSEQS" convertalis "$1" "$2" "${TMP_PATH}/res" "$3" ${CONVERTALIS_PAR} \
 #      || fail "creating  the .m8 file failed"
 
-
 # clear up tmp files
 if [ -n "$REMOVE_TMP" ]; then
     echo "Remove temporary files"

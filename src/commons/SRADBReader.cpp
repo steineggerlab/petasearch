@@ -17,9 +17,7 @@
 #include "FileUtil.h"
 
 #ifdef OPENMP
-
 #include <omp.h>
-
 #endif
 
 

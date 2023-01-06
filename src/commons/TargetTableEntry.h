@@ -6,5 +6,4 @@ struct __attribute__((__packed__)) TargetTableEntry
     unsigned int sequenceID;
     unsigned int sequenceLength;
 };
-
 #endif

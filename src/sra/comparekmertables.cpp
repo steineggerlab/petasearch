@@ -21,8 +21,8 @@
 #include <omp.h>
 #endif
 
-#define MEM_SIZE_16MB   ( (size_t) ( 16 * 1024 * 1024 ))
-#define MEM_SIZE_32MB   ( (size_t) ( 32 * 1024 * 1024 ))
+#define MEM_SIZE_16MB   ((size_t) ( 16 * 1024 * 1024 ))
+#define MEM_SIZE_32MB   ((size_t) ( 32 * 1024 * 1024 ))
 
 QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable,
                                        LocalParameters &par) {
@@ -130,7 +130,6 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     bool useProfileSearch = Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_HMM_PROFILE);
 
     BaseMatrix *subMat;
-
     if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
         subMat = new NucleotideMatrix(par.seedScoringMatrixFile.values.nucleotide().c_str(), 1.0, 0.0);
     } else if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_AMINO_ACIDS)) {
@@ -288,7 +287,6 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
 
     Debug(Debug::INFO) << "mapping query and target files \n";
     std::vector<QueryTableEntry> qTable;
-
     createQueryTable(par, qTable);
 
     // FIXME: accept single file input also

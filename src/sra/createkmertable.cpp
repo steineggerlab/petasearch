@@ -14,9 +14,7 @@
 #include <algorithm>
 
 #ifdef OPENMP
-
 #include <omp.h>
-
 #endif
 
 #define KMER_BUFSIZ 500000000
@@ -93,8 +91,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 
     size_t tableIndex = 0;
     Debug::Progress progress(reader.getSize());
-#pragma omp parallel default(none) \
-shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBufferSize)
+#pragma omp parallel default(none) shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBufferSize)
     {
         unsigned int thread_idx = 0;
 #ifdef OPENMP

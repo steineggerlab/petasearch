@@ -132,7 +132,6 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
     int dbaccessMode = needSequenceDB ? (DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA)
                                       : (DBReader<unsigned int>::USE_INDEX);
 
-
     const bool touch = (par.preloadMode != Parameters::PRELOAD_MODE_MMAP);
 
     IndexReader qDbr(par.db1, par.threads, IndexReader::SRC_SEQUENCES,
@@ -503,11 +502,8 @@ int convertsraalignments(int argc, const char **argv, const Command &command) {
 
     tDbrHeader.close();
 
-
     delete subMat;
     subMat = nullptr;
 
     return EXIT_SUCCESS;
 }
-
-

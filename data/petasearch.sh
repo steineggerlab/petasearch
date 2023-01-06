@@ -31,7 +31,6 @@ post_proc () {
 #[ ! -f "$2.dbtype" ] && echo "$2.dbtype not found!" && exit 1;
 [ ! -d "$5" ] && echo "tmp directory $5 not found! Creating it." && mkdir -p "$5";
 
-
 Q_DB="$1"
 T_DBs="$2"
 C_RES="$3"
@@ -40,8 +39,6 @@ ALI_RES="alis.out"
 M8_RES="alis.m8"
 FINAL_RES="$4"
 TMP_PATH="$5"
-
-
 
 
 # compare both k-mer tables
@@ -74,6 +71,3 @@ if [ -n "$REMOVE_TMP" ]; then
     echo "Remove temporary files"
     rm -rf "${TMP_PATH}"
 fi
-
-
-

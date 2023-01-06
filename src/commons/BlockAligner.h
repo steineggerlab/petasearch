@@ -1,13 +1,9 @@
-//
 // Created by Match on 8/13/2021.
-//
-
-#include <Matcher.h>
-#include "block_aligner.h"
-
 #ifndef SRASEARCH_BLOCKALIGNER_H
 #define SRASEARCH_BLOCKALIGNER_H
 
+#include "Matcher.h"
+#include "block_aligner.h"
 
 class BlockAligner {
 public:
@@ -47,5 +43,4 @@ private:
                            bool reverse = false);
 };
 
-
-#endif //SRASEARCH_BLOCKALIGNER_H
+#endif

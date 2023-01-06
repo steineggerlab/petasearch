@@ -1,9 +1,8 @@
 //
 // Created by matchy on 1/24/22.
 //
-
-#include <LocalParameters.h>
-#include <SRADBReader.h>
+#include "LocalParameters.h"
+#include "SRADBReader.h"
 
 int readandprint(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();

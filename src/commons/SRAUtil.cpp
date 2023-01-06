@@ -1,17 +1,14 @@
-//
 // Created by matchy on 2/1/22.
-//
-
-#include <cstring>
-#include <cstdlib>
 #include "SRAUtil.h"
 #include "Util.h"
 #include "FileUtil.h"
 #include "BaseMatrix.h"
 #include "Sequence.h"
 
-namespace SRAUtil {
+#include <cstring>
+#include <cstdlib>
 
+namespace SRAUtil {
     void strrev(char *strRev, const char *str, int len) {
         int start = 0;
         int end = len - 1;
@@ -22,13 +19,13 @@ namespace SRAUtil {
             --end;
         }
         strRev[len] = '\0';
-}
+    }
 
     char *substr(char *origStr, unsigned int start, unsigned int end) {
         char *subStr = static_cast<char *>(calloc(end - start + 1, sizeof(char)));
         strncpy(subStr, origStr + start, end - start);
         return subStr;
-}
+    }
 
     void stripInvalidChars(const char *src, char *dest) {
         size_t j, n = strlen(src);
@@ -43,7 +40,7 @@ namespace SRAUtil {
             }
         }
         dest[j] = '\0';
-}
+    }
 
     void stripInvalidChars(char *src) {
         size_t j, n = strlen(src);

@@ -1,4 +1,3 @@
-
 #include "FileUtil.h"
 #include "DBReader.h"
 #include "DBWriter.h"
@@ -87,7 +86,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     }
 
     /* Process all inputs */
-    #pragma omp parallel
+#pragma omp parallel
     {
         char buffer[4096];
 

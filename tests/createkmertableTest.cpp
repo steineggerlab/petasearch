@@ -2,7 +2,6 @@
 #include <fstream>
 #include <iostream>
 #include <stdio.h>
-//#include "MemoryMapped.h"
 #include <sys/mman.h>
 
 int main (int argc, char *argv[]){
@@ -32,7 +31,6 @@ int main (int argc, char *argv[]){
     
     munmap(pos,fileSize);
     fclose(handle);
-
 
     count = 0;
     lastRead = 0;

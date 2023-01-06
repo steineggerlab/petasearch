@@ -1,21 +1,11 @@
-//
 // Created by Match on 8/13/2021.
-//
-
-#include <DistanceCalculator.h>
-#include <cstring>
+#include "DistanceCalculator.h"
 #include "BlockAligner.h"
 #include "Sequence.h"
 #include "block_aligner.h"
 #include "Util.h"
 #include "Parameters.h"
 #include "SRAUtil.h"
-
-inline void swap(int &a, int &b) {
-    int temp = b;
-    b = a;
-    a = temp;
-}
 
 BlockAligner::BlockAligner(size_t maxSequenceLength,
                            uintptr_t min = 32, uintptr_t max = 32,

@@ -1,14 +1,12 @@
-
 #ifndef SRASEARCH_SRADBWRITER_H
 #define SRASEARCH_SRADBWRITER_H
 // For parallel write access, one each thread creates its own DB
 // After the parallel calculation are done, all DBs are merged into single DB
+#include "DBReader.h"
+#include "MemoryTracker.h"
 
 #include <string>
 #include <vector>
-
-#include "DBReader.h"
-#include "MemoryTracker.h"
 
 template <typename T> class DBReader;
 
@@ -92,4 +90,4 @@ private:
     std::string datafileMode;
 };
 
-#endif //SRASEARCH_SRADBWRITER_H
+#endif

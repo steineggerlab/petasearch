@@ -1,13 +1,9 @@
-//
 // Created by matchy on 2/1/22.
-//
+#ifndef SRASEARCH_SRAUTIL_H
+#include "BaseMatrix.h"
 
 #include <string>
 #include <vector>
-#include "BaseMatrix.h"
-
-#ifndef SRASEARCH_SRAUTIL_H
-
 
 namespace SRAUtil {
 /**
@@ -37,4 +33,4 @@ namespace SRAUtil {
 }
 #define SRASEARCH_SRAUTIL_H
 
-#endif //SRASEARCH_SRAUTIL_H
+#endif
