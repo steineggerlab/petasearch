@@ -3,9 +3,6 @@ name: Regression test
 on:
   push:
   pull_request:
-    branches:
-      - main
-      - master
 
 jobs:
   build:
@@ -13,11 +10,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          submodules: true
 
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
 
       - name: Build Petasearch
         run: |
@@ -25,32 +24,7 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
           make -j $(nproc --all)
-
-      - name: Download databases
+      
+      - name: Run Petasearch
         run: |
-          mkdir -p databases
-          srasearch databases UniProtKB/Swiss-Prot databases/swissprot tmp
-
-      - name: Build target dbs
-        run: |
-          srasearch convert2sradb databases/swissprot databases/swissprot_sra
-          srasearch createkmertable databases/swissprot_sra databases/swissprot_kmertable
-          echo -e "databases/swissprot_kmertable\tdatabases/swissprot_sra" > targetdbs
-          echo -e "databases/res_compk" > resultlist
-
-      - name: Build query db
-        run: |
-          sed 's/-//g' tests/MSA_Cas7-11_multiline.fa > tests/Cas7-11.fasta
-          srasearch createdb tests/Cas7-11.fasta tests/querydb
-          
-      - name: Reformat MSA to Stockholm
-        run: |
-          chmod +x tests/reformat.pl
-          tests/reformat.pl fas sto tests/MSA_Cas7-11_multiline.fa tests/MSA_Cas7-11_multiline.stockholm
-
-      - name: Build query profile db
-        run: |
-          srasearch convertmsa tests/MSA_Cas7-11_multiline.stockholm tests/msadb
-          srasearch msa2profile tests/msadb tests/query_profile
-          srasearch petasearch tests/querydb targetdbs resultlist alignments.m8 tmp
-          srasearch petasearch tests/query_profile targetdbs resultlist alignments_profile.m8 tmp
+          ./regression/run_regression.sh build/src/srasearch SCRATCH
