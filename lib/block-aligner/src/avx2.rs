@@ -11,6 +11,7 @@ pub type TraceType = i32;
 pub const L: usize = 16;
 pub const L_BYTES: usize = L * 2;
 pub const HALFSIMD_MUL: usize = 1;
+// using min = 0 is faster, but restricts range of scores (and restricts the max block size)
 pub const ZERO: i16 = 1 << 14;
 pub const MIN: i16 = 0;
 
@@ -130,6 +131,13 @@ macro_rules! simd_sr_i16 {
             }
         }
     };
+}
+
+// hardcoded to STEP = 8
+#[target_feature(enable = "avx2")]
+#[inline]
+pub unsafe fn simd_step(a: Simd, b: Simd) -> Simd {
+    _mm256_permute2x128_si256(a, b, 0x03)
 }
 
 #[target_feature(enable = "avx2")]
@@ -310,6 +318,7 @@ pub unsafe fn simd_prefix_scan_i16(R_max: Simd, gap_cost: Simd, gap_cost_lane: P
     // Also, make sure to use as little registers as possible to avoid
     // memory loads (latencies really matter since this is critical path).
     // Keep the CPU busy with instructions!
+    // Note: relies on min score = 0 for speed!
     let mut shift1 = simd_sllz_i16!(R_max, 1);
     shift1 = _mm256_adds_epi16(shift1, gap_cost);
     shift1 = _mm256_max_epi16(R_max, shift1);
