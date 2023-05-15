@@ -27,6 +27,7 @@ set(util_source_files
         util/extractorfs.cpp
         util/orftocontig.cpp
         util/touchdb.cpp
+        util/filtera3m.cpp
         util/filterdb.cpp
         util/gff2db.cpp
         util/renamedbkeys.cpp
@@ -42,6 +43,7 @@ set(util_source_files
         util/pairaln.cpp
         util/prefixid.cpp
         util/profile2pssm.cpp
+        util/profile2neff.cpp
         util/profile2seq.cpp
         util/result2dnamsa.cpp
         util/result2flat.cpp
