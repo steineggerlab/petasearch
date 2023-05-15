@@ -332,7 +332,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
             /* Open target table in direct mode */
             int fdTargetTable = open(targetName.c_str(), MODE);
             if (fdTargetTable < 0) {
-                Debug(Debug::ERROR) << "Open target table " << targetName << "failed\n";
+                Debug(Debug::ERROR) << "Open target table " << targetName << " failed\n";
                 EXIT(EXIT_FAILURE);
             }
 #if !defined(O_DIRECT) && defined(F_NOCACHE)
