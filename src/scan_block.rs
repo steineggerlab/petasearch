@@ -1,5 +1,8 @@
 //! Main block aligner algorithm and supporting data structures.
 
+#[cfg(feature = "simd_sse2")]
+use crate::sse2::*;
+
 #[cfg(feature = "simd_avx2")]
 use crate::avx2::*;
 
@@ -82,6 +85,7 @@ pub struct Block<const TRACE: bool, const X_DROP: bool> {
 
 macro_rules! align_core_gen {
     ($fn_name:ident, $matrix_or_profile:tt, $state:tt, $place_block_right_fn:path, $place_block_down_fn:path) => {
+        #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
         #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
         #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
         #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -125,9 +129,13 @@ macro_rules! align_core_gen {
                 }
 
                 prev_off = off;
+
+                // grow_D_max is an auxiliary value used when growing because it requires two separate
+                // place_block steps
                 let mut grow_D_max = simd_set1_i16(MIN);
-                let mut grow_D_argmax = simd_set1_i16(0);
-                let (D_max, D_argmax, mut right_max, mut down_max) = match dir {
+                let mut grow_D_argmax_i = simd_set1_i16(0);
+                let mut grow_D_argmax_j = simd_set1_i16(0);
+                let (D_max, D_argmax_i, D_argmax_j, mut right_max, mut down_max) = match dir {
                     Direction::Right => {
                         off = off_max;
                         #[cfg(feature = "debug")]
@@ -143,7 +151,7 @@ macro_rules! align_core_gen {
 
                         // compute new elements in the block as a result of shifting by the step size
                         // this region should be block_size x step
-                        let (D_max, D_argmax) = $place_block_right_fn(
+                        let (D_max, D_argmax_i, D_argmax_j) = $place_block_right_fn(
                             &state,
                             state.query,
                             state.reference,
@@ -175,7 +183,7 @@ macro_rules! align_core_gen {
                         // sum of a couple elements on the bottom border
                         let down_max = Self::prefix_max(self.allocated.D_row.as_ptr());
 
-                        (D_max, D_argmax, right_max, down_max)
+                        (D_max, D_argmax_i, D_argmax_j, right_max, down_max)
                     },
                     Direction::Down => {
                         off = off_max;
@@ -192,7 +200,7 @@ macro_rules! align_core_gen {
 
                         // compute new elements in the block as a result of shifting by the step size
                         // this region should be step x block_size
-                        let (D_max, D_argmax) = $place_block_down_fn(
+                        let (D_max, D_argmax_i, D_argmax_j) = $place_block_down_fn(
                             &state,
                             state.reference,
                             state.query,
@@ -224,7 +232,7 @@ macro_rules! align_core_gen {
                         // sum of a couple elements on the right border
                         let right_max = Self::prefix_max(self.allocated.D_col.as_ptr());
 
-                        (D_max, D_argmax, right_max, down_max)
+                        (D_max, D_argmax_i, D_argmax_j, right_max, down_max)
                     },
                     Direction::Grow => {
                         D_corner = simd_set1_i16(MIN);
@@ -241,7 +249,7 @@ macro_rules! align_core_gen {
 
                         // down
                         // this region should be prev_size x prev_size
-                        let (D_max1, D_argmax1) = $place_block_down_fn(
+                        let (D_max1, D_argmax_i1, D_argmax_j1) = $place_block_down_fn(
                             &state,
                             state.reference,
                             state.query,
@@ -267,7 +275,7 @@ macro_rules! align_core_gen {
 
                         // right
                         // this region should be block_size x prev_size
-                        let (D_max2, D_argmax2) = $place_block_right_fn(
+                        let (D_max2, D_argmax_i2, D_argmax_j2) = $place_block_right_fn(
                             &state,
                             state.query,
                             state.reference,
@@ -287,7 +295,8 @@ macro_rules! align_core_gen {
                         let right_max = Self::prefix_max(self.allocated.D_col.as_ptr());
                         let down_max = Self::prefix_max(self.allocated.D_row.as_ptr());
                         grow_D_max = D_max1;
-                        grow_D_argmax = D_argmax1;
+                        grow_D_argmax_i = D_argmax_i1;
+                        grow_D_argmax_j = D_argmax_j1;
 
                         // must update the checkpoint saved values just in case
                         // the block must grow again from this position
@@ -304,16 +313,16 @@ macro_rules! align_core_gen {
                             self.allocated.trace.save_ckpt();
                         }
 
-                        (D_max2, D_argmax2, right_max, down_max)
+                        (D_max2, D_argmax_i2, D_argmax_j2, right_max, down_max)
                     }
                 };
 
                 prev_dir = dir;
                 let D_max_max = simd_hmax_i16(D_max);
-                // grow max is an auxiliary value used when growing because it requires two separate
-                // place_block steps
                 let grow_max = simd_hmax_i16(grow_D_max);
                 // max score of the entire block
+                // note that other than off_max and best_max, the other maxs are relative to the
+                // offsets off and ZERO
                 let max = cmp::max(D_max_max, grow_max);
                 off_max = off + (max as i32) - (ZERO as i32);
                 #[cfg(feature = "debug")]
@@ -328,9 +337,10 @@ macro_rules! align_core_gen {
                         // TODO: move outside loop
                         // calculate location with the best score
                         let lane_idx = simd_hargmax_i16(D_max, D_max_max);
-                        let idx = simd_slow_extract_i16(D_argmax, lane_idx) as usize;
-                        let r = (idx % (block_size / L)) * L + lane_idx;
-                        let c = (block_size - STEP) + idx / (block_size / L);
+                        let idx_i = simd_slow_extract_i16(D_argmax_i, lane_idx) as usize;
+                        let idx_j = simd_slow_extract_i16(D_argmax_j, lane_idx) as usize;
+                        let r = idx_i + lane_idx;
+                        let c = (block_size - STEP) + idx_j;
 
                         match dir {
                             Direction::Right => {
@@ -343,14 +353,17 @@ macro_rules! align_core_gen {
                             },
                             Direction::Grow => {
                                 // max could be in either block
-                                if max >= grow_max {
-                                    best_argmax_i = state.i + (idx % (block_size / L)) * L + lane_idx;
-                                    best_argmax_j = state.j + prev_size + idx / (block_size / L);
+                                if D_max_max >= grow_max {
+                                    // grow right
+                                    best_argmax_i = state.i + idx_i + lane_idx;
+                                    best_argmax_j = state.j + prev_size + idx_j;
                                 } else {
+                                    // grow down
                                     let lane_idx = simd_hargmax_i16(grow_D_max, grow_max);
-                                    let idx = simd_slow_extract_i16(grow_D_argmax, lane_idx) as usize;
-                                    best_argmax_i = state.i + prev_size + idx / (prev_size / L);
-                                    best_argmax_j = state.j + (idx % (prev_size / L)) * L + lane_idx;
+                                    let idx_i = simd_slow_extract_i16(grow_D_argmax_i, lane_idx) as usize;
+                                    let idx_j = simd_slow_extract_i16(grow_D_argmax_j, lane_idx) as usize;
+                                    best_argmax_i = state.i + prev_size + idx_j;
+                                    best_argmax_j = state.j + idx_i + lane_idx;
                                 }
                             }
                         }
@@ -543,6 +556,11 @@ macro_rules! align_core_gen {
 
 /// Place block right or down for sequence-profile alignment.
 ///
+/// Although conceptually blocks are squares, this function is actually used to compute any
+/// rectangular region. For example, when shifting a block right by some step
+/// size, only the rectangular region with width = step size needs to be computed, since
+/// the new shifted block will partially overlap with the previous block.
+///
 /// Assumes all inputs are already relative to the current offset.
 ///
 /// Inside this function, everything will be treated as shifting right,
@@ -553,6 +571,7 @@ macro_rules! align_core_gen {
 /// is aligned to a profile.
 macro_rules! place_block_profile_gen {
     ($fn_name:ident, $query: ident, $query_type: ty, $reference: ident, $reference_type: ty, $q: ident, $r: ident, $right: expr) => {
+        #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
         #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
         #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
         #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -570,12 +589,12 @@ macro_rules! place_block_profile_gen {
                                        D_row: *mut i16,
                                        R_row: *mut i16,
                                        mut D_corner: Simd,
-                                       _right: bool) -> (Simd, Simd) {
+                                       _right: bool) -> (Simd, Simd, Simd) {
             let gap_extend = simd_set1_i16($r.get_gap_extend() as i16);
             let (gap_extend_all, prefix_scan_consts) = get_prefix_scan_consts(gap_extend);
             let mut D_max = simd_set1_i16(MIN);
-            let mut D_argmax = simd_set1_i16(0);
-            let mut curr_i = simd_set1_i16(0);
+            let mut D_argmax_i = simd_set1_i16(0);
+            let mut D_argmax_j = simd_set1_i16(0);
 
             let mut idx = 0;
             let mut gap_open_C = simd_set1_i16(MIN);
@@ -584,7 +603,7 @@ macro_rules! place_block_profile_gen {
             let mut gap_close_R = simd_set1_i16(MIN);
 
             if width == 0 || height == 0 {
-                return (D_max, D_argmax);
+                return (D_max, D_argmax_i, D_argmax_j);
             }
 
             // hottest loop in the whole program
@@ -680,8 +699,8 @@ macro_rules! place_block_profile_gen {
                     if X_DROP {
                         // keep track of the best score and its location
                         let mask = simd_cmpeq_i16(D_max, D11);
-                        D_argmax = simd_blend_i8(D_argmax, curr_i, mask);
-                        curr_i = simd_adds_i16(curr_i, simd_set1_i16(1));
+                        D_argmax_i = simd_blend_i8(D_argmax_i, simd_set1_i16(i as i16), mask);
+                        D_argmax_j = simd_blend_i8(D_argmax_j, simd_set1_i16(j as i16), mask);
                     }
 
                     simd_store(D_col.add(i) as _, D11);
@@ -705,7 +724,7 @@ macro_rules! place_block_profile_gen {
                 }
             }
 
-            (D_max, D_argmax)
+            (D_max, D_argmax_i, D_argmax_j)
         }
     };
 }
@@ -758,7 +777,7 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
     /// computed, even when the the strings are long.
     ///
     /// When aligning sequences `q` against `r`, this algorithm computes cells in the DP matrix
-    /// with `|q|` rows and `|r|` columns.
+    /// with `|q| + 1` rows and `|r| + 1` columns.
     ///
     /// X-drop alignment with `ByteMatrix` is not supported.
     pub fn align<M: Matrix>(&mut self, query: &PaddedBytes, reference: &PaddedBytes, matrix: &M, gaps: Gaps, size: RangeInclusive<usize>, x_drop: i32) {
@@ -817,7 +836,7 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
     /// computed, even when the the strings are long.
     ///
     /// When aligning sequence `q` against profile `p`, this algorithm computes cells in the DP matrix
-    /// with `|q|` rows and `|p|` columns.
+    /// with `|q| + 1` rows and `|p| + 1` columns.
     pub fn align_profile<P: Profile>(&mut self, query: &PaddedBytes, profile: &P, size: RangeInclusive<usize>, x_drop: i32) {
         // check invariants so bad stuff doesn't happen later
         assert!(profile.get_gap_extend() < 0, "Gap extend cost must be negative!");
@@ -846,6 +865,7 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
     align_core_gen!(align_core, Matrix, State, Self::place_block, Self::place_block);
     align_core_gen!(align_profile_core, Profile, StateProfile, Self::place_block_profile_right, Self::place_block_profile_down);
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -862,15 +882,17 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
         }
     }
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
     #[allow(non_snake_case)]
     #[inline]
     unsafe fn prefix_max(buf: *const i16) -> i16 {
-        simd_prefix_hadd_i16!(simd_load(buf as _), STEP)
+        simd_prefix_hmax_i16!(simd_load(buf as _), STEP)
     }
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -880,20 +902,13 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
         simd_suffix_hmax_i16!(simd_load(buf.add(buf_len - L) as _), SHRINK_SUFFIX_LEN)
     }
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
     #[allow(non_snake_case)]
     #[inline]
     unsafe fn shift_and_offset(block_size: usize, buf1: *mut i16, buf2: *mut i16, temp_buf1: *mut i16, temp_buf2: *mut i16, off_add: Simd) -> Simd {
-        #[inline]
-        unsafe fn sr(a: Simd, b: Simd) -> Simd {
-            if STEP == L {
-                a
-            } else {
-                simd_sr_i16!(a, b, STEP)
-            }
-        }
         let mut curr1 = simd_adds_i16(simd_load(buf1 as _), off_add);
         let D_corner = simd_set1_i16(simd_extract_i16!(curr1, STEP - 1));
         let mut curr2 = simd_adds_i16(simd_load(buf2 as _), off_add);
@@ -902,8 +917,8 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
         while i < block_size - L {
             let next1 = simd_adds_i16(simd_load(buf1.add(i + L) as _), off_add);
             let next2 = simd_adds_i16(simd_load(buf2.add(i + L) as _), off_add);
-            simd_store(buf1.add(i) as _, sr(next1, curr1));
-            simd_store(buf2.add(i) as _, sr(next2, curr2));
+            simd_store(buf1.add(i) as _, simd_step(next1, curr1));
+            simd_store(buf2.add(i) as _, simd_step(next2, curr2));
             curr1 = next1;
             curr2 = next2;
             i += L;
@@ -911,12 +926,17 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
 
         let next1 = simd_load(temp_buf1 as _);
         let next2 = simd_load(temp_buf2 as _);
-        simd_store(buf1.add(block_size - L) as _, sr(next1, curr1));
-        simd_store(buf2.add(block_size - L) as _, sr(next2, curr2));
+        simd_store(buf1.add(block_size - L) as _, simd_step(next1, curr1));
+        simd_store(buf2.add(block_size - L) as _, simd_step(next2, curr2));
         D_corner
     }
 
     /// Place block right or down for sequence-sequence alignment.
+    ///
+    /// Although conceptually blocks are squares, this function is actually used to compute any
+    /// rectangular region. For example, when shifting a block right by some step
+    /// size, only the rectangular region with width = step size needs to be computed, since
+    /// the new shifted block will partially overlap with the previous block.
     ///
     /// Assumes all inputs are already relative to the current offset.
     ///
@@ -926,6 +946,7 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
     ///
     /// The same function can be reused for right and down shifts because
     /// sequence to sequence alignment is symmetric.
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -943,16 +964,16 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
                                      D_row: *mut i16,
                                      R_row: *mut i16,
                                      mut D_corner: Simd,
-                                     right: bool) -> (Simd, Simd) {
+                                     right: bool) -> (Simd, Simd, Simd) {
         let gap_open = simd_set1_i16(state.gaps.open as i16);
         let gap_extend = simd_set1_i16(state.gaps.extend as i16);
         let (gap_extend_all, prefix_scan_consts) = get_prefix_scan_consts(gap_extend);
         let mut D_max = simd_set1_i16(MIN);
-        let mut D_argmax = simd_set1_i16(0);
-        let mut curr_i = simd_set1_i16(0);
+        let mut D_argmax_i = simd_set1_i16(0);
+        let mut D_argmax_j = simd_set1_i16(0);
 
         if width == 0 || height == 0 {
-            return (D_max, D_argmax);
+            return (D_max, D_argmax_i, D_argmax_j);
         }
 
         // hottest loop in the whole program
@@ -1033,8 +1054,8 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
                 if X_DROP {
                     // keep track of the best score and its location
                     let mask = simd_cmpeq_i16(D_max, D11);
-                    D_argmax = simd_blend_i8(D_argmax, curr_i, mask);
-                    curr_i = simd_adds_i16(curr_i, simd_set1_i16(1));
+                    D_argmax_i = simd_blend_i8(D_argmax_i, simd_set1_i16(i as i16), mask);
+                    D_argmax_j = simd_blend_i8(D_argmax_j, simd_set1_i16(j as i16), mask);
                 }
 
                 simd_store(D_col.add(i) as _, D11);
@@ -1061,7 +1082,7 @@ impl<const TRACE: bool, const X_DROP: bool> Block<{ TRACE }, { X_DROP }> {
             }
         }
 
-        (D_max, D_argmax)
+        (D_max, D_argmax_i, D_argmax_j)
     }
 
     place_block_profile_gen!(place_block_profile_right, query, &PaddedBytes, reference, &P, query, reference, true);
@@ -1152,6 +1173,7 @@ impl Allocated {
         }
     }
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -1228,6 +1250,7 @@ impl Trace {
         self.reference_len = reference_len;
     }
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -1510,6 +1533,7 @@ impl Aligned {
         Self { layout, ptr }
     }
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -1521,6 +1545,7 @@ impl Aligned {
         }
     }
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -1529,6 +1554,7 @@ impl Aligned {
         simd_store(self.ptr.add(idx) as _, simd_load(o.as_ptr().add(idx) as _));
     }
 
+    #[cfg_attr(feature = "simd_sse2", target_feature(enable = "sse2"))]
     #[cfg_attr(feature = "simd_avx2", target_feature(enable = "avx2"))]
     #[cfg_attr(feature = "simd_wasm", target_feature(enable = "simd128"))]
     #[cfg_attr(feature = "simd_neon", target_feature(enable = "neon"))]
@@ -1764,6 +1790,13 @@ mod tests {
         let q = PaddedBytes::from_bytes::<AAMatrix>(b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 16);
         a.align(&q, &r, &BLOSUM62, test_gaps, 16..=16, 1);
         assert_eq!(a.res(), AlignResult { score: 60, query_idx: 15, reference_idx: 15 });
+
+        let mut a = Block::<true, true>::new(2048, 2048, 2048);
+        let long_str = std::iter::repeat(b'A').take(2048).collect::<Vec<_>>();
+        let r = PaddedBytes::from_bytes::<AAMatrix>(&long_str, 2048);
+        let q = PaddedBytes::from_bytes::<AAMatrix>(&long_str, 2048);
+        a.align(&q, &r, &BLOSUM62, test_gaps, 2048..=2048, 100);
+        assert_eq!(a.res(), AlignResult { score: 8192, query_idx: 2048, reference_idx: 2048 });
     }
 
     #[test]
