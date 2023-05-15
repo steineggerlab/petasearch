@@ -5,7 +5,7 @@ add_custom_command(
         ${CMAKE_CURRENT_SOURCE_DIR}/c/block_aligner.h
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/c
         COMMAND make block_aligner
-        COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/target/debug/libblock_aligner.a ${CMAKE_CURRENT_SOURCE_DIR}/c/
+        COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/target/release/libblock_aligner.a ${CMAKE_CURRENT_SOURCE_DIR}/c/
 )
 
 # https://stackoverflow.com/questions/31274577/custom-target-as-a-target-library-in-cmake
