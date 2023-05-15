@@ -54,6 +54,7 @@ extern int extractalignedregion(int argc, const char **argv, const Command& comm
 extern int extractdomains(int argc, const char **argv, const Command& command);
 extern int extractorfs(int argc, const char **argv, const Command& command);
 extern int extractframes(int argc, const char **argv, const Command& command);
+extern int filtera3m(int argc, const char **argv, const Command& command);
 extern int filterdb(int argc, const char **argv, const Command& command);
 extern int filterresult(int argc, const char **argv, const Command& command);
 extern int gff2db(int argc, const char **argv, const Command& command);
@@ -86,6 +87,7 @@ extern int prefilter(int argc, const char **argv, const Command& command);
 extern int prefixid(int argc, const char **argv, const Command& command);
 extern int profile2cs(int argc, const char **argv, const Command& command);
 extern int profile2pssm(int argc, const char **argv, const Command& command);
+extern int profile2neff(int argc, const char **argv, const Command& command);
 extern int profile2consensus(int argc, const char **argv, const Command& command);
 extern int profile2repseq(int argc, const char **argv, const Command& command);
 extern int proteinaln2nucl(int argc, const char **argv, const Command& command);
