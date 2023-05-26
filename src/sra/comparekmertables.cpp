@@ -1,5 +1,4 @@
 #include "LocalParameters.h"
-#include "Command.h"
 #include "Debug.h"
 #include "NucleotideMatrix.h"
 #include "ExtendedSubstitutionMatrix.h"
@@ -8,7 +7,6 @@
 #include "MathUtil.h"
 #include "QueryTableEntry.h"
 #include "DBWriter.h"
-//#include "MemoryMapped.h"
 #include "BitManipulateMacros.h"
 #include "SRAUtil.h"
 #include "FastSort.h"
@@ -21,11 +19,12 @@
 #include <omp.h>
 #endif
 
-#define MEM_SIZE_16MB   ((size_t) ( 16 * 1024 * 1024 ))
-#define MEM_SIZE_32MB   ((size_t) ( 32 * 1024 * 1024 ))
+#define MEM_SIZE_16MB ((size_t) (16 * 1024 * 1024))
+#define MEM_SIZE_32MB ((size_t) (32 * 1024 * 1024))
 
-QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable,
-                                       LocalParameters &par) {
+QueryTableEntry *removeNotHitSequences(
+    QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, unsigned int requiredKmerMatches
+) {
     QueryTableEntry *currentReadPos = startPos;
     QueryTableEntry *currentWritePos = resultTable;
     while (currentReadPos < endPos) {
@@ -37,7 +36,7 @@ QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntr
             ++count;
             ++currentReadPos;
         }
-        if (count > par.requiredKmerMatches) {
+        if (count > requiredKmerMatches) {
             memcpy(currentWritePos, currentReadPos - (count - 1), sizeof(QueryTableEntry) * count);
             currentWritePos += count;
         }
@@ -47,12 +46,13 @@ QueryTableEntry *removeNotHitSequences(QueryTableEntry *startPos, QueryTableEntr
 }
 
 inline void parallelReadIntoVec(
-        int fd,
-        std::vector<void *> &destBlocks,
-        std::vector<ssize_t> &destBlockSize,
-        size_t blockSize,
-        bool allocateNewSpace = true,
-        size_t offsetBlock = 0) {
+    int fd,
+    std::vector<void *> &destBlocks,
+    std::vector<ssize_t> &destBlockSize,
+    size_t blockSize,
+    bool allocateNewSpace = true,
+    size_t offsetBlock = 0
+) {
     size_t end = destBlocks.size();
 #pragma omp parallel for schedule(dynamic, 10)
     for (size_t j = 0; j < end; j++) {
@@ -66,7 +66,7 @@ inline void parallelReadIntoVec(
         }
         off_t offset = (off_t) ((offsetBlock * end + j) * blockSize);
         if ((destBlockSize[j] = pread(fd, destBlocks[j], blockSize, offset)) < 0) {
-            Debug(Debug::ERROR) << "Cannot read the " << (j + 1) << "th chunk from target table\n";
+            Debug(Debug::ERROR) << "Cannot read chunk #" << (j + 1) << " from target table\n";
             EXIT(EXIT_FAILURE);
         }
     }
@@ -127,7 +127,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
 
     int seqType = FileUtil::parseDbType(par.db1.c_str());
 
-    bool useProfileSearch = Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_HMM_PROFILE);
+    const bool useProfileSearch = Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_HMM_PROFILE);
 
     BaseMatrix *subMat;
     if (Parameters::isEqualDbtype(seqType, Parameters::DBTYPE_NUCLEOTIDES)) {
@@ -141,20 +141,13 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
         EXIT(EXIT_FAILURE);
     }
 
-    DBReader<unsigned int> reader(par.db1.c_str(), par.db1Index.c_str(), par.threads,
-                                  DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
+    DBReader<unsigned int> reader(
+        par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA
+    );
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
+    Debug(Debug::INFO) << "Input preparation time: " << timer.lap() << "\n";
 
-    Debug(Debug::INFO) << "input prepared, time spent: " << timer.lap() << "\n";
-
-    size_t kmerCount = 0;
-#pragma omp parallel for reduction(+:kmerCount) default(none) shared(reader, par)
-    for (size_t i = 0; i < reader.getSize(); ++i) {
-        size_t currentSequenceLength = reader.getSeqLen(i);
-        //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength >= (size_t) par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
-    }
-
+    const unsigned int kmerSize = par.kmerSize;
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n";
 
     // FIXME: should not be hard coded. This is only good for k = 9
@@ -162,7 +155,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     size_t tableCapacity = (size_t) (similarKmerFactor * (double) (kmerCount + 1));
     queryTable.reserve(tableCapacity);
 
-    int xIndex = subMat->aa2num[(int) 'X'];
+    const int xIndex = subMat->aa2num[(int) 'X'];
 
     ScoreMatrix twoMatrix, threeMatrix;
     if (!useProfileSearch) {
@@ -176,17 +169,15 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
 shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch, xIndex)
     {
         unsigned int thread_idx = 0;
-        unsigned int total_threads = 1;
 #ifdef OPENMP
         thread_idx = (unsigned int) omp_get_thread_num();
-        total_threads = (unsigned int) omp_get_num_threads();
 #endif
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
         Sequence sequence(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false,
                           useProfileSearch ? false : true);
 
-        KmerGenerator kmerGenerator(par.kmerSize, subMat->alphabetSize - 1,
-                                    useProfileSearch ? par.kmerScore.values.profile() : par.kmerScore.values.sequence());
+        const int kmerThr = useProfileSearch ? par.kmerScore.values.profile() : par.kmerScore.values.sequence();
+        KmerGenerator kmerGenerator(kmerSize, subMat->alphabetSize - 1, kmerThr);
 
         if (useProfileSearch && sequence.profile_matrix != nullptr) {
             kmerGenerator.setDivideStrategy(sequence.profile_matrix);
@@ -203,13 +194,13 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
             unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, (int) thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
-            sequence.mapSequence(i, 0, data, seqLen);
+            sequence.mapSequence(i, key, data, seqLen);
 
             while (sequence.hasNextKmer()) {
                 const unsigned char *kmer = sequence.nextKmer();
 
-                int xCount = 0;
-                for (int pos = 0; pos < par.kmerSize; ++pos) {
+                unsigned int xCount = 0;
+                for (unsigned int pos = 0; pos < kmerSize; ++pos) {
                     xCount += (kmer[pos] == xIndex);
                 }
 
@@ -262,12 +253,13 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
         queryTable.insert(queryTable.end(), localTable.begin(), localTable.end());
     }
     Debug(Debug::INFO) << "\nk-mers: " << queryTable.size()
+                       << "\nk-mers per pos: " << (double) queryTable.size() / (double) reader.getAminoAcidDBSize()
                        << "\nRequired Memory: " << queryTable.size() * sizeof(QueryTableEntry) / 1024 / 1024 << " MB"
                        << "\ntime: " << timer.lap() << "\n";
 
-    Debug(Debug::INFO) << "start sorting \n";
+    timer.reset();
     SORT_PARALLEL(queryTable.begin(), queryTable.end(), queryTableSort);
-    Debug(Debug::INFO) << "Required time for sorting: " << timer.lap() << "\n";
+    Debug(Debug::INFO) << "Sorting time: " << timer.lap() << "\n";
 
     delete subMat;
     subMat = nullptr;
@@ -285,7 +277,6 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
 
     par.parseParameters(argc, argv, command, true, 0, LocalParameters::PARSE_VARIADIC);
 
-    Debug(Debug::INFO) << "mapping query and target files \n";
     std::vector<QueryTableEntry> qTable;
     createQueryTable(par, qTable);
 
@@ -293,44 +284,46 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
     std::vector<std::string> targetTables = SRAUtil::getFileNamesFromFile(par.db2);
     std::vector<std::string> resultFiles = SRAUtil::getFileNamesFromFile(par.db3);
     if (targetTables.empty()) {
-        Debug(Debug::ERROR) << "Expected at least one targetTable entry in the target table file \n";
+        Debug(Debug::ERROR) << "Expected at least one targetTable entry in the target table file\n";
         EXIT(EXIT_FAILURE);
     }
     if (targetTables.size() != resultFiles.size()) {
-        Debug(Debug::ERROR) << " number of targetTable file entries and result file entries is not equal \n";
+        Debug(Debug::ERROR) << "Number of targetTable and result table is not equal\n";
         EXIT(EXIT_FAILURE);
     }
 
-    unsigned long queryTableSize = qTable.size() * sizeof(QueryTableEntry);
-    size_t numQTableAvailInMem = Util::getTotalSystemMemory() / 3 / queryTableSize;
-    size_t chunkSize = numQTableAvailInMem >= targetTables.size() ? 1 : targetTables.size() / numQTableAvailInMem;
+    const unsigned long queryTableSize = qTable.size() * sizeof(QueryTableEntry);
+    const size_t numQTableAvailInMem = Util::getTotalSystemMemory() / 3 / queryTableSize;
+    const size_t chunkSize = numQTableAvailInMem >= targetTables.size() ? 1 : targetTables.size() / numQTableAvailInMem;
 
-    unsigned long MAXIMUM_NUM_OF_BLOCKS =
+    const unsigned long MAXIMUM_NUM_OF_BLOCKS =
             (Util::getTotalSystemMemory() - numQTableAvailInMem * queryTableSize) / (MEM_SIZE_16MB + MEM_SIZE_32MB);
-    unsigned long maximumNumOfBlocksPerDB = MAXIMUM_NUM_OF_BLOCKS / targetTables.size();
+    const unsigned long maximumNumOfBlocksPerDB = MAXIMUM_NUM_OF_BLOCKS / targetTables.size();
+    size_t localThreads = par.threads;
+#ifdef OPENMP
+    localThreads = std::max(std::min(localThreads, targetTables.size()), (size_t)1);
+#endif
 
-#pragma omp parallel num_threads(omp_get_num_threads() / targetTables.size()) \
-default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB, chunkSize)
+#pragma omp parallel num_threads(localThreads) default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB, chunkSize)
     {
-#pragma omp for schedule(dynamic, chunkSize)
+#pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < targetTables.size(); ++i) {
             Timer timer;
             std::vector<QueryTableEntry> localQTable(qTable); //creates a deep copy of the queryTable
-            Debug(Debug::INFO) << "Deep copy creating time: " << timer.lap() << "\n";
+            Debug(Debug::INFO) << "Deep copy time: " << timer.lap() << "\n";
             QueryTableEntry *startPosQueryTable = localQTable.data();
             QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
 
-            std::string targetName = targetTables[i];
+            const std::string& targetName = targetTables[i];
 
             timer.reset();
-            Debug(Debug::INFO) << "Loading files into memory...\n";
 #if !defined(O_DIRECT)
-            #define MODE  (O_RDONLY | O_SYNC)
+            const int mode = (O_RDONLY | O_SYNC);
 #else
-            #define MODE  (O_RDONLY | O_DIRECT | O_SYNC)
+            const int mode = (O_RDONLY | O_DIRECT | O_SYNC);
 #endif
             /* Open target table in direct mode */
-            int fdTargetTable = open(targetName.c_str(), MODE);
+            int fdTargetTable = open(targetName.c_str(), mode);
             if (fdTargetTable < 0) {
                 Debug(Debug::ERROR) << "Open target table " << targetName << " failed\n";
                 EXIT(EXIT_FAILURE);
@@ -340,7 +333,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
 #endif
 
             /* Open ID table in direct mode */
-            int fdIDTable = open((targetName + "_ids").c_str(), MODE);
+            int fdIDTable = open((targetName + "_ids").c_str(), mode);
             if (fdIDTable < 0) {
                 Debug(Debug::ERROR) << "Open ID table " << targetName << "_ids" << "failed\n";
                 EXIT(EXIT_FAILURE);
@@ -353,9 +346,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
             size_t targetTableSize = FileUtil::getFileSize(targetName);
             size_t idTableSize = FileUtil::getFileSize((targetName + "_ids"));
 
-            size_t totalNumOfTargetBlocks = targetTableSize / MEM_SIZE_16MB + (
-                    targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1
-            );
+            size_t totalNumOfTargetBlocks = targetTableSize / MEM_SIZE_16MB + (targetTableSize % MEM_SIZE_16MB == 0 ? 0 : 1);
             size_t totalNumOfIDBlocks = idTableSize / MEM_SIZE_32MB + (idTableSize % MEM_SIZE_32MB == 0 ? 0 : 1);
 
             size_t numOfTargetBlocks = std::min(maximumNumOfBlocksPerDB, totalNumOfTargetBlocks);
@@ -392,10 +383,6 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
 
             unsigned long long totalBlocksRead = numOfTargetBlocks;
             size_t targetReadGroup = 0;
-
-            Debug(Debug::INFO) << "Start comparing \n";
-
-            timer.reset();
 
             while (numOfTargetBlocks == totalNumOfTargetBlocks || totalBlocksRead < totalNumOfTargetBlocks) {
                 for (size_t j = 0; j < numOfTargetBlocks; j++) {
@@ -434,9 +421,9 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                                 ++IDTableIndex;
                                 if (UNLIKELY(IDTableIndex >= numOfIDBlocks)) {
                                     // parallel read
-                                    parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB,
-                                                        false,
-                                                        ++IDReadGroup);
+                                    parallelReadIntoVec(
+                                        fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB,  false, ++IDReadGroup
+                                    );
                                     IDTableIndex = 0;
                                 }
                                 startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
@@ -470,9 +457,9 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                                 ++IDTableIndex;
                                 if (UNLIKELY(IDTableIndex >= numOfIDBlocks)) {
                                     // parallel read
-                                    parallelReadIntoVec(fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB,
-                                                        false,
-                                                        ++IDReadGroup);
+                                    parallelReadIntoVec(
+                                        fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB, false, ++IDReadGroup
+                                    );
                                     IDTableIndex = 0;
                                 }
                                 startPosIDTable = (unsigned int *) IDTableBlocks[IDTableIndex];
@@ -502,9 +489,9 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                 if (numOfTargetBlocks == totalNumOfTargetBlocks) {
                     break;
                 }
-                parallelReadIntoVec(fdTargetTable, targetTableBlocks, targetTableBlockSize, MEM_SIZE_16MB,
-                                    false,
-                                    ++targetReadGroup);
+                parallelReadIntoVec(
+                    fdTargetTable, targetTableBlocks, targetTableBlockSize, MEM_SIZE_16MB, false, ++targetReadGroup
+                );
                 totalBlocksRead += numOfTargetBlocks;
             }
 
@@ -530,20 +517,20 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                 EXIT(EXIT_FAILURE);
             }
 
-            Debug(Debug::INFO) << "Sorting result table\n";
             timer.reset();
-            SORT_PARALLEL(startPosQueryTable, endQueryPos, resultTableSort);
-            Debug(Debug::INFO) << "Required time for sorting result table: " << timer.lap() << "\n";
+            SORT_SERIAL(startPosQueryTable, endQueryPos, resultTableSort);
+            Debug(Debug::INFO) << "Result table sort time: " << timer.lap() << "\n";
+            timer.reset();
 
-            Debug(Debug::INFO) << "Removing sequences with less than two hits\n";
             QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
-            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable,
-                                                                           par);
+            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par.requiredKmerMatches);
+            Debug(Debug::INFO) << "Duplicate elimination time: " << timer.lap() << "\n";
+            timer.reset();
 
-            Debug(Debug::INFO) << "Writing result files\n";
             std::string resultDB = resultFiles[i];
-            DBWriter writer(resultDB.c_str(), (resultDB + ".index").c_str(), 1, par.compressed,
-                            Parameters::DBTYPE_PREFILTER_RES);
+            DBWriter writer(
+                resultDB.c_str(), (resultDB + ".index").c_str(), 1, par.compressed, Parameters::DBTYPE_PREFILTER_RES
+            );
             writer.open();
 
             QueryTableEntry *startPos = resultTable;
@@ -565,6 +552,7 @@ default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cou
                 result.clear();
             }
             writer.close();
+            Debug(Debug::INFO) << "Result write time: " << timer.lap() << "\n";
 
             delete[] resultTable;
             resultTable = nullptr;

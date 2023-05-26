@@ -83,9 +83,11 @@ DistanceCalculator::LocalAlignment ungappedDiagFilter(
         }
         lastDiagonal = queries[i].Result.diag;
 
-        alignmentResult = DistanceCalculator::computeUngappedAlignment(querySeqData, querySeqLen, targetSeqData,
-                                                                       targetSeqLen, queries[i].Result.diag,
-                                                                       matrix, rescoreMode);
+        alignmentResult = DistanceCalculator::computeUngappedAlignment(
+            querySeqData, querySeqLen, targetSeqData,
+            targetSeqLen, queries[i].Result.diag,
+            matrix, rescoreMode
+        );
         queries[i].Result.score = alignmentResult.score;
 
         // if (protein) {
@@ -162,8 +164,8 @@ int blockalign(int argc, const char **argv, const Command &command) {
     par.evalThr = 1000000;
     par.parseParameters(argc, argv, command, true, 0, 0);
 
-    int inputSeqType = FileUtil::parseDbType(par.db1.c_str());
-    bool useProfileSearch = Parameters::isEqualDbtype(inputSeqType, Parameters::DBTYPE_HMM_PROFILE);
+    const int inputSeqType = FileUtil::parseDbType(par.db1.c_str());
+    const bool useProfileSearch = Parameters::isEqualDbtype(inputSeqType, Parameters::DBTYPE_HMM_PROFILE);
 
     // query target prev_result new_result is the order
     DBReader<unsigned int> querySequenceReader(par.db1.c_str(), par.db1Index.c_str(), par.threads,
@@ -172,7 +174,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
 
     SRADBReader targetSequenceReader(par.db2.c_str(), par.db2Index.c_str(), par.threads,
                                      DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
-    targetSequenceReader.open(DBReader<unsigned int>::NOSORT | DBReader<unsigned int>::LINEAR_ACCCESS);
+    targetSequenceReader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
 
     DBReader<unsigned int> resultReader(par.db3.c_str(), par.db3Index.c_str(), par.threads,
                                         DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX |
@@ -194,6 +196,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
     SubstitutionMatrix::FastMatrix fastMatrix = SubstitutionMatrix::createAsciiSubMat(*subMat);
     EvalueComputation evaluer(targetSequenceReader.getAminoAcidDBSize(), subMat);
 
+    const int xdrop = par.xdrop;
     Debug::Progress progress(resultReader.getSize());
 #pragma omp parallel
     {
@@ -201,17 +204,16 @@ int blockalign(int argc, const char **argv, const Command &command) {
 #ifdef OPENMP
         thread_idx = static_cast<unsigned int>(omp_get_thread_num());
 #endif
-        Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, useProfileSearch ? 0 : par.kmerSize, par.spacedKmer,
-                          false, !useProfileSearch);
+        Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, useProfileSearch ? 0 : par.kmerSize, par.spacedKmer, false, !useProfileSearch);
         Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 
-        int xdrop = par.xdrop;
-
-        BlockAligner blockAligner(par.maxSeqLen, par.rangeMin, par.rangeMax,
-                                  isNucDB ? -par.gapOpen.values.nucleotide() : -par.gapOpen.values.aminoacid(),
-                                  isNucDB ? -par.gapExtend.values.nucleotide() : -par.gapExtend.values.aminoacid());
+        BlockAligner blockAligner(
+            par.maxSeqLen, par.rangeMin, par.rangeMax,
+            isNucDB ? -par.gapOpen.values.nucleotide() : -par.gapOpen.values.aminoacid(),
+            isNucDB ? -par.gapExtend.values.nucleotide() : -par.gapExtend.values.aminoacid()
+        );
 
         char buffer[1024];
 
@@ -227,9 +229,10 @@ int blockalign(int argc, const char **argv, const Command &command) {
         BlockIterator it;
 
         unsigned long correct_count = 0;
-
 #pragma omp for schedule(dynamic, 10)
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
+            progress.updateProgress();
+
             size_t targetKey = resultReader.getDbKey(i);
             unsigned int targetId = targetKey;
             const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
@@ -245,8 +248,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
             targetKmers.reserve(targetSeqLen - par.kmerSize);
             while (targetSeq.hasNextKmer()) {
                 const unsigned char *kmer = targetSeq.nextKmer();
-                targetKmers.emplace_back(idx.int2index(kmer, 0, par.kmerSize),
-                                         targetSeq.getCurrentPosition());
+                targetKmers.emplace_back(idx.int2index(kmer, 0, par.kmerSize), targetSeq.getCurrentPosition());
             }
             std::sort(targetKmers.begin(), targetKmers.end(), kmerComparator);
 
@@ -268,7 +270,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     if (kmerFound) {
                         query.Result.diag = query.Query.kmerPosInQuery - kmer->kmerPos;
                     } else {
-                        Debug(Debug::ERROR) << "Found no matching k-mers between query and target sequence.\n";
+                        Debug(Debug::ERROR) << "Found no matching k-mers between query and target sequence\n";
                         EXIT(EXIT_FAILURE);
                     }
                 }
@@ -289,23 +291,26 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
 
                 if (useProfileSearch && realSeq.length() != querySeqLen) {
-                    Debug(Debug::ERROR) << "Qeury seq len is wrong!\nCorrect count: " << correct_count << "\n";
-                    Debug(Debug::ERROR) << "Retrieved sequence length: " << querySeqLen << "\n";
-                    Debug(Debug::ERROR) << "Newly measured sequence length: " << realSeq.length() << "\n";
+                    Debug(Debug::ERROR) << "Query sequence length is wrong!\n" 
+                                        << "Correct count: " << correct_count << "\n"
+                                        << "Retrieved sequence length: " << querySeqLen << "\n"
+                                        << "Newly measured sequence length: " << realSeq.length() << "\n";
                     EXIT(EXIT_FAILURE);
                 }
 
                 correct_count++;
-                DistanceCalculator::LocalAlignment aln = ungappedDiagFilter(queries,
-                                                                            useProfileSearch ? realSeq.c_str()
-                                                                                             : querySeqData,
-                                                                            querySeqLen,
-                                                                            targetSeqData,
-                                                                            targetSeqLen,
-                                                                            fastMatrix.matrix,
-                                                                            evaluer,
-                                                                            par.rescoreMode,
-                                                                            par.evalThr);
+                DistanceCalculator::LocalAlignment aln = ungappedDiagFilter(
+                    queries,
+                    useProfileSearch ? realSeq.c_str() : querySeqData,
+                    querySeqLen,
+                    targetSeqData,
+                    targetSeqLen,
+                    fastMatrix.matrix,
+                    evaluer,
+                    par.rescoreMode,
+                    par.evalThr
+                );
+
                 if (aln.diagonal == (int) INVALID_DIAG) {
                     continue;
                 }
@@ -327,17 +332,14 @@ int blockalign(int argc, const char **argv, const Command &command) {
 //                                   << res.alnLength
 //                                   << "\n\n";
             }
-
-            progress.updateProgress();
-//             std::sort(results.begin(), results.end(), Matcher::compareHits);
+//            std::sort(results.begin(), results.end(), Matcher::compareHits);
 //            for (size_t j = 0; j < results.size(); ++j) {
 //                size_t len = Matcher::resultToBuffer(buffer, results[j], false, false);
 //                result.append(buffer, len);
 //            }
-
-            // writer.writeData(result.c_str(), result.size(), targetKey, thread_idx);
-            //results.clear();
-            //result.clear();
+//            writer.writeData(result.c_str(), result.size(), targetKey, thread_idx);
+//            results.clear();
+//            result.clear();
         }
 
         SORT_PARALLEL(results.begin(), results.end(), matcherResultsSort);
@@ -350,8 +352,6 @@ int blockalign(int argc, const char **argv, const Command &command) {
             writer.writeData(buffer, len, results[i].dbKey, thread_idx);
         }
     }
-
-
 
 //#pragma omp parallel
 //    {
@@ -369,9 +369,6 @@ int blockalign(int argc, const char **argv, const Command &command) {
 //            writer.writeData(buffer, len, results[i].dbKey, thread_idx);
 //        }
 //    }
-
-    Debug(Debug::INFO) << "Compute Alignment finished, time spent: " << timer.lap() << "\n";
-
     writer.close(true);
 
     resultReader.close();

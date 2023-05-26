@@ -29,7 +29,6 @@ post_proc () {
 # check if files exist
 [ ! -f "$1.dbtype" ] && echo "$1.dbtype not found!" && exit 1;
 #[ ! -f "$2.dbtype" ] && echo "$2.dbtype not found!" && exit 1;
-[ ! -d "$5" ] && echo "tmp directory $5 not found! Creating it." && mkdir -p "$5";
 
 Q_DB="$1"
 T_DBs="$2"
@@ -40,13 +39,12 @@ M8_RES="alis.m8"
 FINAL_RES="$4"
 TMP_PATH="$5"
 
-
 # compare both k-mer tables
-#if [ ! -e "${TMP_PATH}/${C_RES}"  ]; then
+# if notExists "${C_RES}"; then
     # shellcheck disable=SC2086
     "$MMSEQS" comparekmertables "${Q_DB}" "${T_DBs}" "${C_RES}" ${COMP_KMER_TABLES_PAR} \
-        || fail "comparing both k-mer tables failed"
-#fi
+        || fail "comparing k-mer tables failed"
+# fi
 paste "${T_DBs}" "${C_RES}"  | column -s "\t" > "threecol.tsv"
 
 STEP=0
@@ -66,8 +64,8 @@ for i in $(seq 0 $STEP); do
   cat "${TMP_PATH}/${M8_RES}_${i}" >> "${FINAL_RES}"
 done
 
-# clear up tmp files
-if [ -n "$REMOVE_TMP" ]; then
-    echo "Remove temporary files"
-    rm -rf "${TMP_PATH}"
-fi
+# # clear up tmp files
+# if [ -n "$REMOVE_TMP" ]; then
+#     echo "Remove temporary files"
+#     rm -rf "${TMP_PATH}"
+# fi

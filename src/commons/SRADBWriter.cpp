@@ -225,7 +225,7 @@ void SRADBWriter::writeEnd(unsigned int thrIdx, bool addNullByte, bool addIndexE
 
 void SRADBWriter::writeIndexEntry(size_t offset, unsigned int thrIdx) {
     char buffer[1024];
-    size_t len = indexToBuffer(buffer,offset);
+    size_t len = indexToBuffer(buffer, offset);
     size_t written = fwrite(buffer, sizeof(char), len, indexFiles[thrIdx]);
     if (written != len) {
         Debug(Debug::ERROR) << "Can not write to data file " << dataFileName[thrIdx] << "\n";

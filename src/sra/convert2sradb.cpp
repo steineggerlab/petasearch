@@ -9,6 +9,10 @@
 
 #include "SRAUtil.h"
 
+#ifdef OPENMP
+#include <omp.h>
+#endif
+
 int convert2sradb(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
     par.parseParameters(argc, argv, command, true, Parameters::PARSE_VARIADIC, 0);
@@ -28,7 +32,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
      *    Here we assume that the input is a database if it has a
      *    corresponding ".dbtype" file
      */
-    bool isDbInput = FileUtil::fileExists(par.db1dbtype.c_str());
+   const bool isDbInput = FileUtil::fileExists(par.db1dbtype.c_str());
 
     /* Name output files and database type */
     int outputDbType = Parameters::DBTYPE_AMINO_ACIDS;
@@ -44,21 +48,16 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
     Debug::Progress progress;
 
-    Debug(Debug::INFO) << "Converting sequences" << newline;
-
     FILE *source = fopen(sourceFile.c_str(), "w");
     if (source == NULL) {
         Debug(Debug::ERROR) << "Cannot open " << sourceFile << " for writing\n";
         EXIT(EXIT_FAILURE);
     }
 
-    SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(),
-                          shuffleSplits, par.compressed,
-                          Parameters::DBTYPE_GENERIC_DB);
+    SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(), shuffleSplits, par.compressed, Parameters::DBTYPE_GENERIC_DB);
     hdrWriter.open();
-    SRADBWriter seqWriter(outputDataFile.c_str(), outputIndexFile.c_str(),
-                          shuffleSplits, par.compressed,
-                          Parameters::DBTYPE_AMINO_ACIDS);
+
+    SRADBWriter seqWriter(outputDataFile.c_str(), outputIndexFile.c_str(), shuffleSplits, par.compressed, Parameters::DBTYPE_AMINO_ACIDS);
     seqWriter.open();
 
     size_t fileCount = -1;
@@ -66,9 +65,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     DBReader<unsigned int> *hdrReader = NULL;
     std::vector<std::string> filenames;
 
-    /*
-     * We accept either a
-     * */
+    // We accept either a
     if (isDbInput) {
         reader = new DBReader<unsigned int>(par.db1.c_str(), par.db1Index.c_str(), 1,
                                             DBReader<unsigned int>::USE_DATA |
@@ -111,14 +108,13 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 EXIT(EXIT_FAILURE);
             }
 
-            // TODO: fix kseqbuffer so that we can use the same API
             KSeqWrapper *kseq = NULL;
             std::string seq = ">";
             if (isDbInput) {
                 // FIXME: this might also be wrong in certain cases; we need a CI to test all the cases
                 unsigned int trueId = reader->getIndex(fileIdx)->id;
-                seq.append(hdrReader->getData(trueId, 0));
-                seq.append(reader->getData(fileIdx, 0));
+                seq.append(hdrReader->getData(trueId, thread_idx));
+                seq.append(reader->getData(fileIdx, thread_idx));
                 kseq = new KSeqBuffer(seq.c_str(), seq.length());
             } else {
                 kseq = KSeqFactory(filenames[fileIdx].c_str());
@@ -192,9 +188,8 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         }
     }
 
-    Debug(Debug::INFO) << newline;
     if (fclose(source) != 0) {
-        Debug(Debug::ERROR) << "Cannot close file " << sourceFile << newline;
+        Debug(Debug::ERROR) << "Cannot close file " << sourceFile << "\n";
         EXIT(EXIT_FAILURE);
     }
 
@@ -202,7 +197,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
     hdrWriter.close(true);
     seqWriter.close(true);
-    Debug(Debug::INFO) << "Database type: SRA Database" << newline;
 
     if (isDbInput) {
         reader->close();
@@ -216,11 +210,9 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     if (entries_num == 0) {
         Debug(Debug::ERROR) << "The input files have no entry: ";
 //        for (size_t fileIdx = 0; fileIdx < filenames.size(); fileIdx++) {
-            Debug(Debug::ERROR) << " - " << par.db1 << newline;
+            Debug(Debug::ERROR) << " - " << par.db1 << "\n";
 //        }
-        Debug(Debug::ERROR) <<
-                            "Please check your input files. Only files in fasta/fastq[.gz|bz2] are supported"
-                            << newline;
+        Debug(Debug::ERROR) << "Only files in fasta/fastq[.gz|bz2] format are supported\n";
         EXIT(EXIT_FAILURE);
     }
 

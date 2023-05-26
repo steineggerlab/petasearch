@@ -27,7 +27,7 @@ BlockAligner::~BlockAligner() {
 
 void BlockAligner::initQuery(Sequence *query) {
     SRAUtil::stripInvalidChars(query->getSeqData(), querySeq);
-    querySeqLen = strlen(querySeq); // query->L;
+    querySeqLen = strlen(querySeq); // FIXME: query->L;
     SRAUtil::strrev(querySeqRev, querySeq, querySeqLen);
 }
 

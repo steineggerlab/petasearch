@@ -45,10 +45,8 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     par.spacedKmer = false;
     par.parseParameters(argc, argv, command, true, 0, 0);
     Timer timer;
-    Debug(Debug::INFO) << "Preparing input database\n";
 
-    SRADBReader reader(par.db1.c_str(), par.db1Index.c_str(), par.threads,
-                       DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
+    SRADBReader reader(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
     reader.open(DBReader<unsigned int>::LINEAR_ACCCESS);
 
     BaseMatrix *subMat;
@@ -60,21 +58,22 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     }
     Debug(Debug::INFO) << "input prepared, time spent: " << timer.lap() << "\n";
     size_t kmerCount = 0;
-#pragma omp parallel for reduction(+:kmerCount) default(none) shared(par, reader)
+    const unsigned int kmerSize = par.kmerSize;
+#pragma omp parallel for default(none) shared(par, reader) firstprivate(kmerSize) reduction(+:kmerCount)
     for (size_t i = 0; i < reader.getSize(); ++i) {
         size_t currentSequenceLength = reader.getSeqLen(i);
         //number of ungapped k-mers per sequence = seq.length-k-mer.size+1
-        kmerCount += currentSequenceLength >= (unsigned) par.kmerSize ? currentSequenceLength - par.kmerSize + 1 : 0;
+        kmerCount += currentSequenceLength >= (size_t) kmerSize ? currentSequenceLength - kmerSize + 1 : 0;
     }
     TargetTableEntry *targetTable = NULL;
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n"
                        << "Number of all overall kmers: " << kmerCount << "\n"
-                       << "Creating TargetTable. Requiring "
-                       << ((kmerCount + 1) * sizeof(TargetTableEntry)) / 1024 / 1024 << " MB of memory for it\n";
+                       << "Target table requires "
+                       << ((kmerCount + 1) * sizeof(TargetTableEntry)) / 1024 / 1024 << " MB memory\n";
 
     size_t targetTableSize = std::min(Util::getTotalSystemMemory() - 32UL * 1024UL * 1024UL * 1024UL, (kmerCount + 1) * sizeof(TargetTableEntry));
     // TODO: check if overflow with target maximum index
-    targetTable = (TargetTableEntry *) calloc(targetTableSize, sizeof(char));//
+    targetTable = (TargetTableEntry *) calloc(targetTableSize, sizeof(char));
     // (kmerCount + 1), sizeof(TargetTableEntry));
 
     if (targetTable == NULL) {
@@ -82,16 +81,14 @@ int createkmertable(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-    Debug(Debug::INFO) << "Memory allocated \n"
-                       << timer.lap() << "\n"
-                       << "Extracting k-mers\n";
+    const size_t pageSize = Util::getPageSize();
+    const size_t threadBufferSize = 16 * pageSize;
 
-    size_t pageSize = Util::getPageSize();
-    size_t threadBufferSize = 16 * pageSize;
+    const int xIndex = subMat->aa2num[(int) 'X'];
 
     size_t tableIndex = 0;
     Debug::Progress progress(reader.getSize());
-#pragma omp parallel default(none) shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBufferSize)
+#pragma omp parallel default(none) shared(par, subMat, seqType, reader, tableIndex, targetTable, pageSize, threadBufferSize) firstprivate(xIndex)
     {
         unsigned int thread_idx = 0;
 #ifdef OPENMP
@@ -99,17 +96,15 @@ int createkmertable(int argc, const char **argv, const Command &command) {
 #endif
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
         Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
-        TargetTableEntry *localBuffer = (TargetTableEntry *) mem_align(pageSize,
-                                                                       threadBufferSize * sizeof(TargetTableEntry));
+        TargetTableEntry *localBuffer = (TargetTableEntry *) mem_align(pageSize, threadBufferSize * sizeof(TargetTableEntry));
         size_t localTableIndex = 0;
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < reader.getSize(); ++i) {
 //            progress.updateProgress();
-//            unsigned int key = reader.getDbKey(i);
+            unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
-            s.mapSequence(i, 0, data, seqLen);
-            const int xIndex = s.subMat->aa2num[(int) 'X'];
+            s.mapSequence(i, key, data, seqLen);
             while (s.hasNextKmer()) {
                 const unsigned char *kmer = s.nextKmer();
                 int xCount = 0;
@@ -120,7 +115,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
                     continue;
                 }
 
-                localBuffer[localTableIndex].sequenceID = i;
+                localBuffer[localTableIndex].sequenceID = s.getId(); // for debug purposes: s.getDbKey();
                 localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
                 localBuffer[localTableIndex].sequenceLength = s.L;
                 ++localTableIndex;
@@ -139,11 +134,10 @@ int createkmertable(int argc, const char **argv, const Command &command) {
     }
 
     Debug(Debug::INFO) << "k-mers: " << tableIndex << " time: " << timer.lap() << "\n";
-    Debug(Debug::INFO) << "start sorting \n";
     SORT_PARALLEL(targetTable, targetTable + tableIndex, targetTableSort);
-    Debug(Debug::INFO) << timer.lap() << "\n";
+    Debug(Debug::INFO) << "Sorting time: " << timer.lap() << "\n";
     writeTargetTables(targetTable, tableIndex, par.db2);
-    Debug(Debug::INFO) << timer.lap() << "\n";
+    Debug(Debug::INFO) << "Writing time: " << timer.lap() << "\n";
     free(targetTable);
 
     delete subMat;
@@ -208,7 +202,7 @@ void writeTargetTables(TargetTableEntry *targetTable, size_t kmerCount, const st
     free(IDLocalBuf);
     fclose(handleKmerTable);
     fclose(handleIDTable);
-    Debug(Debug::INFO) << "Wrote " << uniqueKmerCount << " unique k-mers.\n";
+    Debug(Debug::INFO) << "Wrote " << uniqueKmerCount << " unique k-mers\n";
 //    Debug(Debug::INFO) << "For "<< entryDiffLargerUShortMax  << " entries the difference between the previous were larger than max short.\n";
 //    Debug(Debug::INFO) << "Created " << diffLargerThenUShortMax << " extra unsigned short max entries to store the diff.\n";
 }
