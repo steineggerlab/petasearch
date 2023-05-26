@@ -241,8 +241,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
 
             unsigned int queryKey = -1;
 
-            // TODO: this might be wasted if no single hit hit the target
-            blockAligner.initQuery(&targetSeq);
+            bool isBlockAlignerInit = false;
 
             std::vector<Kmer> targetKmers;
             targetKmers.reserve(targetSeqLen - par.kmerSize);
@@ -312,6 +311,11 @@ int blockalign(int argc, const char **argv, const Command &command) {
 
                 if (aln.diagonal == (int) INVALID_DIAG) {
                     continue;
+                }
+
+                if (isBlockAlignerInit == false) {
+                    blockAligner.initQuery(&targetSeq);
+                    isBlockAlignerInit = true;
                 }
 
                 Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop, subMat, useProfileSearch);
