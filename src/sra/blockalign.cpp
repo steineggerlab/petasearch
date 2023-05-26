@@ -250,10 +250,9 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 const unsigned char *kmer = targetSeq.nextKmer();
                 targetKmers.emplace_back(idx.int2index(kmer, 0, par.kmerSize), targetSeq.getCurrentPosition());
             }
-            std::sort(targetKmers.begin(), targetKmers.end(), kmerComparator);
+            SORT_SERIAL(targetKmers.begin(), targetKmers.end(), kmerComparator);
 
             // TODO: prefetch next sequence
-
             char *data = resultReader.getData(i, thread_idx);
             it.reset(data);
             while (it.getNext(queries)) {
@@ -275,7 +274,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     }
                 }
 
-                std::sort(queries.begin(), queries.end(), blockByDiagSort);
+                SORT_SERIAL(queries.begin(), queries.end(), blockByDiagSort);
                 if (isWithinNDiagonals(queries, 4) == false) {
                     continue;
                 }
