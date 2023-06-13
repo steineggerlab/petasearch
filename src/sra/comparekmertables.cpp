@@ -54,7 +54,7 @@ inline void parallelReadIntoVec(
     size_t offsetBlock = 0
 ) {
     size_t end = destBlocks.size();
-#pragma omp parallel for schedule(dynamic, 10)
+// #pragma omp parallel for schedule(dynamic, 10)
     for (size_t j = 0; j < end; j++) {
         // TODO: determine the alignment dynamically instead of using hard-coded 512
         if (allocateNewSpace) {
