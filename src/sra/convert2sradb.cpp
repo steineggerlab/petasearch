@@ -67,14 +67,17 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
     // We accept either a
     if (isDbInput) {
-        reader = new DBReader<unsigned int>(par.db1.c_str(), par.db1Index.c_str(), 1,
-                                            DBReader<unsigned int>::USE_DATA |
-                                            DBReader<unsigned int>::USE_INDEX |
-                                            DBReader<unsigned int>::USE_LOOKUP);
+        reader = new DBReader<unsigned int>(
+            par.db1.c_str(), par.db1Index.c_str(),
+            1, // par.threads,
+            DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_LOOKUP
+        );
         reader->open(DBReader<unsigned int>::NOSORT);
-        hdrReader = new DBReader<unsigned int>((par.db1 + "_h").c_str(), (par.db1 + "_h.index").c_str(), 1,
-                                               DBReader<unsigned int>::USE_DATA |
-                                               DBReader<unsigned int>::USE_INDEX);
+        hdrReader = new DBReader<unsigned int>(
+            par.hdr1.c_str(), par.hdr1Index.c_str(),
+            1, // par.threads,
+            DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX
+        );
         hdrReader->open(DBReader<unsigned int>::NOSORT);
         fileCount = reader->getSize();
     } else {
@@ -82,12 +85,15 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         fileCount = filenames.size();
     }
 
-    /* Process all inputs */
-#pragma omp parallel
+// #pragma omp parallel
     {
+        unsigned int thread_idx = 0;
+// #ifdef OPENMP
+//        thread_idx = static_cast<unsigned int>(omp_get_thread_num());
+// #endif
         char buffer[4096];
 
-        #pragma omp for
+//        #pragma omp for
         for (size_t fileIdx = 0; fileIdx < fileCount; fileIdx++) {
             unsigned int numEntriesInCurrFile = 0;
             std::string header;
