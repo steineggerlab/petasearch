@@ -10,6 +10,7 @@
 #include "BitManipulateMacros.h"
 #include "SRAUtil.h"
 #include "FastSort.h"
+#include "tantan.h"
 
 #include <fcntl.h>  // open, read
 #include <unistd.h>
@@ -129,9 +130,11 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     const unsigned int kmerSize = par.kmerSize;
     Debug(Debug::INFO) << "Number of sequences: " << reader.getSize() << "\n";
 
-    // FIXME: should not be hard coded. This is only good for k = 9
-    double similarKmerFactor = 1.5 * (useProfileSearch ? 5 : 1);
-    size_t tableCapacity = (size_t) (similarKmerFactor * (double) (kmerCount + 1));
+    // FIXME: incorporate previous
+    // double similarKmerFactor = 1.5 * (useProfileSearch ? 5 : 1);
+    // size_t tableCapacity = (size_t) (similarKmerFactor * (double) (kmerCount + 1));
+    const size_t kmerCount = reader.getAminoAcidDBSize() - (reader.getSize() * (par.kmerSize + 1));
+    const size_t tableCapacity = (size_t) (par.maxKmerPerPos * (double) (kmerCount + 1));
     queryTable.reserve(tableCapacity);
 
     const int xIndex = subMat->aa2num[(int) 'X'];
@@ -142,18 +145,21 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
         threeMatrix = ExtendedSubstitutionMatrix::calcScoreMatrix(*subMat, 3);
     }
 
-    Debug::Progress progress(reader.getSize());
+    ProbabilityMatrix *probMatrix = NULL;
+    if (par.maskMode == 1) {
+        probMatrix = new ProbabilityMatrix(*subMat);
+    }
+    const unsigned int total_threads = par.threads;
 
-#pragma omp parallel default(none) \
-shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch, xIndex)
+    Debug::Progress progress(reader.getSize());
+#pragma omp parallel default(none) shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapacity, queryTable, useProfileSearch, probMatrix) firstprivate(xIndex, kmerSize, total_threads)
     {
         unsigned int thread_idx = 0;
 #ifdef OPENMP
         thread_idx = (unsigned int) omp_get_thread_num();
 #endif
-        Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
-        Sequence sequence(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false,
-                          useProfileSearch ? false : true);
+        Indexer idx(subMat->alphabetSize - 1, kmerSize);
+        Sequence sequence(par.maxSeqLen, seqType, subMat, kmerSize, par.spacedKmer, par.compBiasCorrection, useProfileSearch ? false : true);
 
         const int kmerThr = useProfileSearch ? par.kmerScore.values.profile() : par.kmerScore.values.sequence();
         KmerGenerator kmerGenerator(kmerSize, subMat->alphabetSize - 1, kmerThr);
@@ -167,13 +173,41 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
         std::vector<QueryTableEntry> localTable;
         localTable.reserve(tableCapacity / total_threads);
 
-#pragma omp for schedule(dynamic, 1)
+        float *compositionBias = nullptr;
+        if (par.compBiasCorrection == 1) {
+            compositionBias = new float[par.maxSeqLen];
+        }
+
+#pragma omp for schedule(dynamic, 1) nowait
         for (size_t i = 0; i < reader.getSize(); ++i) {
             progress.updateProgress();
             unsigned int key = reader.getDbKey(i);
             char *data = reader.getData(i, (int) thread_idx);
             unsigned int seqLen = reader.getSeqLen(i);
             sequence.mapSequence(i, key, data, seqLen);
+
+            if (par.compBiasCorrection == 1) {
+                SubstitutionMatrix::calcLocalAaBiasCorrection(subMat, sequence.numSequence, sequence.L, compositionBias, par.compBiasCorrectionScale);
+            }
+
+            if (par.maskMode == 1) {
+                tantan::maskSequences(
+                    (char*)sequence.numSequence,
+                    (char*)(sequence.numSequence + sequence.L),
+                    50 /*options.maxCycleLength*/,
+                    probMatrix->probMatrixPointers,
+                    0.005 /*options.repeatProb*/,
+                    0.05 /*options.repeatEndProb*/,
+                    0.5 /*options.repeatOffsetProbDecay*/,
+                    0, 0,
+                    par.maskProb /*options.minMaskProb*/,
+                    probMatrix->hardMaskTable
+                );
+                const char* charSeq = sequence.getSeqData();
+                for (int i = 0; i < sequence.L; i++) {
+                    sequence.numSequence[i] = (islower(charSeq[i])) ? xIndex : sequence.numSequence[i];
+                }
+            }
 
             while (sequence.hasNextKmer()) {
                 const unsigned char *kmer = sequence.nextKmer();
@@ -187,37 +221,33 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
                     continue;
                 }
 
-                if (useProfileSearch) {
-                    std::pair<size_t *, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
-                    size_t lim = similarKmerList.second;
-                    for (size_t j = 0; j < lim; ++j) {
-                        QueryTableEntry entry{};
-                        entry.querySequenceId = key;
-                        entry.targetSequenceID = UINT_MAX;
-                        entry.Query.kmer = similarKmerList.first[j];
-                        entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
-                        localTable.emplace_back(entry);
+                if (par.compBiasCorrection == 1) {
+                    const unsigned char *pos = sequence.getAAPosInSpacedPattern();
+                    const unsigned short current_i = sequence.getCurrentPosition();
+                    float biasCorrection = 0;
+                    for (unsigned int i = 0; i < kmerSize; i++) {
+                        biasCorrection += compositionBias[current_i + static_cast<short>(pos[i])];
                     }
-                    QueryTableEntry entry{};
-                    entry.querySequenceId = key;
-                    entry.targetSequenceID = UINT_MAX;
-                    entry.Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
-                    entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
-                    localTable.emplace_back(entry);
-                } else if (par.exactKmerMatching) {
-                    QueryTableEntry entry{};
-                    entry.querySequenceId = key;
-                    entry.targetSequenceID = UINT_MAX;
-                    entry.Query.kmer = idx.int2index(kmer, 0, par.kmerSize);
-                    entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
-                    localTable.emplace_back(entry);
-                } else {
+                    short bias = std::min((short)0, static_cast<short>((biasCorrection < 0.0) ? biasCorrection - 0.5 : biasCorrection + 0.5));
+                    short kmerMatchScore = std::max(kmerThr - bias, 0);
+
+                    // Debug(Debug::ERROR) << "bias: " << bias << " kmerMatchScore: " << kmerMatchScore << "\n";
+
+                    // adjust kmer threshold based on composition bias
+                    kmerGenerator.setThreshold(kmerMatchScore);
+                }
+
+                QueryTableEntry entry{};
+                entry.querySequenceId = key;
+                entry.targetSequenceID = UINT_MAX;
+                entry.Query.kmer = idx.int2index(kmer, 0, kmerSize);
+                entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
+                localTable.emplace_back(entry);
+                if (par.exactKmerMatching == false) {
                     // FIXME: too memory consuming when k = 11, need to adjust
                     //  (at least make the program does not terminate with an bad_alloc() error)
-                    std::pair<size_t *, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer);
-                    size_t lim = similarKmerList.second;
-                    for (size_t j = 0; j < lim; ++j) {
-                        QueryTableEntry entry{};
+                    std::pair<size_t *, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer); // , false, par.maxKmerPerPos);
+                    for (size_t j = 0; j < similarKmerList.second; ++j) {
                         entry.querySequenceId = key;
                         entry.targetSequenceID = UINT_MAX;
                         entry.Query.kmer = similarKmerList.first[j];
@@ -226,6 +256,10 @@ shared(par, reader, subMat, progress, seqType, twoMatrix, threeMatrix, tableCapa
                     }
                 }
             }
+        }
+
+        if (par.compBiasCorrection == 1) {
+            delete[] compositionBias;
         }
 
 #pragma omp critical

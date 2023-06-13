@@ -38,36 +38,52 @@ public:
     PARAMETER(PARAM_RANGE_MAX)
     uintptr_t rangeMax;
 
+    PARAMETER(PARAM_MAX_KMER_PER_POS)
+    int maxKmerPerPos;
+
 private:
     LocalParameters() : Parameters(),
-                        PARAM_REQ_KMER_MATCHES(PARAM_REQ_KMER_MATCHES_ID,
-                                               "--req-kmer-matches",
-                                               "required k-mer matches per query and target sequence pair",
-                                               "amount of required k-mer matches per query/target pair to increase specificity of matches [0-4]",
-                                               typeid(int),
-                                               (void *) &requiredKmerMatches,
-                                               "^[0-4]{1}$"),
-                        PARAM_X_DROP(PARAM_X_DROP_ID,
-                                     "--xdrop",
-                                     "block-aligner x-drop",
-                                     "block-aligner x-drop [0-100]",
-                                     typeid(int),
-                                     (void *) &xdrop,
-                                     "^[0-9]+$"),
-                        PARAM_RANGE_MIN(PARAM_RANGE_MIN_ID,
-                                        "--range-min",
-                                        "block-aligner matrix min size",
-                                        "Minimum size of block-aligner' matrix, must be of power of 2 [32-1024]",
-                                        typeid(int),
-                                        (void *) &rangeMin,
-                                        "^[0-9]+$"),
-                        PARAM_RANGE_MAX(PARAM_RANGE_MAX_ID,
-                                        "--range-max",
-                                        "block-aligner matrix max size",
-                                        "Maximum size of block-aligner' matrix, must be of power of 2 [32-1024]",
-                                        typeid(int),
-                                        (void *) &rangeMax,
-                                        "^[0-9]+$") {
+        PARAM_REQ_KMER_MATCHES(
+            PARAM_REQ_KMER_MATCHES_ID,
+            "--req-kmer-matches",
+            "required k-mer matches per query and target sequence pair",
+            "amount of required k-mer matches per query/target pair to increase specificity of matches [0-4]",
+            typeid(int),
+            (void *) &requiredKmerMatches,
+            "^[0-4]{1}$"),
+        PARAM_X_DROP(
+            PARAM_X_DROP_ID,
+            "--xdrop",
+            "block-aligner x-drop",
+            "block-aligner x-drop [0-100]",
+            typeid(int),
+            (void *) &xdrop,
+            "^[0-9]+$"),
+        PARAM_RANGE_MIN(
+            PARAM_RANGE_MIN_ID,
+            "--range-min",
+            "block-aligner matrix min size",
+            "Minimum size of block-aligner' matrix, must be of power of 2 [32-1024]",
+            typeid(int),
+            (void *) &rangeMin,
+            "^[0-9]+$"),
+        PARAM_RANGE_MAX(
+            PARAM_RANGE_MAX_ID,
+            "--range-max",
+            "block-aligner matrix max size",
+            "Maximum size of block-aligner' matrix, must be of power of 2 [32-1024]",
+            typeid(int),
+            (void *) &rangeMax,
+            "^[0-9]+$"),
+        PARAM_MAX_KMER_PER_POS(
+            PARAM_MAX_KMER_PER_POS_ID,
+            "--max-kmer-per-pos",
+            "Maximum k-mers per position",
+            "Maximum k-mers per position [>=1]",
+            typeid(int),
+            (void *) &maxKmerPerPos,
+            "^[0-9]+$")
+    {
         createkmertable.push_back(&PARAM_SEED_SUB_MAT);
         createkmertable.push_back(&PARAM_K);
         createkmertable.push_back(&PARAM_SPACED_KMER_MODE);
@@ -82,6 +98,10 @@ private:
         comparekmertables.push_back(&PARAM_SPACED_KMER_MODE);
         comparekmertables.push_back(&PARAM_MAX_SEQ_LEN);
         comparekmertables.push_back(&PARAM_REQ_KMER_MATCHES);
+        comparekmertables.push_back(&PARAM_MAX_KMER_PER_POS);
+        comparekmertables.push_back(&PARAM_NO_COMP_BIAS_CORR);
+        comparekmertables.push_back(&PARAM_MASK_RESIDUES);
+        comparekmertables.push_back(&PARAM_MASK_PROBABILTY);
         comparekmertables.push_back(&PARAM_COMPRESSED);
         comparekmertables.push_back(&PARAM_THREADS);
         comparekmertables.push_back(&PARAM_V);
@@ -121,6 +141,8 @@ private:
 
         kmerSize = 9;
         kmerScore = 225;
+
+        maxKmerPerPos = 20;
     }
 
     LocalParameters(LocalParameters const &);
