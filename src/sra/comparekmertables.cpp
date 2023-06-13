@@ -73,51 +73,30 @@ inline void parallelReadIntoVec(
 }
 
 int resultTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
-    if (first.targetSequenceID < second.targetSequenceID) {
-        return true;
+    if (first.targetSequenceID != second.targetSequenceID) {
+        return first.targetSequenceID < second.targetSequenceID;
     }
-    if (second.targetSequenceID < first.targetSequenceID) {
-        return false;
+    if (first.querySequenceId != second.querySequenceId) {
+        return first.querySequenceId < second.querySequenceId;
     }
-    if (first.querySequenceId < second.querySequenceId) {
-        return true;
+    if (first.Query.kmerPosInQuery != second.Query.kmerPosInQuery) {
+        return first.Query.kmerPosInQuery < second.Query.kmerPosInQuery;
     }
-    if (second.querySequenceId < first.querySequenceId) {
-        return false;
-    }
-    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery) {
-        return true;
-    }
-    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery) {
-        return false;
-    }
-    if (first.Query.kmer < second.Query.kmer) {
-        return true;
-    }
-    if (second.Query.kmer < first.Query.kmer) {
-        return false;
+    if (first.Query.kmer != second.Query.kmer) {
+        return first.Query.kmer < second.Query.kmer;
     }
     return false;
 }
 
 int queryTableSort(const QueryTableEntry &first, const QueryTableEntry &second) {
-    if (first.Query.kmer < second.Query.kmer) {
-        return true;
+    if (first.Query.kmer != second.Query.kmer) {
+        return first.Query.kmer < second.Query.kmer;
     }
-    if (second.Query.kmer < first.Query.kmer) {
-        return false;
+    if (first.querySequenceId != second.querySequenceId) {
+        return first.querySequenceId > second.querySequenceId;  // Note the '>' operator here
     }
-    if (first.querySequenceId > second.querySequenceId) {
-        return true;
-    }
-    if (second.querySequenceId > first.querySequenceId) {
-        return false;
-    }
-    if (first.Query.kmerPosInQuery < second.Query.kmerPosInQuery) {
-        return true;
-    }
-    if (second.Query.kmerPosInQuery < first.Query.kmerPosInQuery) {
-        return false;
+    if (first.Query.kmerPosInQuery != second.Query.kmerPosInQuery) {
+        return first.Query.kmerPosInQuery < second.Query.kmerPosInQuery;
     }
     return false;
 }
