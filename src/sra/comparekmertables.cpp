@@ -4,6 +4,7 @@
 #include "ExtendedSubstitutionMatrix.h"
 #include "Indexer.h"
 #include "KmerGenerator.h"
+#include "FixedKmerGenerator.h"
 #include "MathUtil.h"
 #include "QueryTableEntry.h"
 #include "DBWriter.h"
@@ -162,7 +163,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
         Sequence sequence(par.maxSeqLen, seqType, subMat, kmerSize, par.spacedKmer, par.compBiasCorrection, useProfileSearch ? false : true, par.spacedKmerPattern);
 
         const int kmerThr = useProfileSearch ? par.kmerScore.values.profile() : par.kmerScore.values.sequence();
-        KmerGenerator kmerGenerator(kmerSize, subMat->alphabetSize - 1, kmerThr);
+        FixedKmerGenerator kmerGenerator(kmerSize, subMat->alphabetSize - 1, kmerThr, par.maxKmerPerPos);
 
         if (useProfileSearch && sequence.profile_matrix != nullptr) {
             kmerGenerator.setDivideStrategy(sequence.profile_matrix);
@@ -235,16 +236,18 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
                 entry.querySequenceId = key;
                 entry.targetSequenceID = UINT_MAX;
                 entry.Query.kmer = idx.int2index(kmer, 0, kmerSize);
+                // idx.printKmer(entry.Query.kmer, kmerSize, subMat->num2aa);
+                // Debug(Debug::INFO) << "\n";
                 entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
                 localTable.emplace_back(entry);
                 if (par.exactKmerMatching == false) {
-                    // FIXME: too memory consuming when k = 11, need to adjust
-                    //  (at least make the program does not terminate with an bad_alloc() error)
                     std::pair<size_t *, size_t> similarKmerList = kmerGenerator.generateKmerList(kmer); // , false, par.maxKmerPerPos);
                     for (size_t j = 0; j < similarKmerList.second; ++j) {
                         entry.querySequenceId = key;
                         entry.targetSequenceID = UINT_MAX;
                         entry.Query.kmer = similarKmerList.first[j];
+                        // idx.printKmer(entry.Query.kmer, kmerSize, subMat->num2aa);
+                        // Debug(Debug::INFO) << "\n";
                         entry.Query.kmerPosInQuery = sequence.getCurrentPosition();
                         localTable.emplace_back(entry);
                     }
@@ -530,8 +533,10 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
             Debug(Debug::INFO) << "Result table sort time: " << timer.lap() << "\n";
             timer.reset();
 
+            // TODO maybe don't need to allocate more than equalKmers here
             QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
             QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par.requiredKmerMatches);
+            Debug(Debug::INFO) << "Keeping " << (truncatedResultEndPos - resultTable)  << " out of " << (endQueryPos - startPosQueryTable) << " k-mer matches\n";
             Debug(Debug::INFO) << "Duplicate elimination time: " << timer.lap() << "\n";
             timer.reset();
 

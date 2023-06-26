@@ -11,4 +11,5 @@ set(commons_source_files
         commons/SRADBReader.h
         commons/SRAUtil.h
         commons/SRAUtil.cpp
+        commons/FixedKmerGenerator.cpp
         PARENT_SCOPE)
