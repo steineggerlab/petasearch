@@ -124,6 +124,9 @@ private:
         blockalign.push_back(&PARAM_THREADS);
         blockalign.push_back(&PARAM_V);
 
+        convert2sradb.push_back(&PARAM_THREADS);
+        convert2sradb.push_back(&PARAM_V);
+
         convertsraalignments.push_back(&PARAM_FORMAT_MODE);
         convertsraalignments.push_back(&PARAM_FORMAT_OUTPUT);
         convertsraalignments.push_back(&PARAM_THREADS);
