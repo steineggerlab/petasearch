@@ -108,21 +108,21 @@ private:
         comparekmertables.push_back(&PARAM_THREADS);
         comparekmertables.push_back(&PARAM_V);
 
-        blockalign.push_back(&PARAM_SUB_MAT);
+        blockalign.push_back(&PARAM_E);
         blockalign.push_back(&PARAM_K);
+        blockalign.push_back(&PARAM_SUB_MAT);
         blockalign.push_back(&PARAM_SPACED_KMER_MODE);
         blockalign.push_back(&PARAM_SPACED_KMER_PATTERN);
         blockalign.push_back(&PARAM_NO_COMP_BIAS_CORR);
         blockalign.push_back(&PARAM_GAP_OPEN);
         blockalign.push_back(&PARAM_GAP_EXTEND);
-        blockalign.push_back(&PARAM_E);
         blockalign.push_back(&PARAM_MAX_SEQ_LEN);
-        blockalign.push_back(&PARAM_COMPRESSED);
-        blockalign.push_back(&PARAM_THREADS);
-        blockalign.push_back(&PARAM_V);
         blockalign.push_back(&PARAM_RANGE_MIN);
         blockalign.push_back(&PARAM_RANGE_MAX);
         blockalign.push_back(&PARAM_X_DROP);
+        blockalign.push_back(&PARAM_COMPRESSED);
+        blockalign.push_back(&PARAM_THREADS);
+        blockalign.push_back(&PARAM_V);
 
         convertsraalignments.push_back(&PARAM_FORMAT_MODE);
         convertsraalignments.push_back(&PARAM_FORMAT_OUTPUT);
