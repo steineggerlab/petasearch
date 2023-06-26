@@ -146,6 +146,8 @@ private:
         kmerScore = 225;
 
         maxKmerPerPos = 20;
+
+        rescoreMode = Parameters::RESCORE_MODE_ALIGNMENT;
     }
 
     LocalParameters(LocalParameters const &);
