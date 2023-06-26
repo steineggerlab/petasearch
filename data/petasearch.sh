@@ -45,7 +45,8 @@ TMP_PATH="$5"
     "$MMSEQS" comparekmertables "${Q_DB}" "${T_DBs}" "${C_RES}" ${COMP_KMER_TABLES_PAR} \
         || fail "comparing k-mer tables failed"
 # fi
-paste "${T_DBs}" "${C_RES}"  | column -s "\t" > "threecol.tsv"
+
+paste "${T_DBs}" "${C_RES}"  | column -s "\t" > "${TMP_PATH}/threecol.tsv"
 
 STEP=0
 # shellcheck disable=SC2034
@@ -55,7 +56,7 @@ while IFS="$(printf "\t")" read -r TARGETABLE T_DB COMP_RES; do
 
 #  push_back "${TMP_PATH}/${M8_RES}_${STEP}"
   STEP=$((STEP+1))
-done < "threecol.tsv"
+done < "${TMP_PATH}/threecol.tsv"
 wait
 
 STEP=$((STEP-1))
@@ -67,5 +68,6 @@ done
 # # clear up tmp files
 # if [ -n "$REMOVE_TMP" ]; then
 #     echo "Remove temporary files"
+#     rm -f "${TMP_PATH}/threecol.tsv"
 #     rm -rf "${TMP_PATH}"
 # fi
