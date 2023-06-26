@@ -6,9 +6,9 @@
 #include "QueryTableEntry.h"
 #include "TargetTableEntry.h"
 #include "ExtendedSubstitutionMatrix.h"
-#include "KmerGenerator.h"
 #include "BitManipulateMacros.h"
 #include "FastSort.h"
+#include "Indexer.h"
 
 #include <sys/mman.h>
 #include <algorithm>
@@ -110,9 +110,8 @@ int createkmertable(int argc, const char **argv, const Command &command) {
                 if (s.kmerContainsX()) {
                     continue;
                 }
-
-                localBuffer[localTableIndex].sequenceID = s.getId(); // for debug purposes: s.getDbKey();
                 localBuffer[localTableIndex].kmerAsLong = idx.int2index(kmer, 0, par.kmerSize);
+                localBuffer[localTableIndex].sequenceID = s.getId(); // for debug purposes: s.getDbKey();
                 localBuffer[localTableIndex].sequenceLength = s.L;
                 ++localTableIndex;
                 if (localTableIndex >= threadBufferSize) {

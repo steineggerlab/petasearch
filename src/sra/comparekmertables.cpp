@@ -134,7 +134,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     // double similarKmerFactor = 1.5 * (useProfileSearch ? 5 : 1);
     // size_t tableCapacity = (size_t) (similarKmerFactor * (double) (kmerCount + 1));
     const size_t kmerCount = reader.getAminoAcidDBSize() - (reader.getSize() * (par.kmerSize + 1));
-    const size_t tableCapacity = (size_t) (par.maxKmerPerPos * (double) (kmerCount + 1));
+    const size_t tableCapacity = (size_t) (par.maxKmerPerPos * (kmerCount + 1));
     queryTable.reserve(tableCapacity);
 
     const int xIndex = subMat->aa2num[(int) 'X'];
@@ -306,6 +306,7 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
     const unsigned long MAXIMUM_NUM_OF_BLOCKS =
             (Util::getTotalSystemMemory() - numQTableAvailInMem * queryTableSize) / (MEM_SIZE_16MB + MEM_SIZE_32MB);
     const unsigned long maximumNumOfBlocksPerDB = MAXIMUM_NUM_OF_BLOCKS / targetTables.size();
+
     size_t localThreads = par.threads;
 #ifdef OPENMP
     localThreads = std::max(std::min(localThreads, targetTables.size()), (size_t)1);
@@ -429,7 +430,7 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
                                 if (UNLIKELY(IDTableIndex >= numOfIDBlocks)) {
                                     // parallel read
                                     parallelReadIntoVec(
-                                        fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB,  false, ++IDReadGroup
+                                        fdIDTable, IDTableBlocks, IDTableBlockSize, MEM_SIZE_32MB, false, ++IDReadGroup
                                     );
                                     IDTableIndex = 0;
                                 }

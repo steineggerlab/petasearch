@@ -112,11 +112,11 @@ DistanceCalculator::LocalAlignment ungappedDiagFilter(
 }
 
 struct Kmer {
-    unsigned long kmer = -1;
+    unsigned long long kmer = -1;
     int kmerPos = -1;
 
     Kmer() = default;
-    Kmer(unsigned long kmer, int kmerPos) : kmer(kmer), kmerPos(kmerPos) {}
+    Kmer(unsigned long long kmer, int kmerPos) : kmer(kmer), kmerPos(kmerPos) {}
 };
 
 bool kmerComparator(const Kmer &kmer1, const Kmer &kmer2) {
@@ -257,14 +257,12 @@ int blockalign(int argc, const char **argv, const Command &command) {
             while (it.getNext(queries)) {
                 for (size_t j = 0; j < queries.size(); ++j) {
                     QueryTableEntry &query = queries[j];
-                    bool kmerFound = false;
-
                     const auto kmer = std::lower_bound(targetKmers.begin(), targetKmers.end(),
                                                        Kmer(query.Query.kmer, query.Query.kmerPosInQuery),
                                                        [](const Kmer &kmer1, const Kmer &kmer2) {
                                                            return kmer1.kmer < kmer2.kmer;
                                                        });
-                    kmerFound = kmer != targetKmers.end() && query.Query.kmer == kmer->kmer;
+                    bool kmerFound = kmer != targetKmers.end() && query.Query.kmer == kmer->kmer;
                     if (kmerFound) {
                         query.Result.diag = query.Query.kmerPosInQuery - kmer->kmerPos;
                     } else {
