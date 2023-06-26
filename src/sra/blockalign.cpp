@@ -233,11 +233,15 @@ int blockalign(int argc, const char **argv, const Command &command) {
         for (size_t i = 0; i < resultReader.getSize(); ++i) {
             progress.updateProgress();
 
-            size_t targetKey = resultReader.getDbKey(i);
-            unsigned int targetId = targetKey;
-            const char *targetSeqData = targetSequenceReader.getData(targetId, thread_idx);
-            const unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetId);
-            targetSeq.mapSequence(targetId, targetKey, targetSeqData, targetSeqLen);
+            unsigned int targetKey = resultReader.getDbKey(i);
+            const unsigned int targetSeqLen = targetSequenceReader.getSeqLen(targetKey);
+
+            if (targetSeqLen < (unsigned int)par.kmerSize) {
+                continue;
+            }
+
+            const char *targetSeqData = targetSequenceReader.getData(targetKey, thread_idx);
+            targetSeq.mapSequence(targetKey, targetKey, targetSeqData, targetSeqLen);
 
             unsigned int queryKey = -1;
 
