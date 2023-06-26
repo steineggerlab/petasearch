@@ -159,7 +159,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
         thread_idx = (unsigned int) omp_get_thread_num();
 #endif
         Indexer idx(subMat->alphabetSize - 1, kmerSize);
-        Sequence sequence(par.maxSeqLen, seqType, subMat, kmerSize, par.spacedKmer, par.compBiasCorrection, useProfileSearch ? false : true);
+        Sequence sequence(par.maxSeqLen, seqType, subMat, kmerSize, par.spacedKmer, par.compBiasCorrection, useProfileSearch ? false : true, par.spacedKmerPattern);
 
         const int kmerThr = useProfileSearch ? par.kmerScore.values.profile() : par.kmerScore.values.sequence();
         KmerGenerator kmerGenerator(kmerSize, subMat->alphabetSize - 1, kmerThr);

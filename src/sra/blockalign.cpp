@@ -204,8 +204,8 @@ int blockalign(int argc, const char **argv, const Command &command) {
 #ifdef OPENMP
         thread_idx = static_cast<unsigned int>(omp_get_thread_num());
 #endif
-        Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, useProfileSearch ? 0 : par.kmerSize, par.spacedKmer, false, !useProfileSearch);
-        Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
+        Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, useProfileSearch ? 0 : par.kmerSize, false, false, !useProfileSearch);
+        Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false, false, par.spacedKmerPattern);
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
 

@@ -87,6 +87,7 @@ private:
         createkmertable.push_back(&PARAM_SEED_SUB_MAT);
         createkmertable.push_back(&PARAM_K);
         createkmertable.push_back(&PARAM_SPACED_KMER_MODE);
+        createkmertable.push_back(&PARAM_SPACED_KMER_PATTERN);
         createkmertable.push_back(&PARAM_MAX_SEQ_LEN);
         createkmertable.push_back(&PARAM_THREADS);
         createkmertable.push_back(&PARAM_V);
@@ -96,6 +97,7 @@ private:
         comparekmertables.push_back(&PARAM_K);
         comparekmertables.push_back(&PARAM_K_SCORE);
         comparekmertables.push_back(&PARAM_SPACED_KMER_MODE);
+        comparekmertables.push_back(&PARAM_SPACED_KMER_PATTERN);
         comparekmertables.push_back(&PARAM_MAX_SEQ_LEN);
         comparekmertables.push_back(&PARAM_REQ_KMER_MATCHES);
         comparekmertables.push_back(&PARAM_MAX_KMER_PER_POS);
@@ -109,6 +111,7 @@ private:
         blockalign.push_back(&PARAM_SUB_MAT);
         blockalign.push_back(&PARAM_K);
         blockalign.push_back(&PARAM_SPACED_KMER_MODE);
+        blockalign.push_back(&PARAM_SPACED_KMER_PATTERN);
         blockalign.push_back(&PARAM_NO_COMP_BIAS_CORR);
         blockalign.push_back(&PARAM_GAP_OPEN);
         blockalign.push_back(&PARAM_GAP_EXTEND);

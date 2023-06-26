@@ -95,7 +95,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
         thread_idx = (unsigned int) omp_get_thread_num();
 #endif
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
-        Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false);
+        Sequence s(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false, false, par.spacedKmerPattern);
         TargetTableEntry *localBuffer = (TargetTableEntry *) mem_align(pageSize, threadBufferSize * sizeof(TargetTableEntry));
         size_t localTableIndex = 0;
 #pragma omp for schedule(dynamic, 1)
