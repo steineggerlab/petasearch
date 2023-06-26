@@ -29,6 +29,9 @@ public:
     char *getData(size_t id, int thread_idx);
     size_t getAminoAcidDBSize();
     void readIndex(char *data, size_t indexDataSize, unsigned long *index);
+    unsigned long* getIndex() {
+        return index;
+    }
 private:
     int closed;
     int threads;

@@ -435,33 +435,22 @@ void SRADBWriter::mergeIndex(const char **indexFilenames, unsigned int fileCount
     }
     size_t globalOffset = dataSizes[0];
     for (unsigned int fileIdx = 1; fileIdx < fileCount; fileIdx++) {
-        FILE *indexFD = FileUtil::openAndDelete(indexFilenames[fileIdx], "r");
-        size_t size = FileUtil::getFileSize(std::string(indexFilenames[fileIdx]));
-        char *string = static_cast<char *>(malloc(size + 1));
-        char *l = static_cast<char *>(malloc(1024));
-        fread(string, size, 1, indexFD);
-        while (Util::getLine(string, size + 1, l, 1024)){
-            if (Util::isNumber(std::string(l))) {
-                std::string toWrite = std::to_string(
-                        globalOffset + Util::fast_atoi<unsigned long>(l));
-                fwrite(toWrite.c_str(), toWrite.size(), 1, index_file);
+        SRADBReader reader(indexFilenames[fileIdx], indexFilenames[fileIdx], 1, DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_DATA);
+        reader.open(DBReader<unsigned int>::HARDNOSORT);
+        if (reader.getSize() > 0) {
+            unsigned long *index = reader.getIndex();
+            char buffer[1024];
+            for (size_t i = 0; i < reader.getSize(); i++) {
+                size_t len = indexToBuffer(buffer, globalOffset + index[i]);
+                size_t written = fwrite(buffer, sizeof(char), len, index_file);
+                if (written != len) {
+                    Debug(Debug::ERROR) << "Can not write to data file " << indexFilenames[0] << "\n";
+                    EXIT(EXIT_FAILURE);
+                }
             }
         }
-
-
-//        SRADBReader<unsigned int> reader(indexFilenames[fileIdx], indexFilenames[fileIdx], 1,
-//                                      SRADBReader<unsigned int>::USE_INDEX);
-//        reader.open(SRADBReader<unsigned int>::HARDNOSORT);
-//        if (reader.getSize() > 0) {
-//            SRADBReader<unsigned int>::Index *index = reader.getIndex();
-//            for (size_t i = 0; i < reader.getSize(); i++) {
-//                size_t currOffset = index[i].offset;
-//                index[i].offset = globalOffset + currOffset;
-//            }
-//            writeIndex(index_file, reader.getSize(), index);
-//        }
-//        reader.close();
-//        FileUtil::remove(indexFilenames[fileIdx]);
+        reader.close();
+        FileUtil::remove(indexFilenames[fileIdx]);
 
         globalOffset += dataSizes[fileIdx];
     }
