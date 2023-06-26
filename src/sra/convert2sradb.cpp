@@ -19,25 +19,24 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
     const char newline = '\n';
 
-    /* Get the last input file as the output file */
+    // Get the last input file as the output file
     std::string outputDataFile = par.db2;
 
-    /* Determine whether the input file is a directory */
+    // Determine whether the input file is a directory
     if (FileUtil::directoryExists(par.db1.c_str())) {
         Debug(Debug::ERROR) << "File " << par.db1 << " is a directory" << newline;
         EXIT(EXIT_FAILURE);
     }
 
-    /* Determine whether it is fasta input or database input
-     *    Here we assume that the input is a database if it has a
-     *    corresponding ".dbtype" file
-     */
-   const bool isDbInput = FileUtil::fileExists(par.db1dbtype.c_str());
+    // Determine whether it is fasta input or database input
+    //    Here we assume that the input is a database if it has a
+    //    corresponding ".dbtype" file
+    const bool isDbInput = FileUtil::fileExists(par.db1dbtype.c_str());
 
-    /* Name output files and database type */
+    // Name output files and database type
     int outputDbType = Parameters::DBTYPE_AMINO_ACIDS;
 
-    const unsigned int shuffleSplits = 1;
+    const unsigned int localThreads = par.threads;
 
     std::string outputIndexFile = outputDataFile + ".index";
     std::string outputHdrDataFile = outputDataFile + "_h";
@@ -54,10 +53,10 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
-    SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(), shuffleSplits, par.compressed, Parameters::DBTYPE_GENERIC_DB);
+    SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(), localThreads, par.compressed, Parameters::DBTYPE_GENERIC_DB);
     hdrWriter.open();
 
-    SRADBWriter seqWriter(outputDataFile.c_str(), outputIndexFile.c_str(), shuffleSplits, par.compressed, Parameters::DBTYPE_AMINO_ACIDS);
+    SRADBWriter seqWriter(outputDataFile.c_str(), outputIndexFile.c_str(), localThreads, par.compressed, Parameters::DBTYPE_AMINO_ACIDS);
     seqWriter.open();
 
     size_t fileCount = -1;
@@ -69,13 +68,13 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     if (isDbInput) {
         reader = new DBReader<unsigned int>(
             par.db1.c_str(), par.db1Index.c_str(),
-            1, // par.threads,
+            localThreads,
             DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_LOOKUP
         );
         reader->open(DBReader<unsigned int>::NOSORT);
         hdrReader = new DBReader<unsigned int>(
             par.hdr1.c_str(), par.hdr1Index.c_str(),
-            1, // par.threads,
+            localThreads,
             DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX
         );
         hdrReader->open(DBReader<unsigned int>::NOSORT);
@@ -85,19 +84,21 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         fileCount = filenames.size();
     }
 
-// #pragma omp parallel
+#pragma omp parallel num_threads(localThreads)
     {
         unsigned int thread_idx = 0;
-// #ifdef OPENMP
-//        thread_idx = static_cast<unsigned int>(omp_get_thread_num());
-// #endif
-        char buffer[4096];
+#ifdef OPENMP
+       thread_idx = static_cast<unsigned int>(omp_get_thread_num());
+#endif
+        // char buffer[4096];
 
-//        #pragma omp for
+        std::string header;
+        header.reserve(1024);
+
+#pragma omp for
         for (size_t fileIdx = 0; fileIdx < fileCount; fileIdx++) {
             unsigned int numEntriesInCurrFile = 0;
-            std::string header;
-            header.reserve(1024);
+            header.clear();
 
             std::string sourceName;
             if (isDbInput) {
@@ -149,11 +150,8 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 }
                 header.push_back(newline);
 
-                unsigned int id = par.identifierOffset + entries_num;
-                unsigned int splitIdx = id % shuffleSplits;
-
-                /* Write header */
-                hdrWriter.writeData(header.c_str(), header.length(), splitIdx, true, true);
+                // Write header
+                hdrWriter.writeData(header.c_str(), header.length(), thread_idx, true, true);
 
                 unsigned long rem = e.sequence.l % 3;
                 int padding = rem == 0 ? 0 : 1;
@@ -180,9 +178,9 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
                 resultBuffer[i / 3] |= 0x8000U; // Set last bit
                 const char *packedSeq = reinterpret_cast<const char *>(resultBuffer);
 
-                seqWriter.writeStart(splitIdx);
-                seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l / 3 + padding), splitIdx);
-                seqWriter.writeEnd(splitIdx, false);
+                seqWriter.writeStart(thread_idx);
+                seqWriter.writeAdd(packedSeq, sizeof(unsigned short) * (e.sequence.l / 3 + padding), thread_idx);
+                seqWriter.writeEnd(thread_idx, false);
 
                 entries_num++;
                 numEntriesInCurrFile++;
