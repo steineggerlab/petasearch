@@ -15,7 +15,7 @@ const char* index_version_compatible = "16";
 bool hide_base_commands = true;
 bool hide_base_downloads = false;
 
-void updateValidation() {};
+void updateValidation() {}
 void (*validatorUpdate)(void) = updateValidation;
 
 std::vector<DatabaseDownload> externalDownloads = {};
