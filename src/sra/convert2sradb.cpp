@@ -41,17 +41,10 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
     std::string outputIndexFile = outputDataFile + ".index";
     std::string outputHdrDataFile = outputDataFile + "_h";
     std::string outputHdrIndexFile = outputDataFile + "_h.index";
-    std::string sourceFile = outputDataFile + ".source";
 
     unsigned int entries_num = 0;
 
     Debug::Progress progress;
-
-    FILE *source = fopen(sourceFile.c_str(), "w");
-    if (source == NULL) {
-        Debug(Debug::ERROR) << "Cannot open " << sourceFile << " for writing\n";
-        EXIT(EXIT_FAILURE);
-    }
 
     SRADBWriter hdrWriter(outputHdrDataFile.c_str(), outputHdrIndexFile.c_str(), localThreads, par.compressed, Parameters::DBTYPE_GENERIC_DB);
     hdrWriter.open();
@@ -69,7 +62,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         reader = new DBReader<unsigned int>(
             par.db1.c_str(), par.db1Index.c_str(),
             localThreads,
-            DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX | DBReader<unsigned int>::USE_LOOKUP
+            DBReader<unsigned int>::USE_DATA | DBReader<unsigned int>::USE_INDEX
         );
         reader->open(DBReader<unsigned int>::NOSORT);
         hdrReader = new DBReader<unsigned int>(
@@ -99,21 +92,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         for (size_t fileIdx = 0; fileIdx < fileCount; fileIdx++) {
             unsigned int numEntriesInCurrFile = 0;
             header.clear();
-
-            std::string sourceName;
-            if (isDbInput) {
-                unsigned int dbKey = reader->getDbKey(fileIdx);
-                size_t lookupId = reader->getLookupIdByKey(dbKey);
-                sourceName = reader->getLookupEntryName(lookupId);
-            } else {
-                sourceName = FileUtil::baseName(filenames[fileIdx]);
-            }
-            size_t len = snprintf(buffer, sizeof(buffer), "%zu\t%s\n", fileIdx, sourceName.c_str());
-            int written = fwrite(buffer, sizeof(char), len, source);
-            if (written != (int) len) {
-                Debug(Debug::ERROR) << "Cannot write to source file " << sourceFile << newline;
-                EXIT(EXIT_FAILURE);
-            }
 
             KSeqWrapper *kseq = NULL;
             std::string seq = ">";
@@ -192,11 +170,6 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
         }
     }
 
-    if (fclose(source) != 0) {
-        Debug(Debug::ERROR) << "Cannot close file " << sourceFile << "\n";
-        EXIT(EXIT_FAILURE);
-    }
-
     SRADBWriter::writeDbtypeFile(seqWriter.getDataFileName(), outputDbType, par.compressed);
 
     hdrWriter.close(true);
@@ -213,9 +186,7 @@ int convert2sradb(int argc, const char **argv, const Command &command) {
 
     if (entries_num == 0) {
         Debug(Debug::ERROR) << "The input files have no entry: ";
-//        for (size_t fileIdx = 0; fileIdx < filenames.size(); fileIdx++) {
-            Debug(Debug::ERROR) << " - " << par.db1 << "\n";
-//        }
+        Debug(Debug::ERROR) << " - " << par.db1 << "\n";
         Debug(Debug::ERROR) << "Only files in fasta/fastq[.gz|bz2] format are supported\n";
         EXIT(EXIT_FAILURE);
     }
