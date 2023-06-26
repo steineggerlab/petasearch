@@ -347,7 +347,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
 //            result.clear();
         }
 
-        SORT_PARALLEL(results.begin(), results.end(), matcherResultsSort);
+        SORT_SERIAL(results.begin(), results.end(), matcherResultsSort);
 
         for (size_t i = 0; i < results.size(); ++i) {
             results[i].dbOrfStartPos = (int) results[i].dbKey;
