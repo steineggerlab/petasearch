@@ -16,6 +16,7 @@ BlockAligner::BlockAligner(size_t maxSequenceLength,
     querySeq = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     targetSeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     querySeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
+    block = block_new_aa_trace_xdrop(maxSequenceLength + 1, maxSequenceLength + 1, range.max);
 }
 
 BlockAligner::~BlockAligner() {
@@ -23,11 +24,13 @@ BlockAligner::~BlockAligner() {
     free(targetSeq);
     free(querySeqRev);
     free(targetSeqRev);
+    block_free_aa_trace_xdrop(block);
 }
 
 void BlockAligner::initQuery(Sequence *query) {
-    SRAUtil::stripInvalidChars(query->getSeqData(), querySeq);
-    querySeqLen = strlen(querySeq); // FIXME: query->L;
+    // SRAUtil::stripInvalidChars(query->getSeqData(), querySeq);
+    memcpy(querySeq, query->getSeqData(), query->L);
+    querySeqLen = query->L;
     SRAUtil::strrev(querySeqRev, querySeq, querySeqLen);
 }
 
@@ -80,7 +83,8 @@ BlockAligner::align(Sequence *targetSeqObj,
                 targetSeq
         );
     } else {
-        SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
+        memcpy(targetSeq, targetSeqObj->getSeqData(), targetSeqObj->L);
+        // SRAUtil::stripInvalidChars(targetSeqObj->getSeqData(), targetSeq);
     }
     SRAUtil::strrev(targetSeqRev, targetSeq, targetSeqObj->L);
 
@@ -100,7 +104,7 @@ BlockAligner::align(Sequence *targetSeqObj,
     long tmp = ((long) querySeqLen - (long) qUngappedEndPos) - 1;
     unsigned int qStartRev = tmp < 0 ? 0 : tmp; // - 1
     unsigned int qEndRev = querySeqLen;
-    char *querySeqRevAlign = SRAUtil::substr(querySeqRev, qStartRev, qEndRev);
+    char *querySeqRevAlign = querySeqRev + qStartRev;
     size_t len_querySeqRevAlign = qEndRev - qStartRev;
     PaddedBytes *queryRevPadded = block_new_padded_aa(len_querySeqRevAlign, range.max);
     block_set_bytes_padded_aa(queryRevPadded, (const uint8_t *) querySeqRevAlign, len_querySeqRevAlign, range.max);
@@ -109,7 +113,7 @@ BlockAligner::align(Sequence *targetSeqObj,
     unsigned int tEndRev = targetSeqObj->L;
     // This is for sequence alignment
     size_t len_targetSeqRevAlign = tEndRev - tStartRev;
-    char *targetSeqRevAlign = SRAUtil::substr(targetSeqRev, tStartRev, tEndRev);
+    char *targetSeqRevAlign = targetSeqRev + tStartRev;
 
     // profile to PSSM with specific range
     AAProfile *targetRevProfile = nullptr;
@@ -127,26 +131,24 @@ BlockAligner::align(Sequence *targetSeqObj,
         block_set_bytes_padded_aa(targetRevPadded, (const uint8_t *) targetSeqRevAlign, len_targetSeqRevAlign, range.max);
     }
 
-    BlockHandle blockRev = block_new_aa_trace_xdrop(len_querySeqRevAlign, len_targetSeqRevAlign, range.max);
-
     if (useProfile) {
-        block_align_profile_aa_trace_xdrop(blockRev, queryRevPadded, targetRevProfile, range, xdrop);
+        block_align_profile_aa_trace_xdrop(block, queryRevPadded, targetRevProfile, range, xdrop);
     } else {
-        block_align_aa_trace_xdrop(blockRev, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
+        block_align_aa_trace_xdrop(block, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
     }
 
-    AlignResult resRev = block_res_aa_trace_xdrop(blockRev);
+    AlignResult resRev = block_res_aa_trace_xdrop(block);
 
     unsigned int qStartPos = querySeqLen - (qStartRev + resRev.query_idx);
     unsigned int qEndPosAlign = querySeqLen;
-    char *querySeqAlign = SRAUtil::substr(querySeq, qStartPos, qEndPosAlign);
+    char *querySeqAlign = querySeq + qStartPos;
     size_t len_querySeqAlign = qEndPosAlign - qStartPos;
     PaddedBytes *queryPadded = block_new_padded_aa(len_querySeqAlign, range.max);
     block_set_bytes_padded_aa(queryPadded, (const uint8_t *) querySeqAlign, len_querySeqAlign, range.max);
 
     unsigned int tStartPos = targetSeqObj->L - (tStartRev + resRev.reference_idx);
     unsigned int tEndPosAlign = targetSeqObj->L;
-    char *targetSeqAlign = SRAUtil::substr(targetSeq, tStartPos, tEndPosAlign);
+    char *targetSeqAlign = targetSeq + tStartPos;
     size_t len_targetSeqAlign = tEndPosAlign - tStartPos;
 
     AAProfile *targetProfile = nullptr;
@@ -164,7 +166,6 @@ BlockAligner::align(Sequence *targetSeqObj,
         block_set_bytes_padded_aa(targetPadded, (const uint8_t *) targetSeqAlign, len_targetSeqAlign, range.max);
     }
 
-    BlockHandle block = block_new_aa_trace_xdrop(len_querySeqAlign, len_targetSeqAlign, range.max);
     if (useProfile) {
         block_align_profile_aa_trace_xdrop(block, queryPadded, targetProfile, range, xdrop);
     } else {
@@ -176,20 +177,19 @@ BlockAligner::align(Sequence *targetSeqObj,
     bool reverseCigar = false;
 
     if (resRev.query_idx > res.query_idx && resRev.reference_idx > res.reference_idx) {
-        res = block_res_aa_trace_xdrop(blockRev);
+        res = block_res_aa_trace_xdrop(block);
         reverseCigar = true;
     }
 
     Cigar *cigar = block_new_cigar(res.query_idx, res.reference_idx);
     if (reverseCigar) {
-        block_cigar_aa_trace_xdrop(blockRev, res.query_idx, res.reference_idx, cigar);
+        block_cigar_aa_trace_xdrop(block, res.query_idx, res.reference_idx, cigar);
     } else {
         block_cigar_aa_trace_xdrop(block, res.query_idx, res.reference_idx, cigar);
     }
 
     size_t cigarLen = block_len_cigar(cigar);
 
-    Matcher::result_t realResult;
     //    result.cigar = retCigar;
     int bitScore = static_cast<int>(evaluer->computeBitScore(res.score) + 0.5);
     int qEndPos = qStartPos + res.query_idx - 1;
@@ -250,7 +250,7 @@ BlockAligner::align(Sequence *targetSeqObj,
         std::reverse(backtrace.begin(), backtrace.end());
     }
 
-    realResult = Matcher::result_t(targetSeqObj->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength,
+    Matcher::result_t  realResult = Matcher::result_t(targetSeqObj->getDbKey(), bitScore, qcov, dbcov, seqId, evalue, alnLength,
                                    qStartPos, qEndPos, querySeqLen, tStartPos, dbEndPos, targetSeqObj->L,
                                    backtrace);
 
@@ -269,12 +269,6 @@ BlockAligner::align(Sequence *targetSeqObj,
         block_free_aaprofile(targetProfile);
     }
     block_free_cigar(cigar);
-    block_free_aa_trace_xdrop(block);
-    block_free_aa_trace_xdrop(blockRev);
 
-    free(querySeqRevAlign);
-    free(targetSeqRevAlign);
-    free(querySeqAlign);
-    free(targetSeqAlign);
     return realResult;
 }
