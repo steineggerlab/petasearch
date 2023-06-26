@@ -211,13 +211,7 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
 
             while (sequence.hasNextKmer()) {
                 const unsigned char *kmer = sequence.nextKmer();
-
-                unsigned int xCount = 0;
-                for (unsigned int pos = 0; pos < kmerSize; ++pos) {
-                    xCount += (kmer[pos] == xIndex);
-                }
-
-                if (xCount) {
+                if (sequence.kmerContainsX()) {
                     continue;
                 }
 

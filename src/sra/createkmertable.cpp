@@ -107,11 +107,7 @@ int createkmertable(int argc, const char **argv, const Command &command) {
             s.mapSequence(i, key, data, seqLen);
             while (s.hasNextKmer()) {
                 const unsigned char *kmer = s.nextKmer();
-                int xCount = 0;
-                for (size_t pos = 0; pos < (unsigned) par.kmerSize; pos++) {
-                    xCount += (kmer[pos] == xIndex);
-                }
-                if (xCount) {
+                if (s.kmerContainsX()) {
                     continue;
                 }
 
