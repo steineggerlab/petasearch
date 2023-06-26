@@ -356,6 +356,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
             size_t len = Matcher::resultToBuffer(buffer, results[i], false, false, true);
             writer.writeData(buffer, len, results[i].dbKey, thread_idx);
         }
+        results.clear();
     }
 
 //#pragma omp parallel
