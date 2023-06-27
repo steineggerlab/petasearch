@@ -77,6 +77,7 @@ of ~10% sequence length performs well (tested with reads up to ~50kbps).
 For proteins, a min block size of 32 and a max block size of 256 performs well.
 Using a minimum block size that is at least 32 is recommended for most applications.
 Using a maximum block size greater than `2^14 = 16384` is not recommended.
+The library contains a `percent_len` function that computes a percentage of the sequence length with these recommendations.
 If the alignment scores are saturating (score too large), then use a smaller block size.
 Let me know how block aligner performs on your data!
 
@@ -136,7 +137,20 @@ the [C readme](c/README.md).
 See the `3di` branch for an example of using block aligner to do local alignment in C,
 along with block aligner modifications to support aligning with amino acid 3D interaction (3Di) information.
 
-Most of the instructions below are for benchmarking and testing block aligner.
+## Improving Block Aligner
+During alignment, three decisions need to be made at each step (using heuristics):
+* Whether to grow the block size
+* Whether to shrink the block size
+* Whether to shift right or down
+
+Block aligner uses simple greedy heuristics that are cheap to evaluate for making these decisions.
+There is probably a lot of room to improve here! Maybe seeds? Neural network models?
+
+To try your ideas, take a look at the code after the comment `// TODO: better heuristics?` in `src/scan_block.rs`
+(depending on your changes, you may need to modify other parts of the code too). Let me know if you
+are working on new ideas!
+
+**Most of the instructions below are for benchmarking and testing block aligner.**
 
 ## Data
 Some Illumina/Nanopore (DNA), Uniclust30 (protein), and SCOP (protein profile) data are used in some tests and benchmarks.
@@ -157,11 +171,13 @@ Run `scripts/doc_avx2.sh` or `scripts/doc_wasm.sh` to build the docs locally.
 
 ## Benchmark
 Run `scripts/bench_avx2.sh` or `scripts/bench_wasm.sh` for basic benchmarks.
-See the `scripts` directory for more benchmark scripts on real data.
+See the `scripts` directory for runnable benchmark scripts on real data.
+Most of the actual implementations of the benchmarks are in the `examples` directory.
 
 ## Data analysis and visualizations
 Use the Jupyter notebook in the `vis/` directory to gather data and plot them. An easier way
-to run the whole notebook is to run the `vis/run_vis.sh` script.
+to run the whole notebook is to run the `vis/run_vis.sh` script. This reproduces the
+experiments in the manuscript.
 
 ## Profiling with MacOS Instruments
 Use
