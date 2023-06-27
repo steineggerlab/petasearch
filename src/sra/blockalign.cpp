@@ -197,8 +197,13 @@ int blockalign(int argc, const char **argv, const Command &command) {
     EvalueComputation evaluer(targetSequenceReader.getAminoAcidDBSize(), subMat);
 
     const int xdrop = par.xdrop;
+
+    size_t kmerMatch = 0;
+    size_t ungappedNum = 0;
+    size_t alignmentsNum = 0;
+    size_t totalPassedNum = 0;
     Debug::Progress progress(resultReader.getSize());
-#pragma omp parallel
+#pragma omp parallel reduction(+:kmerMatch, ungappedNum, alignmentsNum, totalPassedNum)
     {
         unsigned int thread_idx = 0;
 #ifdef OPENMP
@@ -274,6 +279,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                         EXIT(EXIT_FAILURE);
                     }
                 }
+                kmerMatch++;
 
                 SORT_SERIAL(queries.begin(), queries.end(), blockByDiagSort);
                 if (isWithinNDiagonals(queries, 4) == false) {
@@ -310,6 +316,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     par.rescoreMode,
                     par.evalThr
                 );
+                ungappedNum++;
 
                 if (aln.diagonal == (int) INVALID_DIAG) {
                     continue;
@@ -323,9 +330,11 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop, subMat, useProfileSearch);
                 res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
+                alignmentsNum++;
 
                 if (res.eval <= par.evalThr) {
                     results.emplace_back(res);
+                    totalPassedNum++;
                 }
 //                Debug(Debug::INFO) << "Backtrace: " << res.backtrace << "\n";
 //                Debug(Debug::INFO) << printAlnFromBt(targetSeqData, res.qStartPos, res.backtrace, false) << "\t"
@@ -376,6 +385,22 @@ int blockalign(int argc, const char **argv, const Command &command) {
 //        }
 //    }
     writer.close(true);
+
+    Debug(Debug::INFO) << kmerMatch << " before diagonal filter\n";
+    Debug(Debug::INFO) << ungappedNum << " ungapped alignments calculated\n";
+    Debug(Debug::INFO) << alignmentsNum << " alignments calculated\n";
+    Debug(Debug::INFO) << totalPassedNum << " sequence pairs passed the thresholds";
+    if (alignmentsNum > 0) {
+        Debug(Debug::INFO) << " (" << ((float) totalPassedNum / (float) alignmentsNum) << " of overall calculated)";
+    }
+    Debug(Debug::INFO) << "\n";
+    size_t dbSize = querySequenceReader.getSize();
+    if (dbSize > 0) {
+        size_t hits = totalPassedNum / dbSize;
+        size_t hits_rest = totalPassedNum % dbSize;
+        float hits_f = ((float) hits) + ((float) hits_rest) / (float) dbSize;
+        Debug(Debug::INFO) << hits_f << " hits per query sequence\n";
+    }
 
     resultReader.close();
     querySequenceReader.close();
