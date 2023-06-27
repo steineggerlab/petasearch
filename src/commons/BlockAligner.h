@@ -31,6 +31,7 @@ private:
     SizeRange range;
     Gaps gaps{};
     BlockHandle block;
+    BlockHandle blockRev;
     const char PSSMAlphabet[20] = {'A', 'C', 'D', 'E', 'F',
                                    'G', 'H', 'I', 'K', 'L',
                                    'M', 'N', 'P', 'Q', 'R',

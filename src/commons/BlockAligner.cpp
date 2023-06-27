@@ -17,6 +17,7 @@ BlockAligner::BlockAligner(size_t maxSequenceLength,
     targetSeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     querySeqRev = static_cast<char *>(calloc(maxSequenceLength + 1, sizeof(char)));
     block = block_new_aa_trace_xdrop(maxSequenceLength + 1, maxSequenceLength + 1, range.max);
+    blockRev = block_new_aa_trace_xdrop(maxSequenceLength + 1, maxSequenceLength + 1, range.max);
 }
 
 BlockAligner::~BlockAligner() {
@@ -25,6 +26,7 @@ BlockAligner::~BlockAligner() {
     free(querySeqRev);
     free(targetSeqRev);
     block_free_aa_trace_xdrop(block);
+    block_free_aa_trace_xdrop(blockRev);
 }
 
 void BlockAligner::initQuery(Sequence *query) {
@@ -132,12 +134,12 @@ BlockAligner::align(Sequence *targetSeqObj,
     }
 
     if (useProfile) {
-        block_align_profile_aa_trace_xdrop(block, queryRevPadded, targetRevProfile, range, xdrop);
+        block_align_profile_aa_trace_xdrop(blockRev, queryRevPadded, targetRevProfile, range, xdrop);
     } else {
-        block_align_aa_trace_xdrop(block, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
+        block_align_aa_trace_xdrop(blockRev, queryRevPadded, targetRevPadded, &BLOSUM62, gaps, range, xdrop);
     }
 
-    AlignResult resRev = block_res_aa_trace_xdrop(block);
+    AlignResult resRev = block_res_aa_trace_xdrop(blockRev);
 
     unsigned int qStartPos = querySeqLen - (qStartRev + resRev.query_idx);
     unsigned int qEndPosAlign = querySeqLen;
@@ -177,13 +179,13 @@ BlockAligner::align(Sequence *targetSeqObj,
     bool reverseCigar = false;
 
     if (resRev.query_idx > res.query_idx && resRev.reference_idx > res.reference_idx) {
-        res = block_res_aa_trace_xdrop(block);
+        res = block_res_aa_trace_xdrop(blockRev);
         reverseCigar = true;
     }
 
     Cigar *cigar = block_new_cigar(res.query_idx, res.reference_idx);
     if (reverseCigar) {
-        block_cigar_aa_trace_xdrop(block, res.query_idx, res.reference_idx, cigar);
+        block_cigar_aa_trace_xdrop(blockRev, res.query_idx, res.reference_idx, cigar);
     } else {
         block_cigar_aa_trace_xdrop(block, res.query_idx, res.reference_idx, cigar);
     }
