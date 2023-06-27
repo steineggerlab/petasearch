@@ -216,13 +216,13 @@ BlockAligner::align(Sequence *targetSeqObj,
             for (uint32_t i = 0; i < length; ++i) {
                 if (letter == 'M') {
                     if (reverseCigar) {
-                        if (targetSeqRevAlign[targetPos] == 'X' or querySeqRevAlign[queryPos] == 'X') {
+                        if (targetSeqRevAlign[targetPos] == 'X' || querySeqRevAlign[queryPos] == 'X') {
                             aaIds++;
                         } else if (targetSeqRevAlign[targetPos] == querySeqRevAlign[queryPos]) {
                             aaIds++;
                         }
                     } else {
-                        if (targetSeqAlign[targetPos] == 'X' or querySeqAlign[queryPos] == 'X') {
+                        if (targetSeqAlign[targetPos] == 'X' || querySeqAlign[queryPos] == 'X') {
                             aaIds++;
                         } else if (targetSeqAlign[targetPos] == querySeqAlign[queryPos]) {
                             aaIds++;
