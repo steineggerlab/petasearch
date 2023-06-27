@@ -362,7 +362,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
             results[i].dbOrfStartPos = (int) results[i].dbKey;
             results[i].dbKey = (unsigned int) results[i].queryOrfStartPos;
             Matcher::result_t::swapResult(results[i], evaluer, true);
-            size_t len = Matcher::resultToBuffer(buffer, results[i], false, false, true);
+            size_t len = Matcher::resultToBuffer(buffer, results[i], par.addBacktrace, true, true);
             writer.writeData(buffer, len, results[i].dbKey, thread_idx);
         }
         results.clear();

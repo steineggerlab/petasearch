@@ -2,6 +2,7 @@
 #include "FileUtil.h"
 #include "Util.h"
 #include "CommandCaller.h"
+#include "Debug.h"
 
 #include "petasearch.sh.h"
 
@@ -18,6 +19,25 @@ int petasearch(int argc, const char **argv, const Command &command) {
     setPetaSearchWorkflowDefaults(&par);
 
     par.parseParameters(argc, argv, command, true, 0, 0);
+
+    bool needBacktrace = false;
+    bool needTaxonomy = false;
+    bool needTaxonomyMapping = false;
+    bool needLookup = false;
+
+    {
+        bool needSequenceDB = false;
+        bool needFullHeaders = false;
+        bool needSource = false;
+        Parameters::getOutputFormat(par.formatAlignmentMode, par.outfmt, needSequenceDB, needBacktrace, needFullHeaders,
+                needLookup, needSource, needTaxonomyMapping, needTaxonomy);
+    }
+
+    if (needBacktrace) {
+        Debug(Debug::INFO) << "Alignment backtraces will be computed, since they were requested by output format.\n";
+        par.addBacktrace = true;
+        par.PARAM_ADD_BACKTRACE.wasSet = true;
+    }
 
     std::string tmpDir = par.db5;
     std::string hash = SSTR(par.hashParameter(command.databases, par.filenames, *command.params));

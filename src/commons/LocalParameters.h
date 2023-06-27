@@ -120,6 +120,7 @@ private:
         blockalign.push_back(&PARAM_RANGE_MIN);
         blockalign.push_back(&PARAM_RANGE_MAX);
         blockalign.push_back(&PARAM_X_DROP);
+        blockalign.push_back(&PARAM_ADD_BACKTRACE);
         blockalign.push_back(&PARAM_COMPRESSED);
         blockalign.push_back(&PARAM_THREADS);
         blockalign.push_back(&PARAM_V);
