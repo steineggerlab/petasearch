@@ -27,6 +27,26 @@
 #define MEM_SIZE_16MB ((size_t) (16 * 1024 * 1024))
 #define MEM_SIZE_32MB ((size_t) (32 * 1024 * 1024))
 
+QueryTableEntry *removeNotHitKmers(
+    QueryTableEntry *startPos, QueryTableEntry *endPos
+) {
+    QueryTableEntry *currentReadPos = startPos;
+    QueryTableEntry *currentWritePos = startPos;
+    while (currentReadPos < endPos) {
+        if (currentReadPos->targetSequenceID != UINT_MAX) {
+            // if this entry had a hit, we copy it to the new location
+            // as long as the read and write positions are not the same
+            if (currentReadPos != currentWritePos) {
+                memcpy(currentWritePos, currentReadPos, sizeof(QueryTableEntry));
+            }
+            ++currentWritePos;
+        }
+        ++currentReadPos;
+    }
+    return currentWritePos;
+}
+
+
 QueryTableEntry *removeNotHitSequences(
     QueryTableEntry *startPos, QueryTableEntry *endPos, unsigned int requiredKmerMatches
 ) {
@@ -581,13 +601,18 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
             }
 
             timer.reset();
-            SORT_SERIAL(startPosQueryTable, endQueryPos, resultTableSort);
+            QueryTableEntry *truncatedQueryEndPos = removeNotHitKmers(startPosQueryTable, endPosQueryTable);
+            Debug(Debug::INFO) << "Keeping " << (truncatedQueryEndPos - startPosQueryTable)  << " out of " << (endPosQueryTable - startPosQueryTable) << " k-mer matches\n";
+            Debug(Debug::INFO) << "Not hit kmer elimination time: " << timer.lap() << "\n";
+            timer.reset();
+            
+            timer.reset();
+            SORT_SERIAL(startPosQueryTable, truncatedQueryEndPos, resultTableSort);
             Debug(Debug::INFO) << "Result table sort time: " << timer.lap() << "\n";
             timer.reset();
 
-            // TODO maybe don't need to allocate more than equalKmers here
-            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, par.requiredKmerMatches);
-            Debug(Debug::INFO) << "Keeping " << (truncatedResultEndPos - startPosQueryTable)  << " out of " << (endQueryPos - startPosQueryTable) << " k-mer matches\n";
+            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, truncatedQueryEndPos, par.requiredKmerMatches);
+            Debug(Debug::INFO) << "Keeping " << (truncatedResultEndPos - startPosQueryTable)  << " out of " << (truncatedQueryEndPos - startPosQueryTable) << " k-mer matches\n";
             Debug(Debug::INFO) << "Duplicate elimination time: " << timer.lap() << "\n";
             timer.reset();
 
