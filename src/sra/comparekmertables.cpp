@@ -28,13 +28,13 @@
 #define MEM_SIZE_32MB ((size_t) (32 * 1024 * 1024))
 
 QueryTableEntry *removeNotHitSequences(
-    QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *resultTable, unsigned int requiredKmerMatches
+    QueryTableEntry *startPos, QueryTableEntry *endPos, unsigned int requiredKmerMatches
 ) {
     QueryTableEntry *currentReadPos = startPos;
-    QueryTableEntry *currentWritePos = resultTable;
+    QueryTableEntry *currentWritePos = startPos;
     while (currentReadPos < endPos) {
         size_t count = 1;
-        while (currentReadPos < endPos
+        while (currentReadPos < endPos - 1
                && currentReadPos->targetSequenceID != UINT_MAX
                && currentReadPos->targetSequenceID == (currentReadPos + 1)->targetSequenceID
                && currentReadPos->querySequenceId == (currentReadPos + 1)->querySequenceId) {
@@ -49,6 +49,7 @@ QueryTableEntry *removeNotHitSequences(
     }
     return currentWritePos;
 }
+
 
 inline void parallelReadIntoVec(
     int fd,
@@ -366,14 +367,18 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
 
 #pragma omp parallel num_threads(localThreads) default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB)
     {
-        Timer timer;
-        std::vector<QueryTableEntry> localQTable(qTable); //creates a deep copy of the queryTable
-        Debug(Debug::INFO) << "Deep copy time: " << timer.lap() << "\n";
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < targetTables.size(); ++i) {
-            QueryTableEntry *startPosQueryTable = localQTable.data();
-            QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
+            Timer timer;
+            QueryTableEntry* localQTable = new QueryTableEntry[qTable.size()];
+            std::memcpy(localQTable, qTable.data(), qTable.size() * sizeof(QueryTableEntry));
+            // std::vector<QueryTableEntry> localQTable(qTable); //creates a deep copy of the queryTable
+            Debug(Debug::INFO) << "Deep copy time: " << timer.lap() << "\n";
+            QueryTableEntry *startPosQueryTable = localQTable;
+            QueryTableEntry *endQueryPos = startPosQueryTable + qTable.size();
+
             const std::string& targetName = targetTables[i];
+
             timer.reset();
 #if !defined(O_DIRECT)
             const int mode = (O_RDONLY | O_SYNC);
@@ -581,9 +586,8 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
             timer.reset();
 
             // TODO maybe don't need to allocate more than equalKmers here
-            QueryTableEntry *resultTable = new QueryTableEntry[endPosQueryTable - startPosQueryTable + 1];
-            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, resultTable, par.requiredKmerMatches);
-            Debug(Debug::INFO) << "Keeping " << (truncatedResultEndPos - resultTable)  << " out of " << (endQueryPos - startPosQueryTable) << " k-mer matches\n";
+            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, endQueryPos, par.requiredKmerMatches);
+            Debug(Debug::INFO) << "Keeping " << (truncatedResultEndPos - startPosQueryTable)  << " out of " << (endQueryPos - startPosQueryTable) << " k-mer matches\n";
             Debug(Debug::INFO) << "Duplicate elimination time: " << timer.lap() << "\n";
             timer.reset();
 
@@ -593,7 +597,7 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
             );
             writer.open();
 
-            QueryTableEntry *startPos = resultTable;
+            QueryTableEntry *startPos = startPosQueryTable;
             QueryTableEntry *endPos = truncatedResultEndPos;
             std::string result;
             result.reserve(10 * 1024);
@@ -613,17 +617,8 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
             }
             writer.close();
             Debug(Debug::INFO) << "Result write time: " << timer.lap() << "\n";
-            timer.reset();
 
-            QueryTableEntry *qTableStart = localQTable.data();
-            #pragma GCC unroll 8
-            for (size_t i = 0; i < localQTable.size(); ++i) {
-                qTableStart[i].targetSequenceID = UINT_MAX;
-            }
-            Debug(Debug::INFO) << "Query table reset: " << timer.lap() << "\n";
-
-            delete[] resultTable;
-            resultTable = nullptr;
+            delete[] localQTable;
         }
     }
 
