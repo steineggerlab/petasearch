@@ -13,9 +13,12 @@
 #include "FastSort.h"
 #include "tantan.h"
 
+#include <map>
 #include <fcntl.h>  // open, read
 #include <unistd.h>
 #include <cstdlib> // aligned_alloc
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #ifdef OPENMP
 #include <omp.h>
@@ -281,6 +284,48 @@ void createQueryTable(LocalParameters &par, std::vector<QueryTableEntry> &queryT
     reader.close();
 }
 
+std::vector<size_t> roundRobinOrder(const std::vector<std::string>& filenames) {
+    std::multimap<long, std::pair<size_t, std::string>> deviceToFileNames;
+    std::vector<size_t> result;
+
+    // Fill the multimap with filenames keyed by device identifier
+    for (size_t i = 0; i < filenames.size(); i++) {
+        struct stat sb;
+        if (stat(filenames[i].c_str(), &sb) == 0) {
+            deviceToFileNames.emplace(sb.st_dev, std::make_pair(i, filenames[i]));
+        }
+    }
+
+    // Iterate over the multimap in round-robin order
+    while (!deviceToFileNames.empty()) {
+        for (auto it = deviceToFileNames.begin(); it != deviceToFileNames.end();) {
+            // Add the index to the result
+            result.emplace_back(it->second.first);
+
+            // Store the iterator pointing to the next device
+            auto nextIt = it;
+            ++nextIt;
+
+            // Remove the current filename from the multimap
+            deviceToFileNames.erase(it);
+
+            // Move to the next device
+            it = nextIt;
+        }
+    }
+
+    return result;
+}
+
+template<typename T>
+void reorderVectorInPlace(std::vector<T>& original, const std::vector<size_t>& indices) {
+    std::vector<T> temp = original;
+    for (size_t i = 0; i < indices.size(); i++) {
+        original[i] = temp[indices[i]];
+    }
+}
+
+
 int comparekmertables(int argc, const char **argv, const Command &command) {
     LocalParameters &par = LocalParameters::getLocalInstance();
     par.spacedKmer = false;
@@ -302,9 +347,13 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
         EXIT(EXIT_FAILURE);
     }
 
+    std::vector<size_t> indices = roundRobinOrder(targetTables);
+    reorderVectorInPlace(targetTables, indices);
+    reorderVectorInPlace(resultFiles, indices);
+
     const unsigned long queryTableSize = qTable.size() * sizeof(QueryTableEntry);
     const size_t numQTableAvailInMem = Util::getTotalSystemMemory() / 3 / queryTableSize;
-    const size_t chunkSize = numQTableAvailInMem >= targetTables.size() ? 1 : targetTables.size() / numQTableAvailInMem;
+    // const size_t chunkSize = numQTableAvailInMem >= targetTables.size() ? 1 : targetTables.size() / numQTableAvailInMem;
 
     const unsigned long MAXIMUM_NUM_OF_BLOCKS =
             (Util::getTotalSystemMemory() - numQTableAvailInMem * queryTableSize) / (MEM_SIZE_16MB + MEM_SIZE_32MB);
@@ -315,7 +364,7 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
     localThreads = std::max(std::min(localThreads, targetTables.size()), (size_t)1);
 #endif
 
-#pragma omp parallel num_threads(localThreads) default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB, chunkSize)
+#pragma omp parallel num_threads(localThreads) default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB)
     {
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < targetTables.size(); ++i) {
