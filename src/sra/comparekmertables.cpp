@@ -27,25 +27,21 @@
 #define MEM_SIZE_16MB ((size_t) (16 * 1024 * 1024))
 #define MEM_SIZE_32MB ((size_t) (32 * 1024 * 1024))
 
-QueryTableEntry *removeNotHitKmers(
-    QueryTableEntry *startPos, QueryTableEntry *endPos
+QueryTableEntry *copyHitSequences(
+    QueryTableEntry *startPos, QueryTableEntry *endPos, QueryTableEntry *destPos
 ) {
     QueryTableEntry *currentReadPos = startPos;
-    QueryTableEntry *currentWritePos = startPos;
+    QueryTableEntry *currentWritePos = destPos;
     while (currentReadPos < endPos) {
         if (currentReadPos->targetSequenceID != UINT_MAX) {
-            // if this entry had a hit, we copy it to the new location
-            // as long as the read and write positions are not the same
-            if (currentReadPos != currentWritePos) {
-                memcpy(currentWritePos, currentReadPos, sizeof(QueryTableEntry));
-            }
+            // If this entry had a hit, we copy it to the destination location
+            memcpy(currentWritePos, currentReadPos, sizeof(QueryTableEntry));
             ++currentWritePos;
         }
         ++currentReadPos;
     }
     return currentWritePos;
 }
-
 
 QueryTableEntry *removeNotHitSequences(
     QueryTableEntry *startPos, QueryTableEntry *endPos, unsigned int requiredKmerMatches
@@ -387,13 +383,20 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
 
 #pragma omp parallel num_threads(localThreads) default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB)
     {
+        Timer timer;
+        QueryTableEntry* localQTable = new QueryTableEntry[qTable.size()];
+        std::memcpy(localQTable, qTable.data(), qTable.size() * sizeof(QueryTableEntry));
+        Debug(Debug::INFO) << "Deep copy time: " << timer.lap() << "\n";
+
+        QueryTableEntry* resultTable = new QueryTableEntry[qTable.size()];
+
+        std::string result;
+        result.reserve(10 * 1024 * 1024);
+        char buffer[1024];
+
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < targetTables.size(); ++i) {
-            Timer timer;
-            QueryTableEntry* localQTable = new QueryTableEntry[qTable.size()];
-            std::memcpy(localQTable, qTable.data(), qTable.size() * sizeof(QueryTableEntry));
             // std::vector<QueryTableEntry> localQTable(qTable); //creates a deep copy of the queryTable
-            Debug(Debug::INFO) << "Deep copy time: " << timer.lap() << "\n";
             QueryTableEntry *startPosQueryTable = localQTable;
             QueryTableEntry *endQueryPos = startPosQueryTable + qTable.size();
 
@@ -601,20 +604,19 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
             }
 
             timer.reset();
-            QueryTableEntry *truncatedQueryEndPos = removeNotHitKmers(startPosQueryTable, endPosQueryTable);
-            Debug(Debug::INFO) << "Keeping " << (truncatedQueryEndPos - startPosQueryTable)  << " out of " << (endPosQueryTable - startPosQueryTable) << " k-mer matches\n";
+            QueryTableEntry *resultTableEndPos = copyHitSequences(startPosQueryTable, endPosQueryTable, resultTable);
             Debug(Debug::INFO) << "Not hit kmer elimination time: " << timer.lap() << "\n";
             timer.reset();
             
             timer.reset();
-            SORT_SERIAL(startPosQueryTable, truncatedQueryEndPos, resultTableSort);
+            SORT_SERIAL(resultTable, resultTableEndPos, resultTableSort);
             Debug(Debug::INFO) << "Result table sort time: " << timer.lap() << "\n";
             timer.reset();
 
-            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(startPosQueryTable, truncatedQueryEndPos, par.requiredKmerMatches);
-            Debug(Debug::INFO) << "Keeping " << (truncatedResultEndPos - startPosQueryTable)  << " out of " << (truncatedQueryEndPos - startPosQueryTable) << " k-mer matches\n";
+            QueryTableEntry *truncatedResultEndPos = removeNotHitSequences(resultTable, resultTableEndPos, par.requiredKmerMatches);
             Debug(Debug::INFO) << "Duplicate elimination time: " << timer.lap() << "\n";
             timer.reset();
+            Debug(Debug::INFO) << "Reduced k-mers " << (endPosQueryTable - startPosQueryTable) << " -> " << (resultTableEndPos - resultTable) << " -> " << (truncatedResultEndPos - resultTable) << "\n";
 
             std::string resultDB = resultFiles[i];
             DBWriter writer(
@@ -622,14 +624,9 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
             );
             writer.open();
 
-            QueryTableEntry *startPos = startPosQueryTable;
-            QueryTableEntry *endPos = truncatedResultEndPos;
-            std::string result;
-            result.reserve(10 * 1024);
-            char buffer[1024];
-            for (QueryTableEntry *currentPos = startPos; currentPos < endPos - 1; ++currentPos) {
+            for (QueryTableEntry *currentPos = resultTable; currentPos < truncatedResultEndPos - 1; ++currentPos) {
 //        bool didAppend = false;
-                while (currentPos < endPos - 1 && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
+                while (currentPos < truncatedResultEndPos - 1 && currentPos->targetSequenceID == (currentPos + 1)->targetSequenceID) {
                     size_t len = QueryTableEntry::queryEntryToBuffer(buffer, *currentPos);
 //            if (didAppend == false) {
                     result.append(buffer, len);
@@ -641,10 +638,12 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
                 result.clear();
             }
             writer.close();
+            result.clear();
             Debug(Debug::INFO) << "Result write time: " << timer.lap() << "\n";
 
-            delete[] localQTable;
         }
+        delete[] localQTable;
+        delete[] resultTable;
     }
 
     return EXIT_SUCCESS;
