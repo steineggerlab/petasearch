@@ -366,16 +366,14 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
 
 #pragma omp parallel num_threads(localThreads) default(none) shared(par, resultFiles, qTable, targetTables, std::cerr, std::cout, maximumNumOfBlocksPerDB)
     {
+        Timer timer;
+        std::vector<QueryTableEntry> localQTable(qTable); //creates a deep copy of the queryTable
+        Debug(Debug::INFO) << "Deep copy time: " << timer.lap() << "\n";
 #pragma omp for schedule(dynamic, 1)
         for (size_t i = 0; i < targetTables.size(); ++i) {
-            Timer timer;
-            std::vector<QueryTableEntry> localQTable(qTable); //creates a deep copy of the queryTable
-            Debug(Debug::INFO) << "Deep copy time: " << timer.lap() << "\n";
             QueryTableEntry *startPosQueryTable = localQTable.data();
             QueryTableEntry *endQueryPos = startPosQueryTable + localQTable.size();
-
             const std::string& targetName = targetTables[i];
-
             timer.reset();
 #if !defined(O_DIRECT)
             const int mode = (O_RDONLY | O_SYNC);
@@ -615,6 +613,14 @@ int comparekmertables(int argc, const char **argv, const Command &command) {
             }
             writer.close();
             Debug(Debug::INFO) << "Result write time: " << timer.lap() << "\n";
+            timer.reset();
+
+            QueryTableEntry *qTableStart = localQTable.data();
+            #pragma GCC unroll 8
+            for (size_t i = 0; i < localQTable.size(); ++i) {
+                qTableStart[i].targetSequenceID = UINT_MAX;
+            }
+            Debug(Debug::INFO) << "Query table reset: " << timer.lap() << "\n";
 
             delete[] resultTable;
             resultTable = nullptr;
