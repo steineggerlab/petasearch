@@ -74,7 +74,7 @@ DistanceCalculator::LocalAlignment ungappedDiagFilter(
         const char *targetSeqData, size_t targetSeqLen,
         const char **matrix, EvalueComputation &evaluer, int rescoreMode, double evalThr) {
     int maxScore = INT_MIN;
-    DistanceCalculator::LocalAlignment alignmentResult = DistanceCalculator::LocalAlignment();
+    DistanceCalculator::LocalAlignment alignmentResult;
     unsigned int lastDiagonal = INVALID_DIAG;
     for (size_t i = 1; i < queries.size(); ++i) {
         if (queries[i].Result.diag == lastDiagonal) {
@@ -84,9 +84,8 @@ DistanceCalculator::LocalAlignment ungappedDiagFilter(
         lastDiagonal = queries[i].Result.diag;
 
         alignmentResult = DistanceCalculator::computeUngappedAlignment(
-            querySeqData, querySeqLen, targetSeqData,
-            targetSeqLen, queries[i].Result.diag,
-            matrix, rescoreMode
+            querySeqData, querySeqLen, targetSeqData, targetSeqLen,
+            queries[i].Result.diag, matrix, rescoreMode
         );
         queries[i].Result.score = alignmentResult.score;
 
@@ -104,6 +103,7 @@ DistanceCalculator::LocalAlignment ungappedDiagFilter(
         // actually calculate maxscore
         // }
     }
+
 
     if (maxScore == INT_MIN) {
         alignmentResult.diagonal = INVALID_DIAG;
@@ -219,6 +219,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
             isNucDB ? -par.gapOpen.values.nucleotide() : -par.gapOpen.values.aminoacid(),
             isNucDB ? -par.gapExtend.values.nucleotide() : -par.gapExtend.values.aminoacid()
         );
+        // Matcher matcher(querySeq.getSeqType(), targetSeq.getSeqType(), par.maxSeqLen, subMat, &evaluer, false, 1.0, par.gapOpen.values.aminoacid(), par.gapExtend.values.aminoacid(), 1.0, 0);
 
         char buffer[1024];
 
@@ -227,6 +228,9 @@ int blockalign(int argc, const char **argv, const Command &command) {
 
         std::string result;
         result.reserve(1000);
+
+        std::string realSeq;
+        realSeq.reserve(1000);
 
         std::vector<QueryTableEntry> queries;
         queries.reserve(300);
@@ -291,17 +295,16 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 const char *querySeqData = querySequenceReader.getData(queryId, thread_idx);
                 const unsigned int querySeqLen = querySequenceReader.getSeqLen(queryId);
                 const unsigned int queryEntryLen = querySequenceReader.getEntryLen(queryId);
-//                std::string realSeq = SRAUtil::extractProfileSequence(querySeqData, querySeqLen, subMat);
-                std::string realSeq;
-                querySeq.extractProfileSequence(querySeqData, queryEntryLen, *subMat, realSeq);
-                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
 
-                if (useProfileSearch && realSeq.length() != querySeqLen) {
-                    Debug(Debug::ERROR) << "Query sequence length is wrong!\n" 
-                                        << "Correct count: " << correct_count << "\n"
-                                        << "Retrieved sequence length: " << querySeqLen << "\n"
-                                        << "Newly measured sequence length: " << realSeq.length() << "\n";
-                    EXIT(EXIT_FAILURE);
+                if (useProfileSearch) {
+                    querySeq.extractProfileSequence(querySeqData, queryEntryLen - 1, *subMat, realSeq);
+                    if (realSeq.length() != querySeqLen) {
+                        Debug(Debug::ERROR) << "Query sequence length is wrong!\n" 
+                                            << "Correct count: " << correct_count << "\n"
+                                            << "Retrieved sequence length: " << querySeqLen << "\n"
+                                            << "Newly measured sequence length: " << realSeq.length() << "\n";
+                        EXIT(EXIT_FAILURE);
+                    }
                 }
 
                 correct_count++;
@@ -318,16 +321,42 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 );
                 ungappedNum++;
 
+                // for (size_t i = 0; i < queries.size(); ++i) {
+                //     Debug(Debug::WARNING) << queries[i].querySequenceId << "\t" << queries[i].targetSequenceID << "\n";
+                //     Debug(Debug::WARNING) << queries[i].Query.kmerPosInQuery << "\t" << queries[i].Query.kmer << "\n";
+                // }
+                // Debug(Debug::WARNING) << "querySeqData: " << querySeqData << "\n";
+                // Debug(Debug::WARNING) << "targetSeqData: " << targetSeqData << "\n";
+                // Debug(Debug::WARNING) << "diagonal: " << aln.diagonal << "\n";
+                // Debug(Debug::WARNING) << "score: " << aln.score << "\n";
+                // Debug(Debug::WARNING) << "distToDiagonal: " << aln.distToDiagonal << "\n";
+                // Debug(Debug::WARNING) << "startPos: " << aln.startPos << "\n";
+                // Debug(Debug::WARNING) << "endPos: " << aln.endPos << "\n";
+                // unsigned int qUngappedStartPos = aln.startPos + ((aln.diagonal >= 0) ? aln.distToDiagonal : 0);
+                // unsigned int qUngappedEndPos = aln.endPos + ((aln.diagonal >= 0) ? aln.distToDiagonal : 0);
+                // unsigned int dbUngappedStartPos = aln.startPos + ((aln.diagonal >= 0) ? 0 : aln.distToDiagonal);
+                // unsigned int dbUngappedEndPos = aln.endPos + ((aln.diagonal >= 0) ? 0 : aln.distToDiagonal);
+                // Debug(Debug::INFO) << "qUnGapStart: " << qUngappedStartPos << "\n";
+                // Debug(Debug::INFO) << "qUnGapEnd: " << qUngappedEndPos << "\n";
+                // Debug(Debug::INFO) << "dbUnGapStart: " << dbUngappedStartPos << "\n";
+                // Debug(Debug::INFO) << "dbUnGapEnd: " << dbUngappedEndPos << "\n";
+                // Debug(Debug::INFO) << std::string(querySeqData + qUngappedStartPos, qUngappedEndPos - qUngappedStartPos) << "\n";
+                // Debug(Debug::INFO) << std::string(targetSeqData + dbUngappedStartPos, dbUngappedEndPos - dbUngappedStartPos) << "\n";
+                // EXIT(EXIT_FAILURE);
+
                 if (aln.diagonal == (int) INVALID_DIAG) {
                     continue;
                 }
 
                 if (isBlockAlignerInit == false) {
-                    blockAligner.initQuery(&targetSeq);
+                    blockAligner.initTarget(targetSeq);
                     isBlockAlignerInit = true;
                 }
 
-                Matcher::result_t res = blockAligner.align(&querySeq, aln, &evaluer, xdrop, subMat, useProfileSearch);
+                // matcher.initQuery(&querySeq);
+                // Matcher::result_t res = matcher.getSWResult(&targetSeq, INT_MAX, false, 0, 0.0, par.evalThr, Matcher::SCORE_COV_SEQID, 0, false);
+                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
+                Matcher::result_t res = blockAligner.align(querySeq, aln, &evaluer, xdrop, subMat, useProfileSearch);
                 res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
                 alignmentsNum++;

@@ -7,42 +7,56 @@
 
 class BlockAligner {
 public:
-    BlockAligner(size_t maxSequenceLength,
-                 uintptr_t min, uintptr_t max,
-                 int8_t gapOpen, int8_t gapExtend);
+    BlockAligner(
+        size_t maxSequenceLength,
+        uintptr_t min, uintptr_t max,
+        int8_t gapOpen, int8_t gapExtend
+    );
 
     ~BlockAligner();
 
-    void initQuery(Sequence *query);
+    void initTarget(Sequence &target);
 
-    Matcher::result_t align(Sequence *targetSeqObj,
-                            DistanceCalculator::LocalAlignment alignment,
-                            EvalueComputation *evaluer,
-                            int xdrop,
-                            BaseMatrix *subMat = nullptr,
-                            bool useProfile = false);
+    Matcher::result_t align(
+        Sequence &query,
+        DistanceCalculator::LocalAlignment alignment,
+        EvalueComputation *evaluer,
+        int xdrop,
+        BaseMatrix *subMat = nullptr,
+        bool useProfile = false
+    );
 
 private:
-    char *targetSeqRev;
-    char *querySeq;
-    char *targetSeq;
-    size_t querySeqLen;
-    char *querySeqRev;
+    PaddedBytes* a;
+    PaddedBytes* b;
+    AAProfile* aProfile;
+    AAProfile* bProfile;
+    AAMatrix* matrix;
+    BlockHandle blockTrace;
+    BlockHandle blockNoTrace;
+    Cigar* cigar;
+
+    char* querySeqRev;
+
+    size_t targetLength;
+    const char* targetSeq;
+    char* targetSeqRev;
+
     SizeRange range;
-    Gaps gaps{};
-    BlockHandle block;
-    BlockHandle blockRev;
+    Gaps gaps;
     const char PSSMAlphabet[20] = {'A', 'C', 'D', 'E', 'F',
                                    'G', 'H', 'I', 'K', 'L',
                                    'M', 'N', 'P', 'Q', 'R',
                                    'S', 'T', 'V', 'W', 'Y'};
 
-    void initializeProfile(const int8_t *rawProfileMatrix,
-                           size_t seqStart,
-                           size_t seqEnd,
-                           size_t seqLen,
-                           AAProfile *result,
-                           bool reverse = false);
+    void initializeProfile(
+        const int8_t *rawProfileMatrix,
+        size_t seqStart,
+        size_t seqEnd,
+        size_t seqLen,
+        AAProfile *result,
+        bool reverse = false
+    );
 };
 
 #endif
