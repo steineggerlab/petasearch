@@ -5,4 +5,5 @@ set(sra_source_files
         sra/convert2sradb.cpp
         sra/convertsraalignments.cpp
         sra/readandprint.cpp
+        sra/playground.cpp
         PARENT_SCOPE)

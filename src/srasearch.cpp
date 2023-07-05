@@ -118,6 +118,15 @@ std::vector<struct Command> commands = {
         "<i:sraDB>",
         CITATION_MMSEQS2,
         {{"inputdb", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile }}
+    },
+    {
+        "playground", playground, &localPar.onlyverbosity, COMMAND_HIDDEN,
+        "",
+        NULL,
+        "",
+        "",
+        CITATION_MMSEQS2,
+        {}
     }
 };
 

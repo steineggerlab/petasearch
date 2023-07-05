@@ -6,13 +6,23 @@
 #include <vector>
 
 namespace SRAUtil {
-/**
- * @brief Reverse a string and put the results in strRev
- * @param strRev the destination to put the reversed string
- * @param str the string to be revesed
- * @param len the length of the string
- */
-    void strrev(char *strRev, const char *str, int len);
+    /**
+     * @brief Reverse a string and put the results in strRev
+     * @param strRev the destination to put the reversed string
+     * @param str the string to be revesed
+     * @param len the length of the string
+     */
+    inline void strrev(char *strRev, const char *str, int len) {
+        int start = 0;
+        int end = len - 1;
+        while (start <= end) {
+            strRev[start] = str[end];
+            strRev[end] = str[start];
+            ++start;
+            --end;
+        }
+        strRev[len] = '\0';
+    }
 
 /**
  * @brief Make a slice origStr[start:end], start inclusive, end exclusive

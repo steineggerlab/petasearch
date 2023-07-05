@@ -9,18 +9,6 @@
 #include <cstdlib>
 
 namespace SRAUtil {
-    void strrev(char *strRev, const char *str, int len) {
-        int start = 0;
-        int end = len - 1;
-        while (LIKELY(start <= end)) {
-            strRev[start] = str[end];
-            strRev[end] = str[start];
-            ++start;
-            --end;
-        }
-        strRev[len] = '\0';
-    }
-
     char *substr(char *origStr, unsigned int start, unsigned int end) {
         char *subStr = static_cast<char *>(calloc(end - start + 1, sizeof(char)));
         strncpy(subStr, origStr + start, end - start);

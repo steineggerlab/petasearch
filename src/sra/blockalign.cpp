@@ -297,6 +297,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 const unsigned int queryEntryLen = querySequenceReader.getEntryLen(queryId);
 
                 if (useProfileSearch) {
+                    realSeq.clear();
                     querySeq.extractProfileSequence(querySeqData, queryEntryLen - 1, *subMat, realSeq);
                     if (realSeq.length() != querySeqLen) {
                         Debug(Debug::ERROR) << "Query sequence length is wrong!\n" 
@@ -344,7 +345,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 // Debug(Debug::INFO) << std::string(targetSeqData + dbUngappedStartPos, dbUngappedEndPos - dbUngappedStartPos) << "\n";
                 // EXIT(EXIT_FAILURE);
 
-                if (aln.diagonal == (int) INVALID_DIAG) {
+                if (aln.diagonal == (int) INVALID_DIAG || aln.startPos == -1) {
                     continue;
                 }
 
@@ -353,10 +354,10 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     isBlockAlignerInit = true;
                 }
 
+                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
                 // matcher.initQuery(&querySeq);
                 // Matcher::result_t res = matcher.getSWResult(&targetSeq, INT_MAX, false, 0, 0.0, par.evalThr, Matcher::SCORE_COV_SEQID, 0, false);
-                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
-                Matcher::result_t res = blockAligner.align(querySeq, aln, &evaluer, xdrop, subMat, useProfileSearch);
+                Matcher::result_t res = blockAligner.align(querySeq, aln, &evaluer, xdrop, subMat);
                 res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
                 alignmentsNum++;

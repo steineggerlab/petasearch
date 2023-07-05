@@ -10,15 +10,21 @@
 
 BlockAligner::BlockAligner(
     size_t maxSequenceLength,
-    uintptr_t min = 32, uintptr_t max = 32,
-    int8_t gapOpen = -11, int8_t gapExtend = -1 //,
+    uintptr_t min,
+    uintptr_t max,
+    int8_t gapOpen,
+    int8_t gapExtend,
+    int dbtype
     // SubstitutionMatrix& subMat
 ) : range({min, max}),
-    gaps({gapOpen, gapExtend}) {
+    gaps({gapOpen, gapExtend}),
+    dbtype(dbtype) {
     a = block_new_padded_aa(maxSequenceLength, max);
-    b = block_new_padded_aa(maxSequenceLength, max);
-    // aProfile = block_new_aaprofile(maxSequenceLength, max, gaps.extend);
-    // bProfile = block_new_aaprofile(maxSequenceLength, max, gaps.extend);
+    if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
+        b = block_new_padded_aa(maxSequenceLength, max);
+    } else {
+        bProfile = block_new_aaprofile(maxSequenceLength, max, gaps.extend);
+    }
     blockTrace = block_new_aa_trace_xdrop(maxSequenceLength, maxSequenceLength, max);
     blockNoTrace = block_new_aa_xdrop(maxSequenceLength, maxSequenceLength, max);
     cigar = block_new_cigar(maxSequenceLength, maxSequenceLength);
@@ -44,9 +50,11 @@ BlockAligner::~BlockAligner() {
     block_free_aa_trace_xdrop(blockTrace);
     block_free_aa_xdrop(blockNoTrace);
     block_free_padded_aa(a);
-    block_free_padded_aa(b);
-    // block_free_aaprofile(aProfile);
-    // block_free_aaprofile(bProfile);
+    if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
+        block_free_padded_aa(b);
+    } else {
+        block_free_aaprofile(bProfile);
+    }
     // block_free_simple_aamatrix(matrix);
 
     free(querySeqRev);
@@ -54,36 +62,9 @@ BlockAligner::~BlockAligner() {
 }
 
 void BlockAligner::initTarget(Sequence &target) {
-    // SRAUtil::stripInvalidChars(query->getSeqData(), querySeq);
-    // memcpy(querySeq, query->getSeqData(), query->L);
-    // querySeqLen = query->L;
     targetSeq = target.getSeqData();
     targetLength = target.L;
     SRAUtil::strrev(targetSeqRev, targetSeq, targetLength);
-}
-
-
-void BlockAligner::initializeProfile(const int8_t *rawProfileMatrix,
-                                     size_t seqStart,
-                                     size_t seqEnd,
-                                     size_t seqLen,
-                                     AAProfile *result,
-                                     bool reverse) {
-    if (reverse) {
-        for (size_t i = seqStart; i < seqEnd; i++) {
-            for (size_t j = 0; j < 20; j++) {
-                block_set_aaprofile(result, i - seqStart, PSSMAlphabet[j], rawProfileMatrix[seqLen - 1 - i + j * seqLen]);
-            }
-        }
-
-    } else {
-        for (size_t i = seqStart; i < seqEnd; i++) { // iterate through position
-            for (size_t j = 0; j < 20; j++) { // iterate through alphabet
-                block_set_aaprofile(result, i - seqStart, PSSMAlphabet[j], rawProfileMatrix[i + j * seqLen]);
-            }
-        }
-    }
-
 }
 
 typedef struct LocalAln {
@@ -95,7 +76,14 @@ typedef struct LocalAln {
 } LocalAln;
 
 // note: traceback cigar string will be reversed, but LocalAln will contain correct start and end positions
-LocalAln align_local(BlockHandle block_trace, BlockHandle block_no_trace, size_t a_len, const char* a_str, const char* a_rev, PaddedBytes* a, size_t b_len, const char* b_str, const char* b_rev, PaddedBytes* b, const AAMatrix* matrix, Gaps gaps, size_t a_idx, size_t b_idx, Cigar* cigar, SizeRange range) {
+LocalAln align_local(
+    BlockHandle block_trace, BlockHandle block_no_trace,
+    size_t a_len, const char* a_str, const char* a_rev, PaddedBytes* a,
+    size_t b_len, const char* b_str, const char* b_rev, PaddedBytes* b,
+    const AAMatrix* matrix, Gaps gaps,
+    size_t a_idx, size_t b_idx,
+    Cigar* cigar, SizeRange range
+) {
     LocalAln res_aln;
     AlignResult res;
 
@@ -131,68 +119,140 @@ LocalAln align_local(BlockHandle block_trace, BlockHandle block_no_trace, size_t
     return res_aln;
 }
 
+LocalAln align_local_profile(
+    BlockHandle block_trace, BlockHandle block_no_trace,
+    const size_t a_len, const char* a_str, const char* a_rev, PaddedBytes* a,
+    const size_t b_len, const int8_t* b_profile_matrix, AAProfile* b,
+    Gaps gaps, BaseMatrix& subMat,
+    size_t a_idx, size_t b_idx,
+    Cigar* cigar, SizeRange range
+) {
+    LocalAln res_aln;
+    AlignResult res;
+
+    int32_t x_drop = 10000; // -(range.min * gaps.extend + gaps.open);
+    // forwards alignment starting at (a_idx, b_idx)
+    block_set_bytes_padded_aa(a, (uint8_t*)(a_str + a_idx), a_len - a_idx, range.max);
+
+    // int curr_max = INT_MAX;
+    for (size_t i = 0; i < (b_len - b_idx); ++i) {
+        // printf("%d ", b_idx + i);
+        for (uint8_t j = 0; j < Sequence::PROFILE_AA_SIZE; ++j) {
+            // if (val < curr_max) {
+            //     curr_max = val;
+            // }
+            block_set_aaprofile(b, i + 1, subMat.num2aa[j], b_profile_matrix[(j * b_len) + (b_idx + i)]);
+            // block_set_aaprofile(b, i + 1, subMat.num2aa[j], 2);
+            // printf("%d ", b_profile_matrix[(j * b_len) + (b_idx + i)]);
+        }
+        // printf("\n");
+    }
+    // block_clear_aaprofile(b, b_len);
+    for (size_t i = 0; i < (b_len - b_idx); i++) {
+        block_set_gap_open_C_aaprofile(b, i, gaps.open);
+        block_set_gap_close_C_aaprofile(b, i, 0);
+        block_set_gap_open_R_aaprofile(b, i, gaps.open);
+    }
+
+    // std::cout << "curr_max: " << curr_max << "\n";
+
+    block_align_profile_aa_xdrop(block_no_trace, a, b, range, x_drop);
+    res = block_res_aa_xdrop(block_no_trace);
+
+    // std::cout << res.score << std::endl;
+    // EXIT(EXIT_FAILURE);
+
+    res_aln.a_end = a_idx + res.query_idx;
+    res_aln.b_end = b_idx + res.reference_idx;
+
+    a_idx = a_len - (a_idx + res.query_idx);
+    b_idx = b_len - (b_idx + res.reference_idx);
+
+    // std::cout << "res.query_idx: " << res.query_idx << std::endl;
+    // std::cout << "res.reference_idx: " << res.reference_idx << std::endl;
+    // std::cout << "a_idx: " << a_idx << std::endl;
+    // std::cout << "b_idx: " << b_idx << std::endl;
+
+    block_set_bytes_padded_aa(a, (uint8_t*)(a_rev + a_idx), a_len - a_idx, range.max);
+    for (size_t i = 0; i < (b_len - b_idx); ++i) {
+        // printf("%d ", b_len - b_idx - i);
+        for (uint8_t j = 0; j < Sequence::PROFILE_AA_SIZE; ++j) {
+            // if (val < curr_max) {
+            //     curr_max = val;
+            // }
+            block_set_aaprofile(b, i + 1, subMat.num2aa[j], b_profile_matrix[(j * b_len) + (b_len - b_idx - i)]);
+            // block_set_aaprofile(b, i, subMat.num2aa[j], 2);
+            // printf("%d ", b_profile_matrix[(j * b_len) + (b_len - b_idx - i)]);
+        }
+        // printf("\n");
+    }
+        // std::cout << "curr_max: " << curr_max << "\n";
+
+
+    // start at a reasonable min_size based on the forwards alignment
+    // min_size >>= ITER;
+
+    block_align_profile_aa_trace_xdrop(block_trace, a, b, range, x_drop);
+    res = block_res_aa_trace_xdrop(block_trace);
+    block_cigar_aa_trace_xdrop(block_trace, res.query_idx, res.reference_idx, cigar);
+
+    // std::cout << "score: " << res.score << std::endl;
+
+    res_aln.a_start = a_len - (a_idx + res.query_idx);
+    res_aln.b_start = b_len - (b_idx + res.reference_idx);
+    res_aln.score = res.score;
+
+    return res_aln;
+}
+
 
 Matcher::result_t
 BlockAligner::align(Sequence &query,
                     DistanceCalculator::LocalAlignment alignment,
                     EvalueComputation *evaluer,
                     int xdrop,
-                    BaseMatrix *subMat,
-                    bool useProfile) {
-
-    // const int8_t *rawProfileMatrix = nullptr;
-        // rawProfileMatrix = targetSeqObj->getAlignmentProfile();
-        // SRAUtil::stripInvalidChars(
-        //         SRAUtil::extractProfileSequence(targetSeqObj->getSeqData(), targetSeqObj->L, subMat).c_str(),
-        //         targetSeq
-        // );
-
-
-    // AAProfile *targetRevProfile = nullptr;
-    // PaddedBytes *targetRevPadded = nullptr;
-    // if (useProfile) {
-    //     targetRevProfile = block_new_aaprofile(len_targetSeqRevAlign, range.max, gaps.extend);
-    //     initializeProfile(rawProfileMatrix, tStartRev, tEndRev, targetSeqObj->L, targetRevProfile, true);
-    //     for (size_t i = 0; i < len_targetSeqRevAlign; i++) {
-    //         block_set_gap_open_C_aaprofile(targetRevProfile, i, gaps.open);
-    //         block_set_gap_close_C_aaprofile(targetRevProfile, i, 0);
-    //         block_set_gap_open_R_aaprofile(targetRevProfile, i, gaps.open);
-    //     }
-
-    // AAProfile *targetProfile = nullptr;
-    // PaddedBytes *targetPadded = nullptr;
-    // if (useProfile) {
-    //     targetProfile = block_new_aaprofile(len_targetSeqAlign, range.max, gaps.extend);
-    //     initializeProfile(rawProfileMatrix, tStartPos, tEndPosAlign, targetSeqObj->L, targetProfile, false);
-    //     for (size_t i = 0; i < len_targetSeqAlign; i++) {
-    //         block_set_gap_open_C_aaprofile(targetProfile, i, gaps.open);
-    //         block_set_gap_close_C_aaprofile(targetProfile, i, 0);
-    //         block_set_gap_open_R_aaprofile(targetProfile, i, gaps.open);
-    //     }
-        // block_align_profile_aa_trace_xdrop(block, queryPadded, targetProfile, range, xdrop);
-
+                    BaseMatrix* subMat) {
     unsigned int qKey = query.getDbKey();
-    const char* b_str = query.getSeqData();
     size_t b_len = query.L;
-    SRAUtil::strrev(querySeqRev, b_str, b_len);
+    const char* b_str = query.getSeqData();
+    if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
+        SRAUtil::strrev(querySeqRev, b_str, b_len);
+    }
     const char* b_rev = querySeqRev;
+    const int8_t *b_profile_matrix = query.getAlignmentProfile();
 
-    const char* a_str = targetSeq;
     size_t a_len = targetLength;
+    const char* a_str = targetSeq;
     const char* a_rev = targetSeqRev;
 
-    // unsigned int qUngappedStartPos = alignment.startPos + ((alignment.diagonal < 0) ? alignment.distToDiagonal : 0);
-    unsigned int qUngappedEndPos = alignment.endPos + ((alignment.diagonal < 0) ? alignment.distToDiagonal : 0) - 1;
-    // unsigned int dbUngappedStartPos = alignment.startPos + ((alignment.diagonal < 0) ? 0 : alignment.distToDiagonal);
-    unsigned int dbUngappedEndPos = alignment.endPos + ((alignment.diagonal < 0) ? 0 : alignment.distToDiagonal) - 1;
+    unsigned int qUngappedStartPos = alignment.startPos + ((alignment.diagonal < 0) ? alignment.distToDiagonal : 0);
+    unsigned int qUngappedEndPos = alignment.endPos + ((alignment.diagonal < 0) ? alignment.distToDiagonal : 0);
+    unsigned int dbUngappedStartPos = alignment.startPos + ((alignment.diagonal < 0) ? 0 : alignment.distToDiagonal);
+    unsigned int dbUngappedEndPos = alignment.endPos + ((alignment.diagonal < 0) ? 0 : alignment.distToDiagonal);
+    qUngappedEndPos = std::max(1u, qUngappedEndPos) - 1;
+    dbUngappedEndPos = std::max(1u, dbUngappedEndPos) - 1;
+    qUngappedStartPos = (qUngappedStartPos > qUngappedEndPos) ? qUngappedEndPos : qUngappedStartPos;
+    dbUngappedStartPos = (dbUngappedStartPos > dbUngappedEndPos) ? dbUngappedEndPos : dbUngappedStartPos;
+    qUngappedEndPos = (qUngappedEndPos < qUngappedStartPos) ? qUngappedStartPos : qUngappedEndPos;
+    dbUngappedEndPos = (dbUngappedEndPos < dbUngappedStartPos) ? dbUngappedStartPos : dbUngappedEndPos;
 
+    // Debug(Debug::INFO) << "startPos: " << alignment.startPos << " endPos: " << alignment.endPos << " diagonal: " << alignment.diagonal << " distToDiagonal: " << alignment.distToDiagonal << "\n";
     // Debug(Debug::INFO) << "qUnGapStart: " << qUngappedStartPos << " qUnGapEnd: " << qUngappedEndPos << " qlen: " << a_len << "\n";
     // Debug(Debug::INFO) << "dbUnGapStart: " << dbUngappedStartPos << " dbUnGapEnd: " << dbUngappedEndPos << " dblen: " << b_len << "\n";
     // Debug(Debug::INFO) << std::string(a_str + qUngappedStartPos, qUngappedEndPos - qUngappedStartPos) << "\n";
-    // Debug(Debug::INFO) << std::string(b_str + dbUngappedStartPos, dbUngappedEndPos - dbUngappedStartPos) << "\n";
+    // if (useProfile) {
+    //     std::string realSeq = SRAUtil::extractProfileSequence(b_str, b_len - 1, subMat);
+    //     Debug(Debug::INFO) << std::string(realSeq.c_str() + dbUngappedStartPos, dbUngappedEndPos - dbUngappedStartPos) << "\n";
+    // } else {
+    //     Debug(Debug::INFO) << std::string(b_str + dbUngappedStartPos, dbUngappedEndPos - dbUngappedStartPos) << "\n";
+    // }
 
-
-    LocalAln local_aln = align_local(blockTrace, blockNoTrace, a_len, a_str, a_rev, a, b_len, b_str, b_rev, b, &BLOSUM62, gaps, qUngappedEndPos, dbUngappedEndPos, cigar, range);
+    LocalAln local_aln;
+    if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
+        local_aln = align_local(blockTrace, blockNoTrace, a_len, a_str, a_rev, a, b_len, b_str, b_rev, b, &BLOSUM62, gaps, qUngappedEndPos, dbUngappedEndPos, cigar, range);
+    } else {
+        local_aln = align_local_profile(blockTrace, blockNoTrace, a_len, a_str, a_rev, a, b_len, b_profile_matrix, bProfile, gaps, *subMat, qUngappedEndPos, dbUngappedEndPos, cigar, range);
+    }
     // printf("a: %s\nb: %s\nscore: %d\nstart idx: (%lu, %lu)\nend idx: (%lu, %lu)\n",
     //     a_str,
     //     b_str,
@@ -210,7 +270,7 @@ BlockAligner::align(Sequence &query,
     double evalue = evaluer->computeEvalue(local_aln.score, a_len);
 
     // Note: 'M' signals either a match or mismatch
-    char ops_char[] = {' ', 'M', '=', 'X', 'I', 'D'};
+    char ops_char[] = {' ', 'M', 'I', 'D'};
 
     int alnLength = Matcher::computeAlnLength(local_aln.a_start, local_aln.a_end, local_aln.b_start, local_aln.b_end);
 
@@ -233,15 +293,15 @@ BlockAligner::align(Sequence &query,
                 case 'M':
                     queryPos += length;
                     targetPos += length;
-                    backtrace.append('M', length);
+                    backtrace.append(length, 'M');
                     break;
                 case 'I':
                     queryPos += length;
-                    backtrace.append('I', length);
+                    backtrace.append(length, 'I');
                     break;
                 case 'D':
                     targetPos += length;
-                    backtrace.append('D', length);
+                    backtrace.append(length, 'D');
                     break;
             }
         }
@@ -254,7 +314,7 @@ BlockAligner::align(Sequence &query,
     // Debug(Debug::INFO) << "b_len: " << b_len << "\n";
 
     int seqIdMode = Parameters::SEQ_ID_ALN_LEN;
-    float seqId = Util::computeSeqId(seqIdMode, aaIds, a_len, b_len, alnLength) * (useProfile ? 10.0 : 1.0);
+    float seqId = Util::computeSeqId(seqIdMode, aaIds, a_len, b_len, alnLength); // * (useProfile ? 10.0 : 1.0);
         // Debug(Debug::INFO) << "seqId: " << seqId << "\n";
 
         // EXIT(EXIT_FAILURE);
