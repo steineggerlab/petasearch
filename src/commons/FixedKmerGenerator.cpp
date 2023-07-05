@@ -14,6 +14,8 @@ FixedKmerGenerator::~FixedKmerGenerator() {
     delete[] divideStep;
     delete[] matrixLookup;
     delete[] outputIndexArray;
+    delete[] scoreArrays;
+    delete[] indexArrays;
 }
 
 void FixedKmerGenerator::setThreshold(short threshold) {
@@ -81,69 +83,9 @@ void FixedKmerGenerator::setDivideStrategy(ScoreMatrix* three, ScoreMatrix* two)
 void FixedKmerGenerator::initDataStructure() {
     stepMultiplicator = new size_t[divideStepCount];
     outputIndexArray = (size_t *) mem_align(ALIGN_INT, maxKmers * sizeof(size_t));
+    scoreArrays = new std::pair<short *, int>[divideStepCount];
+    indexArrays = new std::pair<unsigned int*, int>[divideStepCount];
 }
-
-// std::pair<std::vector<std::vector<short>>, std::vector<std::vector<unsigned int>>> topScoringKmers(std::vector<std::pair<short*, int>> &scores, std::vector<std::pair<unsigned int*, int>> &indicesPairs, int N) {
-//     // std::priority_queue<std::pair<int, std::vector<int>>, std::vector<std::pair<int, std::vector<int>>>, decltype(&comp)> queue(&comp);
-//     std::vector<std::pair<int, std::vector<int>>> queue;
-//     std::make_heap(queue.begin(), queue.end(), comp);
-//     std::set<std::vector<int>> visited;
-
-//     std::vector<int> indices(scores.size(), 0);
-
-//     int total = 0;
-//     for (size_t i = 0; i < scores.size(); ++i) {
-//         total += scores[i].first[0];
-//     }
-
-//     // queue.emplace(total, indices);
-//     queue.push_back(std::make_pair(total, indices));
-//     std::push_heap(queue.begin(), queue.end(), comp);
-//     visited.insert(indices);
-
-//     std::vector<std::vector<short>> result;
-//     std::vector<std::vector<unsigned int>> indexResult;
-
-//     for (int _ = 0; _ < N; ++_) {
-//         // const std::pair<int, std::vector<int>>& top = queue.top();
-//         // total = top.first;
-//         // indices = top.second;
-//         // queue.pop();
-//         std::pop_heap(queue.begin(), queue.end(), comp);
-//         std::pair<int, std::vector<int>>& back = queue.back();
-//         total = back.first;
-//         indices = back.second;
-//         queue.pop_back();
-
-//         std::vector<short> res;
-//         std::vector<unsigned int> indexRes;
-//         for (size_t i = 0; i < scores.size(); ++i) {
-//             res.push_back(scores[i].first[indices[i]]);
-//             indexRes.push_back(indicesPairs[i].first[indices[i]]);
-//         }
-//         result.push_back(res);
-//         indexResult.push_back(indexRes);
-
-//         for (size_t i = 0; i < scores.size(); ++i) {
-//             if (indices[i] + 1 < scores[i].second) {
-//                 std::vector<int> newIndices = indices;
-//                 newIndices[i] += 1;
-//                 if (visited.find(newIndices) == visited.end()) {
-//                     visited.insert(newIndices);
-//                     total = 0;
-//                     for (size_t j = 0; j < scores.size(); ++j) {
-//                         total += scores[j].first[newIndices[j]];
-//                     }
-//                     // queue.emplace(total, newIndices);
-//                     queue.push_back(std::make_pair(total, newIndices));
-//                     std::push_heap(queue.begin(), queue.end(), comp);
-//                 }
-//             }
-//         }
-//     }
-
-//     return {result, indexResult};
-// }
 
 template <typename T>
 bool comp(const T& a, const T& b) {
@@ -271,10 +213,80 @@ std::pair<std::vector<unsigned int>, std::vector<std::tuple<unsigned int, unsign
     return {result, indexResult};
 }
 
+
+struct any_hash_fn {
+    template <class T>
+    inline void hash_combine(std::size_t& seed, T const& v) const {
+        std::hash<T> hasher;
+        seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+    }
+
+    template <class Pair>
+    inline std::size_t operator()(Pair const& t) const
+    {
+        std::size_t seed = 0;
+        for (size_t i = 0; i < t.size(); ++i) {
+            hash_combine(seed, t[i]);
+        }
+        return seed;
+    }
+};
+
+std::pair<std::vector<unsigned int>, std::vector<std::vector<unsigned int>>> topScoringKmers(std::pair<short*, int>* scores, std::pair<unsigned int*, int>* indices, int N, int numScores) {
+    std::vector<std::pair<int, std::vector<int>>> queue;
+    std::unordered_set<std::vector<int>, any_hash_fn> visited;
+
+    std::vector<int> idx(numScores, 0);
+    int total = 0;
+    for (int i = 0; i < numScores; ++i) {
+        total += scores[i].first[0];
+    }
+
+    queue.emplace_back(total, idx);
+    std::push_heap(queue.begin(), queue.end(), comp<std::pair<int, std::vector<int>>>);
+    visited.emplace(idx);
+
+    std::vector<unsigned int> result;
+    result.reserve(N);
+    std::vector<std::vector<unsigned int>> indexResult;
+    indexResult.reserve(N);
+
+    for (int _ = 0; _ < N; ++_) {
+        std::pop_heap(queue.begin(), queue.end(), comp<std::pair<int, std::vector<int>>>);
+        const std::pair<int, std::vector<int>>& back = queue.back();
+        total = back.first;
+        idx = back.second;
+        queue.pop_back();
+
+        result.emplace_back(total);
+        std::vector<unsigned int> currIndexResult;
+        for (int i = 0; i < numScores; ++i) {
+            currIndexResult.push_back(indices[i].first[idx[i]]);
+        }
+        indexResult.emplace_back(currIndexResult);
+
+        for (int i = 0; i < numScores; ++i) {
+            if (idx[i] + 1 < scores[i].second) {
+                std::vector<int> newIdx = idx;
+                newIdx[i] += 1;
+                if (visited.find(newIdx) == visited.end()) {
+                    total = 0;
+                    for (int j = 0; j < numScores; ++j) {
+                        total += scores[j].first[newIdx[j]];
+                    }
+                    queue.emplace_back(total, newIdx);
+                    std::push_heap(queue.begin(), queue.end(), comp<std::pair<int, std::vector<int>>>);
+                    visited.emplace(newIdx);
+                }
+            }
+        }
+    }
+
+    return {result, indexResult};
+}
+
 std::pair<size_t *, size_t> FixedKmerGenerator::generateKmerList(const unsigned char * int_seq, bool /* addIdentity */) {
     int dividerBefore = 0;
-    std::pair<short *, int> scoreArrays[3];
-    std::pair<unsigned int*, int> indexArrays[3];
     for (size_t i = 0; i < divideStepCount; i++) {
         const int divider = divideStep[i];
         const unsigned int index = indexer.int2index(int_seq, dividerBefore, dividerBefore+divider);
@@ -289,29 +301,43 @@ std::pair<size_t *, size_t> FixedKmerGenerator::generateKmerList(const unsigned 
         indexArrays[i] = std::make_pair(nextIndexArray, (int)nextScoreMatrix->rowSize);
     }
     
-    std::pair<std::vector<unsigned int>, std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>> res;
-    if (divideStepCount == 2) {
-        res = topScoringKmers2(scoreArrays, indexArrays, maxKmers);
-    } else if (divideStepCount == 3)
-        res = topScoringKmers3(scoreArrays, indexArrays, maxKmers);
-    else {
-        std::cerr << "Unsupported divideStepCount: " << divideStepCount << std::endl;
-        exit(1);
-    }
-
-    size_t generated = 0;
-    for (size_t i = 0; i < res.first.size(); i++) {
-        unsigned int score = res.first[i];
-        size_t index = 0;
-        index += static_cast<size_t>(std::get<0>(res.second[i])) * stepMultiplicator[0];
-        index += static_cast<size_t>(std::get<1>(res.second[i])) * stepMultiplicator[1];
-        if (divideStepCount == 3) {
-            index += static_cast<size_t>(std::get<2>(res.second[i])) * stepMultiplicator[2];
+    if (divideStepCount > 3) {
+        std::pair<std::vector<unsigned int>, std::vector<std::vector<unsigned int>>> res = topScoringKmers(scoreArrays, indexArrays, maxKmers, divideStepCount);
+        size_t generated = 0;
+        for (size_t i = 0; i < res.first.size(); i++) {
+            unsigned int score = res.first[i];
+            size_t index = 0;
+            for (size_t j = 0; j < res.second[i].size(); ++j) {
+                index += static_cast<size_t>(res.second[i][j]) * stepMultiplicator[j];
+            }
+            if (score >= (unsigned int)threshold) {
+                outputIndexArray[generated++] = index;
+            }
         }
-        if (score >= (unsigned int)threshold) {
-            outputIndexArray[generated++] = index;
-        }
-    }
 
-    return std::make_pair(outputIndexArray, generated);
+        return std::make_pair(outputIndexArray, generated);
+    } else {
+        std::pair<std::vector<unsigned int>, std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>> res;
+        if (divideStepCount == 2) {
+            res = topScoringKmers2(scoreArrays, indexArrays, maxKmers);
+        } else if (divideStepCount == 3) {
+            res = topScoringKmers3(scoreArrays, indexArrays, maxKmers);
+        }
+
+        size_t generated = 0;
+        for (size_t i = 0; i < res.first.size(); i++) {
+            unsigned int score = res.first[i];
+            size_t index = 0;
+            index += static_cast<size_t>(std::get<0>(res.second[i])) * stepMultiplicator[0];
+            index += static_cast<size_t>(std::get<1>(res.second[i])) * stepMultiplicator[1];
+            if (divideStepCount == 3) {
+                index += static_cast<size_t>(std::get<2>(res.second[i])) * stepMultiplicator[2];
+            }
+            if (score >= (unsigned int)threshold) {
+                outputIndexArray[generated++] = index;
+            }
+        }
+
+        return std::make_pair(outputIndexArray, generated);
+    }
 }

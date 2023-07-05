@@ -41,6 +41,8 @@ class FixedKmerGenerator {
         ScoreMatrix** matrixLookup;
         short* outputScoreArray;
         size_t* outputIndexArray;
+        std::pair<short *, int>* scoreArrays;
+        std::pair<unsigned int*, int>* indexArrays;
 
         // init the output vectors for the kmer calculation
         void initDataStructure();
