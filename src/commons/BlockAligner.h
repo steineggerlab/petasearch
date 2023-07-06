@@ -20,7 +20,8 @@ public:
     void initTarget(Sequence &target);
 
     Matcher::result_t align(
-        Sequence &query,
+        const char* querySeq,
+        unsigned int queryLength,
         DistanceCalculator::LocalAlignment alignment,
         EvalueComputation *evaluer,
         int xdrop,

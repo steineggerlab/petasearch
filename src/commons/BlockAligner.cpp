@@ -88,12 +88,12 @@ LocalAln align_local(
     size_t b_len, const char* b_str, const char* b_rev, PaddedBytes* b,
     const AAMatrix* matrix, Gaps gaps,
     size_t a_idx, size_t b_idx,
-    Cigar* cigar, SizeRange range
+    Cigar* cigar, SizeRange range, int32_t x_drop
 ) {
     LocalAln res_aln;
     AlignResult res;
 
-    int32_t x_drop = -(range.min * gaps.extend + gaps.open);
+    // int32_t x_drop = -(range.min * gaps.extend + gaps.open);
 
     // forwards alignment starting at (a_idx, b_idx)
     block_set_bytes_padded_aa(a, (uint8_t*)(a_str + a_idx), a_len - a_idx, range.max);
@@ -128,15 +128,15 @@ LocalAln align_local(
 LocalAln align_local_profile(
     BlockHandle block_trace, BlockHandle block_no_trace,
     const size_t a_len, const char* a_str, const char* a_rev, PaddedBytes* a,
-    const size_t b_len, const int8_t* b_profile_matrix, AAProfile* b,
+    const size_t b_len, const char* b_str, AAProfile* b,
     Gaps gaps, BaseMatrix& subMat,
     size_t a_idx, size_t b_idx,
-    Cigar* cigar, SizeRange range
+    Cigar* cigar, SizeRange range, int32_t x_drop
 ) {
     LocalAln res_aln;
     AlignResult res;
 
-    int32_t x_drop = 10000; // -(range.min * gaps.extend + gaps.open);
+    // int32_t x_drop = 10000; // -(range.min * gaps.extend + gaps.open);
     // forwards alignment starting at (a_idx, b_idx)
     block_set_bytes_padded_aa(a, (uint8_t*)(a_str + a_idx), a_len - a_idx, range.max);
 
@@ -146,7 +146,7 @@ LocalAln align_local_profile(
     for (size_t i = 0; i < (b_len - b_idx); ++i) {
         // printf("%d ", b_idx + i);
         for (uint8_t j = 0; j < Sequence::PROFILE_AA_SIZE; ++j) {
-            volatile int val = b_profile_matrix[(j * b_len) + (b_idx + i)];
+            volatile int val = static_cast<int8_t>(static_cast<short>(b_str[(b_idx + i) * Sequence::PROFILE_READIN_SIZE + j]) / 4);
             // if (val < curr_max) {
             //     curr_max = val;
             // }
@@ -195,7 +195,8 @@ LocalAln align_local_profile(
     for (size_t i = 0; i < (b_len - b_idx); ++i) {
         // printf("%d ", b_len - b_idx - i);
         for (uint8_t j = 0; j < Sequence::PROFILE_AA_SIZE; ++j) {
-            volatile int val = b_profile_matrix[(j * b_len) + (b_len - b_idx - i)];
+            // volatile int val = b_profile_matrix[(j * b_len) + (b_len - b_idx - i)];
+            volatile int val = static_cast<int8_t>(static_cast<short>(b_str[(b_len - b_idx - i) * Sequence::PROFILE_READIN_SIZE + j]) / 4);
             // if (val < curr_max) {
             //     curr_max = val;
             // }
@@ -233,19 +234,20 @@ LocalAln align_local_profile(
 
 
 Matcher::result_t
-BlockAligner::align(Sequence &query,
-                    DistanceCalculator::LocalAlignment alignment,
-                    EvalueComputation *evaluer,
-                    int xdrop,
-                    BaseMatrix* subMat) {
-    unsigned int qKey = query.getDbKey();
-    size_t b_len = query.L;
-    const char* b_str = query.getSeqData();
+BlockAligner::align(
+    const char* querySeq,
+    unsigned int queryLength,
+    DistanceCalculator::LocalAlignment alignment,
+    EvalueComputation *evaluer,
+    int xdrop,
+    BaseMatrix* subMat
+) {
+    size_t b_len = queryLength;
+    const char* b_str = querySeq;
     if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
         SRAUtil::strrev(querySeqRev, b_str, b_len);
     }
     const char* b_rev = querySeqRev;
-    const int8_t *b_profile_matrix = query.getAlignmentProfile();
 
     size_t a_len = targetLength;
     const char* a_str = targetSeq;
@@ -275,9 +277,9 @@ BlockAligner::align(Sequence &query,
 
     LocalAln local_aln;
     if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
-        local_aln = align_local(blockTrace, blockNoTrace, a_len, a_str, a_rev, a, b_len, b_str, b_rev, b, &BLOSUM62, gaps, qUngappedEndPos, dbUngappedEndPos, cigar, range);
+        local_aln = align_local(blockTrace, blockNoTrace, a_len, a_str, a_rev, a, b_len, b_str, b_rev, b, &BLOSUM62, gaps, qUngappedEndPos, dbUngappedEndPos, cigar, range, xdrop);
     } else {
-        local_aln = align_local_profile(blockTrace, blockNoTrace, a_len, a_str, a_rev, a, b_len, b_profile_matrix, bProfile, gaps, *subMat, qUngappedEndPos, dbUngappedEndPos, cigar, range);
+        local_aln = align_local_profile(blockTrace, blockNoTrace, a_len, a_str, a_rev, a, b_len, b_str, bProfile, gaps, *subMat, qUngappedEndPos, dbUngappedEndPos, cigar, range, xdrop);
     }
     // printf("a: %s\nb: %s\nscore: %d\nstart idx: (%lu, %lu)\nend idx: (%lu, %lu)\n",
     //     a_str,
@@ -346,7 +348,7 @@ BlockAligner::align(Sequence &query,
         // EXIT(EXIT_FAILURE);
 
     return Matcher::result_t(
-        qKey, bitScore, qcov, dbcov, seqId, evalue, alnLength,
+        0, bitScore, qcov, dbcov, seqId, evalue, alnLength,
         local_aln.a_start, local_aln.a_end, a_len, local_aln.b_start, local_aln.b_end, b_len,
         backtrace
     );

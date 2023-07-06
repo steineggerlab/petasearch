@@ -30,7 +30,7 @@ public:
     unsigned int requiredKmerMatches;
 
     PARAMETER(PARAM_X_DROP)
-    int8_t xdrop;
+    unsigned int xdrop;
 
     PARAMETER(PARAM_RANGE_MIN)
     uintptr_t rangeMin;

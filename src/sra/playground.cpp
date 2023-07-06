@@ -206,8 +206,8 @@ unsigned int qprof_1_len = 45026;
 
     unsigned int seq_len = (qprof_1_len - 1) / Sequence::PROFILE_READIN_SIZE;
 
-    Sequence s1(65000, Parameters::DBTYPE_HMM_PROFILE, &subMat, kmer_size, true, true);
-    s1.mapSequence(0, 0, (const char*)qprof_1, seq_len);
+    // Sequence s1(65000, Parameters::DBTYPE_HMM_PROFILE, &subMat, kmer_size, true, true);
+    // s1.mapSequence(0, 0, (const char*)qprof_1, seq_len);
     // s1.printProfile();
 
     Sequence s2(65000, Parameters::DBTYPE_AMINO_ACIDS, &subMat, kmer_size, false, false);
@@ -230,7 +230,7 @@ unsigned int qprof_1_len = 45026;
     aln.endPos = 0;
     aln.diagonal = 0;
     aln.distToDiagonal = 0;
-    Matcher::result_t res = blockAligner.align(s1, aln, &evaluer, 10000, &subMat);
+    Matcher::result_t res = blockAligner.align((const char*)qprof_1, seq_len, aln, &evaluer, 10000, &subMat);
 
     std::cout << "Score: " << res.score << std::endl;
     std::cout << "Eval: " << res.eval << std::endl;

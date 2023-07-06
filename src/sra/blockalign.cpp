@@ -214,7 +214,6 @@ int blockalign(int argc, const char **argv, const Command &command) {
 #ifdef OPENMP
         thread_idx = static_cast<unsigned int>(omp_get_thread_num());
 #endif
-        Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, useProfileSearch ? 0 : par.kmerSize, false, false, !useProfileSearch);
         Sequence targetSeq(par.maxSeqLen, seqType, subMat, par.kmerSize, par.spacedKmer, false, false, par.spacedKmerPattern);
 
         Indexer idx(subMat->alphabetSize - 1, par.kmerSize);
@@ -223,8 +222,10 @@ int blockalign(int argc, const char **argv, const Command &command) {
             par.maxSeqLen, par.rangeMin, par.rangeMax,
             isNucDB ? -par.gapOpen.values.nucleotide() : -par.gapOpen.values.aminoacid(),
             isNucDB ? -par.gapExtend.values.nucleotide() : -par.gapExtend.values.aminoacid(),
-            querySeq.getSeqType()
+            querySequenceReader.getDbtype()
         );
+
+        // Sequence querySeq(par.maxSeqLen, querySequenceReader.getDbtype(), subMat, 0, false, false, false);
         // Matcher matcher(querySeq.getSeqType(), targetSeq.getSeqType(), par.maxSeqLen, subMat, &evaluer, false, 1.0, par.gapOpen.values.aminoacid(), par.gapExtend.values.aminoacid(), 1.0, 0);
 
         char buffer[1024];
@@ -304,7 +305,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
 
                 if (useProfileSearch) {
                     realSeq.clear();
-                    querySeq.extractProfileSequence(querySeqData, queryEntryLen - 1, *subMat, realSeq);
+                    Sequence::extractProfileSequence(querySeqData, queryEntryLen - 1, *subMat, realSeq);
                     if (realSeq.length() != querySeqLen) {
                         Debug(Debug::ERROR) << "Query sequence length is wrong!\n" 
                                             << "Correct count: " << correct_count << "\n"
@@ -360,10 +361,10 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     isBlockAlignerInit = true;
                 }
 
-                querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
+                // querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
                 // matcher.initQuery(&querySeq);
                 // Matcher::result_t res = matcher.getSWResult(&targetSeq, INT_MAX, false, 0, 0.0, par.evalThr, Matcher::SCORE_COV_SEQID, 0, false);
-                Matcher::result_t res = blockAligner.align(querySeq, aln, &evaluer, xdrop, subMat);
+                Matcher::result_t res = blockAligner.align(querySeqData, querySeqLen, aln, &evaluer, xdrop, subMat);
                 res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
                 alignmentsNum++;
