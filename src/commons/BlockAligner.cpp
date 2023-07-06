@@ -23,7 +23,13 @@ BlockAligner::BlockAligner(
     if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
         b = block_new_padded_aa(maxSequenceLength, max);
     } else {
-        bProfile = block_new_aaprofile(maxSequenceLength, max, gaps.extend);
+        // bProfile = block_new_aaprofile(maxSequenceLength, max, gaps.extend);
+        // volatile int val = gaps.open;
+        // for (size_t i = 0; i < maxSequenceLength; i++) {
+        //     block_set_gap_open_C_aaprofile(bProfile, i, val);
+        //     block_set_gap_close_C_aaprofile(bProfile, i, 0);
+        //     block_set_gap_open_R_aaprofile(bProfile, i, val);
+        // }
     }
     blockTrace = block_new_aa_trace_xdrop(maxSequenceLength, maxSequenceLength, max);
     blockNoTrace = block_new_aa_xdrop(maxSequenceLength, maxSequenceLength, max);
@@ -52,8 +58,8 @@ BlockAligner::~BlockAligner() {
     block_free_padded_aa(a);
     if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
         block_free_padded_aa(b);
-    } else {
-        block_free_aaprofile(bProfile);
+    // } else {
+        // block_free_aaprofile(bProfile);
     }
     // block_free_simple_aamatrix(matrix);
 
@@ -135,24 +141,33 @@ LocalAln align_local_profile(
     block_set_bytes_padded_aa(a, (uint8_t*)(a_str + a_idx), a_len - a_idx, range.max);
 
     // int curr_max = INT_MAX;
+    // block_set_len_aaprofile(b, b_len * 10);
+    b = block_new_aaprofile(b_len - b_idx, range.max, gaps.extend);
     for (size_t i = 0; i < (b_len - b_idx); ++i) {
         // printf("%d ", b_idx + i);
         for (uint8_t j = 0; j < Sequence::PROFILE_AA_SIZE; ++j) {
+            volatile int val = b_profile_matrix[(j * b_len) + (b_idx + i)];
             // if (val < curr_max) {
             //     curr_max = val;
             // }
-            block_set_aaprofile(b, i + 1, subMat.num2aa[j], b_profile_matrix[(j * b_len) + (b_idx + i)]);
+            block_set_aaprofile(b, i + 1, subMat.num2aa[j], val);
             // block_set_aaprofile(b, i + 1, subMat.num2aa[j], 2);
             // printf("%d ", b_profile_matrix[(j * b_len) + (b_idx + i)]);
         }
         // printf("\n");
     }
-    // block_clear_aaprofile(b, b_len);
-    for (size_t i = 0; i < (b_len - b_idx); i++) {
-        block_set_gap_open_C_aaprofile(b, i, gaps.open);
+    volatile int val = gaps.open;
+    for (size_t i = 0; i < b_len - b_idx; i++) {
+        block_set_gap_open_C_aaprofile(b, i, val);
         block_set_gap_close_C_aaprofile(b, i, 0);
-        block_set_gap_open_R_aaprofile(b, i, gaps.open);
+        block_set_gap_open_R_aaprofile(b, i, val);
     }
+    // block_clear_aaprofile(b, b_len);
+    // for (size_t i = 0; i < (b_len - b_idx); i++) {
+    //     block_set_gap_open_C_aaprofile(b, i, gaps.open);
+    //     block_set_gap_close_C_aaprofile(b, i, 0);
+    //     block_set_gap_open_R_aaprofile(b, i, gaps.open);
+    // }
 
     // std::cout << "curr_max: " << curr_max << "\n";
 
@@ -174,17 +189,26 @@ LocalAln align_local_profile(
     // std::cout << "b_idx: " << b_idx << std::endl;
 
     block_set_bytes_padded_aa(a, (uint8_t*)(a_rev + a_idx), a_len - a_idx, range.max);
+    // block_set_len_aaprofile(b, b_len * 10);
+    block_free_aaprofile(b);
+    b = block_new_aaprofile(b_len - b_idx, range.max, gaps.extend);
     for (size_t i = 0; i < (b_len - b_idx); ++i) {
         // printf("%d ", b_len - b_idx - i);
         for (uint8_t j = 0; j < Sequence::PROFILE_AA_SIZE; ++j) {
+            volatile int val = b_profile_matrix[(j * b_len) + (b_len - b_idx - i)];
             // if (val < curr_max) {
             //     curr_max = val;
             // }
-            block_set_aaprofile(b, i + 1, subMat.num2aa[j], b_profile_matrix[(j * b_len) + (b_len - b_idx - i)]);
+            block_set_aaprofile(b, i + 1, subMat.num2aa[j], val);
             // block_set_aaprofile(b, i, subMat.num2aa[j], 2);
             // printf("%d ", b_profile_matrix[(j * b_len) + (b_len - b_idx - i)]);
         }
         // printf("\n");
+    }
+    for (size_t i = 0; i < b_len - b_idx; i++) {
+        block_set_gap_open_C_aaprofile(b, i, val);
+        block_set_gap_close_C_aaprofile(b, i, 0);
+        block_set_gap_open_R_aaprofile(b, i, val);
     }
         // std::cout << "curr_max: " << curr_max << "\n";
 
@@ -201,6 +225,8 @@ LocalAln align_local_profile(
     res_aln.a_start = a_len - (a_idx + res.query_idx);
     res_aln.b_start = b_len - (b_idx + res.reference_idx);
     res_aln.score = res.score;
+
+    block_free_aaprofile(b);
 
     return res_aln;
 }
@@ -270,7 +296,7 @@ BlockAligner::align(Sequence &query,
     double evalue = evaluer->computeEvalue(local_aln.score, a_len);
 
     // Note: 'M' signals either a match or mismatch
-    char ops_char[] = {' ', 'M', 'I', 'D'};
+    char ops_char[] = {' ', 'M', '=', 'X', 'I', 'D'};
 
     int alnLength = Matcher::computeAlnLength(local_aln.a_start, local_aln.a_end, local_aln.b_start, local_aln.b_end);
 

@@ -87,6 +87,11 @@ DistanceCalculator::LocalAlignment ungappedDiagFilter(
             querySeqData, querySeqLen, targetSeqData, targetSeqLen,
             queries[i].Result.diag, matrix, rescoreMode
         );
+
+        if (alignmentResult.startPos < 0 || alignmentResult.endPos < 0) {
+            continue;
+        }
+
         queries[i].Result.score = alignmentResult.score;
 
         // if (protein) {
@@ -217,7 +222,8 @@ int blockalign(int argc, const char **argv, const Command &command) {
         BlockAligner blockAligner(
             par.maxSeqLen, par.rangeMin, par.rangeMax,
             isNucDB ? -par.gapOpen.values.nucleotide() : -par.gapOpen.values.aminoacid(),
-            isNucDB ? -par.gapExtend.values.nucleotide() : -par.gapExtend.values.aminoacid()
+            isNucDB ? -par.gapExtend.values.nucleotide() : -par.gapExtend.values.aminoacid(),
+            querySeq.getSeqType()
         );
         // Matcher matcher(querySeq.getSeqType(), targetSeq.getSeqType(), par.maxSeqLen, subMat, &evaluer, false, 1.0, par.gapOpen.values.aminoacid(), par.gapExtend.values.aminoacid(), 1.0, 0);
 
@@ -345,7 +351,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 // Debug(Debug::INFO) << std::string(targetSeqData + dbUngappedStartPos, dbUngappedEndPos - dbUngappedStartPos) << "\n";
                 // EXIT(EXIT_FAILURE);
 
-                if (aln.diagonal == (int) INVALID_DIAG || aln.startPos == -1) {
+                if (aln.diagonal == (int) INVALID_DIAG || aln.startPos < 0 || aln.endPos < 0) {
                     continue;
                 }
 
