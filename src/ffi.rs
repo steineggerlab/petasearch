@@ -34,9 +34,16 @@ pub unsafe extern fn block_new_simple_aamatrix(match_score: i8, mismatch_score: 
     Box::into_raw(matrix)
 }
 
+/// Set an entry in the AAMatrix.
+#[no_mangle]
+pub unsafe extern fn block_set_aamatrix(matrix: *mut AAMatrix, a: u8, b: u8, score: i8) {
+    let matrix = &mut *matrix;
+    matrix.set(a, b, score);
+}
+
 /// Frees an AAMatrix.
 #[no_mangle]
-pub unsafe extern fn block_free_simple_aamatrix(matrix: *mut AAMatrix) {
+pub unsafe extern fn block_free_aamatrix(matrix: *mut AAMatrix) {
     drop(Box::from_raw(matrix));
 }
 
@@ -63,15 +70,17 @@ pub unsafe extern fn block_len_aaprofile(profile: *const AAProfile) -> usize {
     profile.len()
 }
 
-/// Clear the profile so it can be used for profile lengths less than or equal
+/// Clear the profile so it can be reused for profile lengths less than or equal
 /// to the length this struct was created with.
 #[no_mangle]
-pub unsafe extern fn block_clear_aaprofile(profile: *mut AAProfile, str_len: usize) {
+pub unsafe extern fn block_clear_aaprofile(profile: *mut AAProfile, str_len: usize, block_size: usize) {
     let profile = &mut *profile;
-    profile.clear(str_len);
+    profile.clear(str_len, block_size);
 }
 
 /// Set the score for a position and byte.
+///
+/// The profile should be first `clear`ed before it is reused with different lengths.
 ///
 /// The first column (`i = 0`) should be padded with large negative values.
 /// Therefore, set values starting from `i = 1`.
@@ -79,6 +88,36 @@ pub unsafe extern fn block_clear_aaprofile(profile: *mut AAProfile, str_len: usi
 pub unsafe extern fn block_set_aaprofile(profile: *mut AAProfile, i: usize, b: u8, score: i8) {
     let profile = &mut *profile;
     profile.set(i, b, score);
+}
+
+/// Set the scores for all positions in the position specific scoring matrix.
+///
+/// The profile should be first `clear`ed before it is reused with different lengths.
+///
+/// Use `order` to specify the order of bytes that is used in the `scores` matrix.
+/// Scores (in `scores`) should be stored in row-major order, where each row is a different position
+/// and each column is a different byte.
+#[no_mangle]
+pub unsafe extern fn block_set_all_aaprofile(profile: *mut AAProfile, order: *const u8, order_len: usize, scores: *const i8, scores_len: usize) {
+    let profile = &mut *profile;
+    let order = std::slice::from_raw_parts(order, order_len);
+    let scores = std::slice::from_raw_parts(scores, scores_len);
+    profile.set_all(order, scores);
+}
+
+/// Set the scores for all positions in reverse in the position specific scoring matrix.
+///
+/// The profile should be first `clear`ed before it is reused with different lengths.
+///
+/// Use `order` to specify the order of bytes that is used in the `scores` matrix.
+/// Scores (in `scores`) should be stored in row-major order, where each row is a different position
+/// and each column is a different byte.
+#[no_mangle]
+pub unsafe extern fn block_set_all_rev_aaprofile(profile: *mut AAProfile, order: *const u8, order_len: usize, scores: *const i8, scores_len: usize) {
+    let profile = &mut *profile;
+    let order = std::slice::from_raw_parts(order, order_len);
+    let scores = std::slice::from_raw_parts(scores, scores_len);
+    profile.set_all_rev(order, scores);
 }
 
 /// Set the gap open cost for a column.
@@ -112,6 +151,27 @@ pub unsafe extern fn block_set_gap_close_C_aaprofile(profile: *mut AAProfile, i:
 pub unsafe extern fn block_set_gap_open_R_aaprofile(profile: *mut AAProfile, i: usize, gap: i8) {
     let profile = &mut *profile;
     profile.set_gap_open_R(i, gap);
+}
+
+/// Set the gap open cost for all column transitions.
+#[no_mangle]
+pub unsafe extern fn block_set_all_gap_open_C_aaprofile(profile: *mut AAProfile, gap: i8) {
+    let profile = &mut *profile;
+    profile.set_all_gap_open_C(gap);
+}
+
+/// Set the gap close cost for all column transitions.
+#[no_mangle]
+pub unsafe extern fn block_set_all_gap_close_C_aaprofile(profile: *mut AAProfile, gap: i8) {
+    let profile = &mut *profile;
+    profile.set_all_gap_close_C(gap);
+}
+
+/// Set the gap open cost for all row transitions.
+#[no_mangle]
+pub unsafe extern fn block_set_all_gap_open_R_aaprofile(profile: *mut AAProfile, gap: i8) {
+    let profile = &mut *profile;
+    profile.set_all_gap_open_R(gap);
 }
 
 /// Get the score for a position and byte.
@@ -182,6 +242,14 @@ pub unsafe extern fn block_set_bytes_padded_aa(padded: *mut PaddedBytes, s: *con
     padded_bytes.set_bytes::<AAMatrix>(bytes, max_size);
 }
 
+/// Write to a padded amino acid string, in reverse.
+#[no_mangle]
+pub unsafe extern fn block_set_bytes_rev_padded_aa(padded: *mut PaddedBytes, s: *const u8, len: usize, max_size: usize) {
+    let bytes = std::slice::from_raw_parts(s, len);
+    let padded_bytes = &mut *padded;
+    padded_bytes.set_bytes_rev::<AAMatrix>(bytes, max_size);
+}
+
 /// Frees a padded amino acid string.
 #[no_mangle]
 pub unsafe extern fn block_free_padded_aa(padded: *mut PaddedBytes) {
@@ -197,6 +265,7 @@ macro_rules! gen_functions {
      $align_profile_name:ident, $align_profile_doc:expr,
      $res_name:ident, $res_doc:expr,
      $trace_name:ident, $trace_doc:expr,
+     $trace_eq_name:ident, $trace_eq_doc:expr,
      $free_name:ident, $free_doc:expr,
      $matrix:ty, $profile:ty, $trace:literal, $x_drop:literal) => {
         #[doc = $new_doc]
@@ -246,6 +315,13 @@ macro_rules! gen_functions {
             aligner.trace().cigar(query_idx, reference_idx, &mut *cigar);
         }
 
+        #[doc = $trace_eq_doc]
+        #[no_mangle]
+        pub unsafe extern fn $trace_eq_name(b: BlockHandle, q: *const PaddedBytes, r: *const PaddedBytes, query_idx: usize, reference_idx: usize, cigar: *mut Cigar) {
+            let aligner = &*(b as *const Block<$trace, $x_drop>);
+            aligner.trace().cigar_eq(&*q, &*r, query_idx, reference_idx, &mut *cigar);
+        }
+
         #[doc = $free_doc]
         #[no_mangle]
         pub unsafe extern fn $free_name(b: BlockHandle) {
@@ -265,6 +341,8 @@ gen_functions!(
     "Retrieves the result of global alignment of two amino acid strings (no traceback).",
     _block_cigar_aa,
     "Don't use.",
+    _block_cigar_eq_aa,
+    "Don't use.",
     block_free_aa,
     "Frees the block used for global alignment of two amino acid strings (no traceback).",
     AAMatrix, AAProfile, false, false
@@ -280,6 +358,8 @@ gen_functions!(
     block_res_aa_xdrop,
     "Retrieves the result of X-drop alignment of two amino acid strings (no traceback).",
     _block_cigar_aa_xdrop,
+    "Don't use.",
+    _block_cigar_eq_aa_xdrop,
     "Don't use.",
     block_free_aa_xdrop,
     "Frees the block used for X-drop alignment of two amino acid strings (no traceback).",
@@ -297,6 +377,8 @@ gen_functions!(
     "Retrieves the result of global alignment of two amino acid strings, with traceback.",
     block_cigar_aa_trace,
     "Retrieves the resulting CIGAR string from global alignment of two amino acid strings, with traceback.",
+    block_cigar_eq_aa_trace,
+    "Retrieves the resulting CIGAR string from global alignment of two amino acid strings, with traceback containing =/X.",
     block_free_aa_trace,
     "Frees the block used for global alignment of two amino acid strings, with traceback.",
     AAMatrix, AAProfile, true, false
@@ -313,6 +395,8 @@ gen_functions!(
     "Retrieves the result of X-drop alignment of two amino acid strings, with traceback.",
     block_cigar_aa_trace_xdrop,
     "Retrieves the resulting CIGAR string from X-drop alignment of two amino acid strings, with traceback.",
+    block_cigar_eq_aa_trace_xdrop,
+    "Retrieves the resulting CIGAR string from X-drop alignment of two amino acid strings, with traceback containing =/X.",
     block_free_aa_trace_xdrop,
     "Frees the block used for X-drop alignment of two amino acid strings, with traceback.",
     AAMatrix, AAProfile, true, true
