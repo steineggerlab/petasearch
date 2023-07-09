@@ -357,14 +357,13 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 }
 
                 if (isBlockAlignerInit == false) {
-                    blockAligner.initTarget(targetSeq);
                     isBlockAlignerInit = true;
                 }
 
                 // querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
                 // matcher.initQuery(&querySeq);
                 // Matcher::result_t res = matcher.getSWResult(&targetSeq, INT_MAX, false, 0, 0.0, par.evalThr, Matcher::SCORE_COV_SEQID, 0, false);
-                Matcher::result_t res = blockAligner.align(querySeqData, querySeqLen, aln, &evaluer, xdrop, subMat);
+                Matcher::result_t res = blockAligner.align(targetSeq.getSeqData(), targetSeq.L, querySeqData, querySeqLen, aln, &evaluer, xdrop, *subMat);
                 res.dbKey = targetKey;
                 res.queryOrfStartPos = queryKey;
                 alignmentsNum++;

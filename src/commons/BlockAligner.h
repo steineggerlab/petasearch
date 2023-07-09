@@ -17,15 +17,15 @@ public:
 
     ~BlockAligner();
 
-    void initTarget(Sequence &target);
-
     Matcher::result_t align(
+        const char* targetSeq,
+        unsigned int targetLength,
         const char* querySeq,
         unsigned int queryLength,
         DistanceCalculator::LocalAlignment alignment,
         EvalueComputation *evaluer,
         int xdrop,
-        BaseMatrix *subMat = NULL
+        BaseMatrix& subMat
     );
 
 private:
@@ -36,12 +36,6 @@ private:
     BlockHandle blockTrace;
     BlockHandle blockNoTrace;
     Cigar* cigar;
-
-    char* querySeqRev;
-
-    size_t targetLength;
-    const char* targetSeq;
-    char* targetSeqRev;
 
     SizeRange range;
     Gaps gaps;
