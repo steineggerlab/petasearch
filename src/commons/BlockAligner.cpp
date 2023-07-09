@@ -107,8 +107,8 @@ LocalAln align_local_profile(
     memset(order, 'U', Sequence::PROFILE_READIN_SIZE);
     memcpy(order, (uint8_t*)subMat.num2aa, Sequence::PROFILE_AA_SIZE);
 
-    block_clear_aaprofile(bProfile, b_len / aa - b_idx, range.max);
-    block_set_all_aaprofile(bProfile, order, aa, (int8_t*)(b_str + b_idx * aa), b_len - b_idx * aa);
+    block_clear_aaprofile(bProfile, b_len - b_idx, range.max);
+    block_set_all_aaprofile(bProfile, order, aa, (int8_t*)(b_str + b_idx * aa), (b_len - b_idx) * aa);
     block_set_all_gap_open_C_aaprofile(bProfile, gaps.open);
     block_set_all_gap_close_C_aaprofile(bProfile, 0);
     block_set_all_gap_open_R_aaprofile(bProfile, gaps.open);
