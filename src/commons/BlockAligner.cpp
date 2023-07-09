@@ -101,9 +101,14 @@ LocalAln align_local_profile(
     // forwards alignment starting at (a_idx, b_idx)
     block_set_bytes_padded_aa(a, (uint8_t*)(a_str + a_idx), a_len - a_idx, range.max);
 
-    int aa = Sequence::PROFILE_AA_SIZE;
+    // assign extra profile columns to 'U', which is unused
+    int aa = Sequence::PROFILE_READIN_SIZE;
+    uint8_t order[Sequence::PROFILE_READIN_SIZE];
+    memset(order, 'U', Sequence::PROFILE_READIN_SIZE);
+    memcpy(order, (uint8_t*)subMat.num2aa, Sequence::PROFILE_AA_SIZE);
+
     block_clear_aaprofile(bProfile, b_len / aa - b_idx, range.max);
-    block_set_all_aaprofile(bProfile, (uint8_t*)subMat.num2aa, aa, (int8_t*)(b_str + b_idx * aa), b_len - b_idx * aa);
+    block_set_all_aaprofile(bProfile, order, aa, (int8_t*)(b_str + b_idx * aa), b_len - b_idx * aa);
     block_set_all_gap_open_C_aaprofile(bProfile, gaps.open);
     block_set_all_gap_close_C_aaprofile(bProfile, 0);
     block_set_all_gap_open_R_aaprofile(bProfile, gaps.open);
@@ -118,7 +123,7 @@ LocalAln align_local_profile(
     block_set_bytes_rev_padded_aa(a, (uint8_t*)a_str, res_aln.a_end, range.max);
 
     block_clear_aaprofile(bProfile, res_aln.b_end, range.max);
-    block_set_all_rev_aaprofile(bProfile, (uint8_t*)subMat.num2aa, aa, (int8_t*)b_str, res_aln.b_end * aa);
+    block_set_all_rev_aaprofile(bProfile, order, aa, (int8_t*)b_str, res_aln.b_end * aa);
     block_set_all_gap_open_C_aaprofile(bProfile, gaps.open);
     block_set_all_gap_close_C_aaprofile(bProfile, 0);
     block_set_all_gap_open_R_aaprofile(bProfile, gaps.open);
