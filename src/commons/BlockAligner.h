@@ -12,6 +12,7 @@ public:
         size_t maxSequenceLength,
         uintptr_t min, uintptr_t max,
         int8_t gapOpen, int8_t gapExtend,
+        BaseMatrix& subMat,
         int dbtype = Parameters::DBTYPE_AMINO_ACIDS
     );
 
@@ -24,8 +25,7 @@ public:
         unsigned int queryLength,
         DistanceCalculator::LocalAlignment alignment,
         EvalueComputation *evaluer,
-        int xdrop,
-        BaseMatrix& subMat
+        int xdrop
     );
 
 private:
@@ -39,6 +39,7 @@ private:
 
     SizeRange range;
     Gaps gaps;
+    BaseMatrix& subMat;
     int dbtype;
 };
 

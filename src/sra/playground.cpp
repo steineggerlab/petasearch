@@ -222,6 +222,7 @@ unsigned int qprof_1_len = 45026;
         par.maxSeqLen, par.rangeMin, par.rangeMax,
         isNucDB ? -par.gapOpen.values.nucleotide() : -par.gapOpen.values.aminoacid(),
         isNucDB ? -par.gapExtend.values.nucleotide() : -par.gapExtend.values.aminoacid(),
+        subMat,
         Parameters::DBTYPE_HMM_PROFILE
     );
     DistanceCalculator::LocalAlignment aln;
@@ -229,7 +230,7 @@ unsigned int qprof_1_len = 45026;
     aln.endPos = 0;
     aln.diagonal = 0;
     aln.distToDiagonal = 0;
-    Matcher::result_t res = blockAligner.align(s2.getSeqData(), s2.L, (const char*)qprof_1, seq_len, aln, &evaluer, 10000, subMat);
+    Matcher::result_t res = blockAligner.align(s2.getSeqData(), s2.L, (const char*)qprof_1, seq_len, aln, &evaluer, 10000);
 
     std::cout << "Score: " << res.score << std::endl;
     std::cout << "Eval: " << res.eval << std::endl;

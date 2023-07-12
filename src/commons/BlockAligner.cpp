@@ -14,14 +14,26 @@ BlockAligner::BlockAligner(
     uintptr_t max,
     int8_t gapOpen,
     int8_t gapExtend,
+    BaseMatrix& subMat,
     int dbtype
 ) : range({min, max}),
     gaps({gapOpen, gapExtend}),
+    subMat(subMat),
     dbtype(dbtype) {
     a = block_new_padded_aa(maxSequenceLength, max);
     if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
         b = block_new_padded_aa(maxSequenceLength, max);
         matrix = block_new_simple_aamatrix(1, -1);
+        for (int i = 0; i < subMat.alphabetSize; i++) {
+            for (int j = 0; j < subMat.alphabetSize; j++) {
+                block_set_aamatrix(
+                    matrix,
+                    subMat.num2aa[i],
+                    subMat.num2aa[j],
+                    subMat.subMatrix[i][j]
+                );
+            }
+        }
     } else {
         bProfile = block_new_aaprofile(maxSequenceLength, max, gaps.extend);
     }
@@ -148,22 +160,8 @@ BlockAligner::align(
     unsigned int queryLength,
     DistanceCalculator::LocalAlignment alignment,
     EvalueComputation *evaluer,
-    int xdrop,
-    BaseMatrix& subMat
+    int xdrop
 ) {
-    if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
-        for (int i = 0; i < subMat.alphabetSize; i++) {
-            for (int j = 0; j < subMat.alphabetSize; j++) {
-                block_set_aamatrix(
-                    matrix,
-                    subMat.num2aa[i],
-                    subMat.num2aa[j],
-                    subMat.subMatrix[i][j]
-                );
-            }
-        }
-    }
-
     unsigned int qUngappedStartPos = alignment.startPos + ((alignment.diagonal < 0) ? alignment.distToDiagonal : 0);
     unsigned int qUngappedEndPos = alignment.endPos + ((alignment.diagonal < 0) ? alignment.distToDiagonal : 0);
     unsigned int dbUngappedStartPos = alignment.startPos + ((alignment.diagonal < 0) ? 0 : alignment.distToDiagonal);
