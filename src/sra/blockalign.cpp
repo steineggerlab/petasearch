@@ -353,7 +353,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 // Debug(Debug::INFO) << std::string(targetSeqData + dbUngappedStartPos, dbUngappedEndPos - dbUngappedStartPos) << "\n";
                 // EXIT(EXIT_FAILURE);
 
-                if (aln.diagonal == (int) INVALID_DIAG || aln.startPos < 0 || aln.endPos < 0) {
+                if (aln.diagonal == (int) INVALID_DIAG || aln.startPos < 0 || aln.endPos < 0 || aln.distToDiagonal > std::max((int)querySeqLen, targetSeq.L)) {
                     continue;
                 }
 
