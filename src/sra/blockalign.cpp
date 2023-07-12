@@ -306,7 +306,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
 
                 if (useProfileSearch) {
                     realSeq.clear();
-                    Sequence::extractProfileSequence(querySeqData, queryEntryLen - 1, *subMat, realSeq);
+                    Sequence::extractProfileConsensus(querySeqData, queryEntryLen - 1, *subMat, realSeq);
                     if (realSeq.length() != querySeqLen) {
                         Debug(Debug::ERROR) << "Query sequence length is wrong!\n" 
                                             << "Correct count: " << correct_count << "\n"
