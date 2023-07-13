@@ -108,7 +108,8 @@ LocalAln align_local_profile(
     memcpy(order, (uint8_t*)subMat.num2aa, Sequence::PROFILE_AA_SIZE);
 
     block_clear_aaprofile(bProfile, b_len - b_idx, range.max);
-    block_set_all_aaprofile(bProfile, order, aa, (int8_t*)(b_str + b_idx * aa), (b_len - b_idx) * aa);
+    // note: scores are divided by 4 by shifting right by 2
+    block_set_all_aaprofile(bProfile, order, aa, (int8_t*)(b_str + b_idx * aa), (b_len - b_idx) * aa, 0, 2);
     block_set_all_gap_open_C_aaprofile(bProfile, gaps.open);
     block_set_all_gap_close_C_aaprofile(bProfile, 0);
     block_set_all_gap_open_R_aaprofile(bProfile, gaps.open);
@@ -123,7 +124,7 @@ LocalAln align_local_profile(
     block_set_bytes_rev_padded_aa(a, (uint8_t*)a_str, res_aln.a_end, range.max);
 
     block_clear_aaprofile(bProfile, res_aln.b_end, range.max);
-    block_set_all_rev_aaprofile(bProfile, order, aa, (int8_t*)b_str, res_aln.b_end * aa);
+    block_set_all_rev_aaprofile(bProfile, order, aa, (int8_t*)b_str, res_aln.b_end * aa, 0, 2);
     block_set_all_gap_open_C_aaprofile(bProfile, gaps.open);
     block_set_all_gap_close_C_aaprofile(bProfile, 0);
     block_set_all_gap_open_R_aaprofile(bProfile, gaps.open);
