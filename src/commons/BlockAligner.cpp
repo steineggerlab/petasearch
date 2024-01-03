@@ -1,12 +1,10 @@
-// Created by Match on 8/13/2021.
-#include "DistanceCalculator.h"
 #include "BlockAligner.h"
 #include "Sequence.h"
-#include "block_aligner.h"
 #include "Util.h"
 #include "Parameters.h"
 #include "SubstitutionMatrix.h"
-#include "SRAUtil.h"
+#include "EvalueComputation.h"
+#include "DistanceCalculator.h"
 
 BlockAligner::BlockAligner(
     size_t maxSequenceLength,
@@ -19,9 +17,10 @@ BlockAligner::BlockAligner(
 ) : range({min, max}),
     gaps({gapOpen, gapExtend}),
     subMat(subMat),
-    dbtype(dbtype) {
+    dbtype(dbtype),
+    fastMatrix(SubstitutionMatrix::createAsciiSubMat(subMat)) {
     a = block_new_padded_aa(maxSequenceLength, max);
-    if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
+    if (Parameters::isEqualDbtype(dbtype, Parameters::DBTYPE_HMM_PROFILE) == false) {
         b = block_new_padded_aa(maxSequenceLength, max);
         matrix = block_new_simple_aamatrix(1, -1);
         for (int i = 0; i < subMat.alphabetSize; i++) {
@@ -40,6 +39,7 @@ BlockAligner::BlockAligner(
     blockTrace = block_new_aa_trace_xdrop(maxSequenceLength, maxSequenceLength, max);
     blockNoTrace = block_new_aa_xdrop(maxSequenceLength, maxSequenceLength, max);
     cigar = block_new_cigar(maxSequenceLength, maxSequenceLength);
+    sAlnCigar = new uint32_t[maxSequenceLength];
 }
 
 BlockAligner::~BlockAligner() {
@@ -47,32 +47,25 @@ BlockAligner::~BlockAligner() {
     block_free_aa_trace_xdrop(blockTrace);
     block_free_aa_xdrop(blockNoTrace);
     block_free_padded_aa(a);
-    if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
+    if (Parameters::isEqualDbtype(dbtype, Parameters::DBTYPE_HMM_PROFILE) == false) {
         block_free_padded_aa(b);
         block_free_aamatrix(matrix);
     } else {
         block_free_aaprofile(bProfile);
     }
+    delete[] sAlnCigar;
 }
 
-typedef struct LocalAln {
-    size_t a_start;
-    size_t b_start;
-    size_t a_end;
-    size_t b_end;
-    int32_t score;
-} LocalAln;
-
 // note: traceback cigar string will be reversed, but LocalAln will contain correct start and end positions
-LocalAln align_local(
+BlockAligner::LocalAln align_local(
     BlockHandle block_trace, BlockHandle block_no_trace,
     const char* a_str, size_t a_len, PaddedBytes* a,
     const char* b_str, size_t b_len, PaddedBytes* b,
     const AAMatrix* matrix, Gaps gaps,
-    size_t a_idx, size_t b_idx,
+    int a_idx, int b_idx,
     Cigar* cigar, SizeRange range, int32_t x_drop
 ) {
-    LocalAln res_aln;
+    BlockAligner::LocalAln res_aln;
     AlignResult res;
 
     // forwards alignment starting at (a_idx, b_idx)
@@ -99,15 +92,15 @@ LocalAln align_local(
     return res_aln;
 }
 
-LocalAln align_local_profile(
+BlockAligner::LocalAln align_local_profile(
     BlockHandle block_trace, BlockHandle block_no_trace,
     const char* a_str, const size_t a_len, PaddedBytes* a,
     const char* b_str, const size_t b_len, AAProfile* bProfile,
     Gaps gaps, BaseMatrix& subMat,
-    size_t a_idx, size_t b_idx,
+    int a_idx, int b_idx,
     Cigar* cigar, SizeRange range, int32_t x_drop
 ) {
-    LocalAln res_aln;
+    BlockAligner::LocalAln res_aln;
     AlignResult res;
 
     // forwards alignment starting at (a_idx, b_idx)
@@ -152,46 +145,123 @@ LocalAln align_local_profile(
 }
 
 
-Matcher::result_t
+BlockAligner::LocalAln BlockAligner::ungappedAlign(
+    const char* querySeq, const char* queryCon, size_t queryLength,
+    const char* targetSeq, const char* targetCon, size_t targetLen,
+    int diagonal
+) {
+    DistanceCalculator::LocalAlignment alignment = DistanceCalculator::computeUngappedAlignment(
+        queryCon != NULL ? queryCon : querySeq, queryLength,
+        targetCon != NULL ? targetCon : targetSeq, targetLen,
+        diagonal, fastMatrix.matrix, Parameters::RESCORE_MODE_ALIGNMENT
+    );
+
+    unsigned int distanceToDiagonal = alignment.distToDiagonal;
+    diagonal = alignment.diagonal;
+
+    int qUngappedStartPos, qUngappedEndPos, dbUngappedStartPos, dbUngappedEndPos;
+    if (diagonal >= 0) {
+        qUngappedStartPos = alignment.startPos + distanceToDiagonal;
+        qUngappedEndPos = alignment.endPos + distanceToDiagonal;
+        dbUngappedStartPos = alignment.startPos;
+        dbUngappedEndPos = alignment.endPos;
+    } else {
+        qUngappedStartPos = alignment.startPos;
+        qUngappedEndPos = alignment.endPos;
+        dbUngappedStartPos = alignment.startPos + distanceToDiagonal;
+        dbUngappedEndPos = alignment.endPos + distanceToDiagonal;
+    }
+
+    return LocalAln(
+        qUngappedStartPos,
+        dbUngappedStartPos,
+        qUngappedEndPos,
+        dbUngappedEndPos,
+        alignment.score
+    );
+}
+
+// FIXME: remove when MMseqs2 is updated
+static inline uint32_t to_cigar_int(uint32_t length, char op_letter) {
+    uint32_t res;
+    uint8_t op_code;
+
+    switch (op_letter) {
+        case 'M': /* alignment match (can be a sequence match or mismatch */
+        default:
+            op_code = 0;
+            break;
+        case 'I': /* insertion to the reference */
+            op_code = 1;
+            break;
+        case 'D': /* deletion from the reference */
+            op_code = 2;
+            break;
+        case 'N': /* skipped region from the reference */
+            op_code = 3;
+            break;
+        case 'S': /* soft clipping (clipped sequences present in SEQ) */
+            op_code = 4;
+            break;
+        case 'H': /* hard clipping (clipped sequences NOT present in SEQ) */
+            op_code = 5;
+            break;
+        case 'P': /* padding (silent deletion from padded reference) */
+            op_code = 6;
+            break;
+        case '=': /* sequence match */
+            op_code = 7;
+            break;
+        case 'X': /* sequence mismatch */
+            op_code = 8;
+            break;
+    }
+
+    res = (length << 4) | op_code;
+    return res;
+}
+
+
+s_align
 BlockAligner::align(
-    const char* targetSeq,
-    unsigned int targetLength,
     const char* querySeq,
+    const char* queryCon,
     unsigned int queryLength,
-    DistanceCalculator::LocalAlignment alignment,
+    const char* targetSeq,
+    const char* targetCon,
+    unsigned int targetLength,
+    int diagonal,
+    std::string& backtrace,
     EvalueComputation *evaluer,
     int xdrop
 ) {
-    unsigned int qUngappedStartPos = alignment.startPos + ((alignment.diagonal < 0) ? alignment.distToDiagonal : 0);
-    unsigned int qUngappedEndPos = alignment.endPos + ((alignment.diagonal < 0) ? alignment.distToDiagonal : 0);
-    unsigned int dbUngappedStartPos = alignment.startPos + ((alignment.diagonal < 0) ? 0 : alignment.distToDiagonal);
-    unsigned int dbUngappedEndPos = alignment.endPos + ((alignment.diagonal < 0) ? 0 : alignment.distToDiagonal);
-    qUngappedEndPos = std::max(1u, qUngappedEndPos) - 1;
-    dbUngappedEndPos = std::max(1u, dbUngappedEndPos) - 1;
-    qUngappedStartPos = (qUngappedStartPos > qUngappedEndPos) ? qUngappedEndPos : qUngappedStartPos;
-    dbUngappedStartPos = (dbUngappedStartPos > dbUngappedEndPos) ? dbUngappedEndPos : dbUngappedStartPos;
-    qUngappedEndPos = (qUngappedEndPos < qUngappedStartPos) ? qUngappedStartPos : qUngappedEndPos;
-    dbUngappedEndPos = (dbUngappedEndPos < dbUngappedStartPos) ? dbUngappedStartPos : dbUngappedEndPos;
+    BlockAligner::LocalAln pos = ungappedAlign(
+        querySeq, queryCon, queryLength,
+        targetSeq, targetCon, targetLength,
+        diagonal
+    );
 
     LocalAln local_aln;
-    if (dbtype == Parameters::DBTYPE_AMINO_ACIDS) {
-        local_aln = align_local(blockTrace, blockNoTrace, targetSeq, targetLength, a, querySeq, queryLength, b, matrix, gaps, qUngappedEndPos, dbUngappedEndPos, cigar, range, xdrop);
+    if (Parameters::isEqualDbtype(dbtype, Parameters::DBTYPE_HMM_PROFILE) == false) {
+        local_aln = align_local(blockTrace, blockNoTrace, querySeq, queryLength, a, targetSeq, targetLength, b, matrix, gaps, pos.a_end, pos.b_end, cigar, range, xdrop);
     } else {
-        local_aln = align_local_profile(blockTrace, blockNoTrace, targetSeq, targetLength, a, querySeq, queryLength, bProfile, gaps, subMat, qUngappedEndPos, dbUngappedEndPos, cigar, range, xdrop);
+        local_aln = align_local_profile(blockTrace, blockNoTrace, querySeq, queryLength, a, targetSeq, targetLength, bProfile, gaps, subMat, pos.a_end, pos.b_end, cigar, range, xdrop);
+        // std::swap(local_aln.a_start, local_aln.b_start);
+        // std::swap(local_aln.a_end, local_aln.b_end);
     }
 
-    float qcov = SmithWaterman::computeCov(local_aln.a_start, local_aln.a_end, targetLength);
-    float dbcov = SmithWaterman::computeCov(local_aln.b_start, local_aln.b_end, queryLength);
+    float qcov = SmithWaterman::computeCov(local_aln.a_start, local_aln.a_end, queryLength);
+    float dbcov = SmithWaterman::computeCov(local_aln.b_start, local_aln.b_end, targetLength);
     
     int bitScore = static_cast<int>(evaluer->computeBitScore(local_aln.score) + 0.5);
-    double evalue = evaluer->computeEvalue(local_aln.score, targetLength);
+    double evalue = evaluer->computeEvalue(local_aln.score, queryLength);
 
     // Note: 'M' signals either a match or mismatch
     char ops_char[] = {' ', 'M', '=', 'X', 'I', 'D'};
 
-    int alnLength = Matcher::computeAlnLength(local_aln.a_start, local_aln.a_end, local_aln.b_start, local_aln.b_end);
+    // int alnLength = Matcher::computeAlnLength(local_aln.a_start, local_aln.a_end, local_aln.b_start, local_aln.b_end);
+    int alnLength = 0;
 
-    std::string backtrace;
     size_t cigarLength = block_len_cigar(cigar);
     size_t aaIds = 0;
     if (cigarLength > 0) {
@@ -211,26 +281,36 @@ BlockAligner::align(
                     queryPos += length;
                     targetPos += length;
                     backtrace.append(length, 'M');
+                    sAlnCigar[c] = to_cigar_int(length, 'M');
                     break;
                 case 'I':
                     queryPos += length;
                     backtrace.append(length, 'I');
+                    sAlnCigar[c] = to_cigar_int(length, 'I');
                     break;
                 case 'D':
                     targetPos += length;
                     backtrace.append(length, 'D');
+                    sAlnCigar[c] = to_cigar_int(length, 'D');
                     break;
             }
+            alnLength += length;
         }
-        alnLength = backtrace.length();
     }
 
-    int seqIdMode = Parameters::SEQ_ID_ALN_LEN;
-    float seqId = Util::computeSeqId(seqIdMode, aaIds, targetLength, queryLength, alnLength); // * (useProfile ? 10.0 : 1.0);
-
-    return Matcher::result_t(
-        0, bitScore, qcov, dbcov, seqId, evalue, alnLength,
-        local_aln.a_start, local_aln.a_end, targetLength, local_aln.b_start, local_aln.b_end, queryLength,
-        backtrace
-    );
+    s_align r;
+    r.score1 = bitScore;
+    r.qStartPos1 = local_aln.a_start;
+    r.qEndPos1 = local_aln.a_end;
+    r.dbStartPos1 = local_aln.b_start;
+    r.dbEndPos1 = local_aln.b_end;
+    r.score2 = 0;
+    r.ref_end2 = -1;
+    r.qCov = qcov;
+    r.tCov = dbcov;
+    r.cigar = sAlnCigar;
+    r.cigarLen = cigarLength;
+    r.evalue = evalue;
+    r.identicalAACnt = aaIds;
+    return r;
 }

@@ -287,7 +287,12 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     if (kmerFound) {
                         query.Result.diag = query.Query.kmerPosInQuery - kmer->kmerPos;
                     } else {
-                        Debug(Debug::ERROR) << "Found no matching k-mers between query and target sequence\n";
+                        Debug(Debug::ERROR) 
+                            << "Found no matching k-mers between:\n"
+                            << "- Query:  " << query.querySequenceId << "\n"
+                            << "- Target: " << query.targetSequenceID << "\n"
+                            << "- k-mer:  " << query.Query.kmer << "\n"
+                            << "- q-pos:  " << query.Query.kmerPosInQuery << "\n";
                         EXIT(EXIT_FAILURE);
                     }
                 }
@@ -353,7 +358,8 @@ int blockalign(int argc, const char **argv, const Command &command) {
                 // Debug(Debug::INFO) << std::string(targetSeqData + dbUngappedStartPos, dbUngappedEndPos - dbUngappedStartPos) << "\n";
                 // EXIT(EXIT_FAILURE);
 
-                if (aln.diagonal == (int) INVALID_DIAG || aln.startPos < 0 || aln.endPos < 0 || aln.distToDiagonal > std::max((int)querySeqLen, targetSeq.L)) {
+                // if (aln.diagonal == (int) INVALID_DIAG || aln.startPos < 0 || aln.endPos < 0 || aln.distToDiagonal > std::max((int)querySeqLen, targetSeq.L)) {
+                if (aln.diagonal == (int) INVALID_DIAG) {
                     continue;
                 }
 
@@ -361,11 +367,37 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     isBlockAlignerInit = true;
                 }
 
+                // Debug(Debug::ERROR) << querySeqData << "\t" << querySeqLen << "\n";
+                // Debug(Debug::ERROR) << targetSeqData << "\t" << targetSeq.L << "\n";
+
                 // querySeq.mapSequence(queryId, queryKey, querySeqData, querySeqLen);
                 // matcher.initQuery(&querySeq);
                 // Matcher::result_t res = matcher.getSWResult(&targetSeq, INT_MAX, false, 0, 0.0, par.evalThr, Matcher::SCORE_COV_SEQID, 0, false);
-                Matcher::result_t res = blockAligner.align(targetSeq.getSeqData(), targetSeq.L, querySeqData, querySeqLen, aln, &evaluer, xdrop);
-                res.dbKey = targetKey;
+                std::string backtrace;
+                s_align blk = blockAligner.align(
+                    targetSeqData, NULL, targetSeq.L,
+                    querySeqData, realSeq.empty() ? NULL : realSeq.c_str(), querySeqLen,
+                    -aln.diagonal,
+                    backtrace,
+                    &evaluer,
+                    xdrop
+                );
+                Matcher::result_t res(
+                    targetKey,
+                    blk.score1,
+                    blk.qCov,
+                    blk.tCov,
+                    blk.identicalAACnt / blk.cigarLen,
+                    blk.evalue,
+                    blk.cigarLen,
+                    blk.qStartPos1,
+                    blk.qEndPos1,
+                    querySeqLen,
+                    blk.dbStartPos1,
+                    blk.dbEndPos1,
+                    targetSeqLen,
+                    backtrace
+                );
                 res.queryOrfStartPos = queryKey;
                 alignmentsNum++;
 

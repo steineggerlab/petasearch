@@ -230,15 +230,23 @@ unsigned int qprof_1_len = 45026;
     aln.endPos = 0;
     aln.diagonal = 0;
     aln.distToDiagonal = 0;
-    Matcher::result_t res = blockAligner.align(s2.getSeqData(), s2.L, (const char*)qprof_1, seq_len, aln, &evaluer, 10000);
+    std::string backtrace;
+    s_align res = blockAligner.align(
+        s2.getSeqData(), NULL, s2.L,
+        (const char*)qprof_1, NULL, seq_len,
+        aln.diagonal,
+        backtrace,
+        &evaluer,
+        10000
+    );
 
-    std::cout << "Score: " << res.score << std::endl;
-    std::cout << "Eval: " << res.eval << std::endl;
-    std::cout << "qStartPos: " << res.qStartPos << std::endl;
-    std::cout << "qEnd: " << res.qEndPos << std::endl;
-    std::cout << "dbStartPos: " << res.dbStartPos << std::endl;
-    std::cout << "dbEndPos: " << res.dbEndPos << std::endl;
-    std::cout << "backtrace: " << res.backtrace << std::endl;
+    std::cout << "Score: " << res.score1 << std::endl;
+    std::cout << "Eval: " << res.evalue << std::endl;
+    std::cout << "qStartPos: " << res.qStartPos1 << std::endl;
+    std::cout << "qEnd: " << res.qEndPos1 << std::endl;
+    std::cout << "dbStartPos: " << res.dbStartPos1 << std::endl;
+    std::cout << "dbEndPos: " << res.dbEndPos1 << std::endl;
+    std::cout << "backtrace: " << backtrace << std::endl;
 
 
 
