@@ -7,20 +7,19 @@ fail() {
 }
 
 notExists() {
-	[ ! -f "$1" ]
+    [ ! -f "$1" ]
 }
 
 post_proc () {
-  STEP="$1"
-  # shellcheck disable=SC2086
-  "$MMSEQS" blockalign "${Q_DB}" "${T_DB}" "${COMP_RES}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${COMP_ALI_PAR} \
+    STEP="$1"
+    # shellcheck disable=SC2086
+    "$MMSEQS" blockalign "${Q_DB}" "${T_DB}" "${COMP_RES}" "${TMP_PATH}/${ALI_RES}_${STEP}" ${COMP_ALI_PAR} \
         || fail "computing the alignment for matched sequences failed"
 
-  # shellcheck disable=SC2086
-  "$MMSEQS" convertsraalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${ALI_RES}_${STEP}" "${TMP_PATH}/${M8_RES}_${STEP}" ${CONVERTALIS_PAR} \
-      || fail "creating  the .m8 file failed"
+    # shellcheck disable=SC2086
+    "$MMSEQS" convertsraalis "${Q_DB}" "${T_DB}" "${TMP_PATH}/${ALI_RES}_${STEP}" "${TMP_PATH}/${M8_RES}_${STEP}" ${CONVERTALIS_PAR} \
+        || fail "creating  the .m8 file failed"
 }
-
 
 #pre processing
 [ -z "$MMSEQS" ] && echo "Please set the environment variable \$MMSEQS to your MMSEQS binary." && exit 1;
@@ -40,29 +39,29 @@ FINAL_RES="$4"
 TMP_PATH="$5"
 
 # compare both k-mer tables
-# if notExists "${C_RES}"; then
+if notExists "${TMP_PATH}/comparekmertables.done"; then
     # shellcheck disable=SC2086
     "$MMSEQS" comparekmertables "${Q_DB}" "${T_DBs}" "${C_RES}" ${COMP_KMER_TABLES_PAR} \
         || fail "comparing k-mer tables failed"
-# fi
+    touch "${TMP_PATH}/comparekmertables.done"
+fi
 
 paste "${T_DBs}" "${C_RES}"  | column -s "\t" > "${TMP_PATH}/threecol.tsv"
 
 STEP=0
 # shellcheck disable=SC2034
 while IFS="$(printf "\t")" read -r TARGETABLE T_DB COMP_RES; do
-   # shellcheck disable=SC2086
-   post_proc $STEP &
-
+    # shellcheck disable=SC2086
+    post_proc $STEP &
 #  push_back "${TMP_PATH}/${M8_RES}_${STEP}"
-  STEP=$((STEP+1))
+    STEP=$((STEP+1))
 done < "${TMP_PATH}/threecol.tsv"
 wait
 
 STEP=$((STEP-1))
 : > "${FINAL_RES}" # Suppress SC2188
 for i in $(seq 0 $STEP); do
-  cat "${TMP_PATH}/${M8_RES}_${i}" >> "${FINAL_RES}"
+    cat "${TMP_PATH}/${M8_RES}_${i}" >> "${FINAL_RES}"
 done
 
 # # clear up tmp files
