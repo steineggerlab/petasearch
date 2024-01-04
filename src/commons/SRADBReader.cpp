@@ -305,7 +305,7 @@ size_t SRADBReader::getSeqLen(size_t id) {
     if (id < size - 1) {
         return (index[id + 1] - index[id]) / 2 * 3;
     } else if (id == size - 1) { // this is the last element
-        return (totalDataSize * 3 / 2 - index[id]) / 2 * 3;
+        return (totalDataSize - index[id]) / 2 * 3;
     } else { // invalid id
         Debug(Debug::ERROR) << "Invalid database read for database data file=" << dataFileName << ", database index="
                             << indexFileName << "\n";
