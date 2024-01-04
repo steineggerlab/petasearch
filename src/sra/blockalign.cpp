@@ -207,8 +207,9 @@ int blockalign(int argc, const char **argv, const Command &command) {
     size_t ungappedNum = 0;
     size_t alignmentsNum = 0;
     size_t totalPassedNum = 0;
+    size_t zeroLengthSeqs = 0;
     Debug::Progress progress(resultReader.getSize());
-#pragma omp parallel reduction(+:kmerMatch, ungappedNum, alignmentsNum, totalPassedNum)
+#pragma omp parallel reduction(+:kmerMatch, ungappedNum, alignmentsNum, totalPassedNum, zeroLengthSeqs)
     {
         unsigned int thread_idx = 0;
 #ifdef OPENMP
@@ -387,7 +388,7 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     blk.score1,
                     blk.qCov,
                     blk.tCov,
-                    blk.identicalAACnt / blk.cigarLen,
+                    blk.identicalAACnt / std::max(blk.cigarLen, 1),
                     blk.evalue,
                     blk.cigarLen,
                     blk.qStartPos1,
@@ -398,6 +399,12 @@ int blockalign(int argc, const char **argv, const Command &command) {
                     targetSeqLen,
                     backtrace
                 );
+
+                if (blk.cigarLen == 0) {
+                    zeroLengthSeqs++;
+                    continue;
+                }
+
                 res.queryOrfStartPos = queryKey;
                 alignmentsNum++;
 
@@ -461,6 +468,9 @@ int blockalign(int argc, const char **argv, const Command &command) {
     Debug(Debug::INFO) << totalPassedNum << " sequence pairs passed the thresholds";
     if (alignmentsNum > 0) {
         Debug(Debug::INFO) << " (" << ((float) totalPassedNum / (float) alignmentsNum) << " of overall calculated)";
+    }
+    if (zeroLengthSeqs > 0) {
+        Debug(Debug::WARNING) << zeroLengthSeqs << " sequences had a zero length alignment\n";
     }
     Debug(Debug::INFO) << "\n";
     size_t dbSize = querySequenceReader.getSize();
